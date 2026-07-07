@@ -654,8 +654,8 @@ function cajaBadgeClass(nombre) {
 // Color de fondo pastel según el nombre de la caja (tarjetas y selects de caja)
 function cajaColorFondo(nombre) {
   const n = (nombre || "").toLowerCase();
-  if (n.includes("luni"))  return "#ede9fe"; // lavanda pastel
-  if (n.includes("choco")) return "#f5e1cf"; // caramelo pastel
+  if (n.includes("luni"))  return "#f1b0ff"; // rosa/lila pastel
+  if (n.includes("choco")) return "#d7ffda"; // verde pastel
   return "#ffffff";
 }
 
