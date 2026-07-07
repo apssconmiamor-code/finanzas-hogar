@@ -651,6 +651,14 @@ function cajaBadgeClass(nombre) {
   return "badge-otro";
 }
 
+// Color de fondo pastel según el nombre de la caja (tarjetas y selects de caja)
+function cajaColorFondo(nombre) {
+  const n = (nombre || "").toLowerCase();
+  if (n.includes("luni"))  return "#ede9fe"; // lavanda pastel
+  if (n.includes("choco")) return "#f5e1cf"; // caramelo pastel
+  return "#ffffff";
+}
+
 function renderCajas() {
   const grid = document.getElementById("cajas-grid");
   if (cajas.length === 0) {
@@ -663,7 +671,8 @@ function renderCajas() {
     const saldoReal = calcularSaldoCaja(c.nombre);
     const saldo     = Math.max(0, saldoReal);
     const badgeClass = cajaBadgeClass(c.nombre);
-    return `<div class="caja-card" ondblclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Doble clic para ver movimientos">
+    const colorFondo = cajaColorFondo(c.nombre);
+    return `<div class="caja-card" style="background-color:${colorFondo}" ondblclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Doble clic para ver movimientos">
       <div class="caja-card-top">
         <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
       </div>
@@ -1136,7 +1145,9 @@ function poblarSelectCajas(selectId, montoMinimo = 0) {
   }
 
   sel.innerHTML = `<option value="">Selecciona una caja</option>` +
-    cajasDisp.map(c => `<option value="${c.nombre}">${c.nombre} (${c.moneda})</option>`).join("");
+    cajasDisp.map(c =>
+      `<option value="${c.nombre}" style="background-color:${cajaColorFondo(c.nombre)}">${c.nombre} (${c.moneda})</option>`
+    ).join("");
 
   if (valorPrevio && cajasDisp.find(c => c.nombre === valorPrevio)) {
     sel.value = valorPrevio;
