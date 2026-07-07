@@ -352,6 +352,35 @@ body {
 .concepto-placeholder { font-size: 13px; color: var(--text-4); padding: 12px 0; text-align: center; font-style: italic; }
 .input-predictivo { position: relative; }
 
+/* ═══════════════ SELECTOR DE CAJA CON COLOR ═══════════════ */
+/* Reemplaza visualmente al <select> nativo: iOS no pinta el fondo de las <option> */
+.caja-picker { position: relative; }
+.caja-picker-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; cursor: pointer; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.caja-picker-toggle::after {
+  content: "▾"; opacity: 0.5; font-size: 11px; flex-shrink: 0;
+}
+.caja-picker-toggle.caja-picker-placeholder { color: var(--text-4); }
+.caja-picker-panel {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 60;
+  background: var(--surface); border: 1px solid var(--border-mid);
+  border-radius: var(--r-sm); box-shadow: var(--shadow-lg);
+  max-height: 260px; overflow-y: auto; padding: 4px;
+}
+.caja-picker-panel.hidden { display: none; }
+.caja-picker-option {
+  display: block; width: 100%; text-align: left; border: none;
+  border-radius: 8px; padding: 10px 12px; margin-top: 2px;
+  font-size: 14px; font-family: var(--font); color: var(--text);
+  cursor: pointer; transition: filter 0.12s;
+}
+.caja-picker-option:first-child { margin-top: 0; }
+.caja-picker-option:hover, .caja-picker-option:active { filter: brightness(0.96); }
+.caja-picker-empty { padding: 10px 12px; font-size: 13px; color: var(--text-4); }
+
 /* ═══════════════ MODAL ═══════════════ */
 .modal {
   position: fixed; inset: 0; background: rgba(0,0,0,.4);
@@ -649,10 +678,18 @@ body {
   letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-3);
   padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border);
 }
-.proy-tabla thead th:nth-child(1) { width: 40%; }
-.proy-tabla thead th:nth-child(2) { width: 20%; text-align: right; }
-.proy-tabla thead th:nth-child(3) { width: 20%; text-align: right; }
-.proy-tabla thead th:nth-child(4) { width: 20%; text-align: center; }
+.proy-tabla thead th:nth-child(1) { width: 34%; }
+.proy-tabla thead th:nth-child(2) { width: 18%; text-align: right; }
+.proy-tabla thead th:nth-child(3) { width: 18%; text-align: right; }
+.proy-tabla thead th:nth-child(4) { width: 18%; text-align: center; }
+.proy-tabla thead th:nth-child(5) { width: 12%; }
+.btn-modificar-fila {
+  background: var(--bg); border: 1px solid var(--border-mid);
+  border-radius: 8px; padding: 5px 9px; font-size: 11px;
+  font-weight: 600; color: var(--text-2); cursor: pointer;
+  font-family: var(--font); white-space: nowrap; transition: all 0.12s;
+}
+.btn-modificar-fila:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .proy-tabla-row { border-bottom: 1px solid var(--border); }
 .proy-tabla-row:last-child { border-bottom: none; }
 .proy-tabla-row:hover td { background: var(--bg); }
@@ -827,7 +864,11 @@ body {
   .main-content { padding-top: 0; }
   .proy-4m-grid { grid-template-columns: repeat(2,1fr); }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }
-  .resumen-bar { grid-template-columns: 1fr 1fr; }
+  /* Ingresos/Gastos/Balance siempre en una sola fila, incluso en móvil */
+  .resumen-bar { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .resumen-item { padding: 10px 8px; gap: 2px; }
+  .resumen-label { font-size: 9px; letter-spacing: 0.3px; }
+  .resumen-valor { font-size: 14px; letter-spacing: -0.2px; }
   .prestamos-resumen { grid-template-columns: 1fr; gap: 8px; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .cat-btn-group { grid-template-columns: 1fr 1fr; }
@@ -837,7 +878,10 @@ body {
 @media (max-width: 400px) {
   .proy-4m-grid { grid-template-columns: 1fr 1fr; }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }
-  .resumen-bar { grid-template-columns: 1fr; }
+  .resumen-bar { grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .resumen-item { padding: 8px 6px; }
+  .resumen-label { font-size: 8px; }
+  .resumen-valor { font-size: 12px; }
   .kpi-grid { grid-template-columns: 1fr; }
   .cajas-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
 }

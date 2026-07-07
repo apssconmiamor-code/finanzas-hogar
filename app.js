@@ -654,8 +654,8 @@ function cajaBadgeClass(nombre) {
 // Color de fondo pastel según el nombre de la caja (tarjetas y selects de caja)
 function cajaColorFondo(nombre) {
   const n = (nombre || "").toLowerCase();
-  if (n.includes("luni"))  return "#f1b0ff"; // rosa/lila pastel
-  if (n.includes("choco")) return "#d7ffda"; // verde pastel
+  if (n.includes("luni"))  return "rgba(241,176,255,0.4)"; // rosa/lila pastel, 60% mas transparente
+  if (n.includes("choco")) return "rgba(215,255,218,0.4)"; // verde pastel, 60% mas transparente
   return "#ffffff";
 }
 
@@ -672,7 +672,7 @@ function renderCajas() {
     const saldo     = Math.max(0, saldoReal);
     const badgeClass = cajaBadgeClass(c.nombre);
     const colorFondo = cajaColorFondo(c.nombre);
-    return `<div class="caja-card" style="background-color:${colorFondo}" ondblclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Doble clic para ver movimientos">
+    return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
       <div class="caja-card-top">
         <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
       </div>
@@ -1099,6 +1099,7 @@ function abrirEditarMovimiento(id) {
   if (m.categoria !== "Transferencia") {
     document.getElementById("mov-caja").value  = m.caja;
     document.getElementById("mov-monto").value = Math.abs(m.monto).toLocaleString("es-CO");
+    refrescarSelectorCaja("mov-caja");
   }
 
   document.getElementById("modal-movimiento").dataset.editId = id;
@@ -1152,7 +1153,73 @@ function poblarSelectCajas(selectId, montoMinimo = 0) {
   if (valorPrevio && cajasDisp.find(c => c.nombre === valorPrevio)) {
     sel.value = valorPrevio;
   }
+
+  // El <select> nativo no respeta el color de fondo de las <option> en iOS,
+  // así que se arma un selector propio encima para que los colores sí se vean.
+  refrescarSelectorCaja(selectId);
 }
+
+// ---- SELECTOR DE CAJA CON COLOR (reemplazo visual del <select> nativo) ----
+
+function refrescarSelectorCaja(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+
+  let picker = sel.nextElementSibling;
+  if (!picker || !picker.classList.contains("caja-picker")) {
+    sel.style.display = "none";
+    picker = document.createElement("div");
+    picker.className = "caja-picker";
+    picker.innerHTML = `
+      <button type="button" class="caja-picker-toggle input caja-picker-placeholder">Selecciona una caja</button>
+      <div class="caja-picker-panel hidden"></div>
+    `;
+    sel.insertAdjacentElement("afterend", picker);
+
+    picker.querySelector(".caja-picker-toggle").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const panel = picker.querySelector(".caja-picker-panel");
+      const abierto = !panel.classList.contains("hidden");
+      document.querySelectorAll(".caja-picker-panel").forEach(p => p.classList.add("hidden"));
+      panel.classList.toggle("hidden", abierto);
+    });
+  }
+
+  const toggle = picker.querySelector(".caja-picker-toggle");
+  const panel  = picker.querySelector(".caja-picker-panel");
+
+  const opciones = Array.from(sel.options).filter(o => o.value !== "");
+  panel.innerHTML = opciones.length
+    ? opciones.map(o => `
+        <button type="button" class="caja-picker-option" data-value="${o.value.replace(/"/g, "&quot;")}"
+          style="background-color:${cajaColorFondo(o.value)}">${o.textContent}</button>
+      `).join("")
+    : `<div class="caja-picker-empty">Sin cajas disponibles</div>`;
+
+  panel.querySelectorAll(".caja-picker-option").forEach(btn => {
+    btn.addEventListener("click", () => {
+      sel.value = btn.dataset.value;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+      toggle.textContent = btn.textContent;
+      toggle.classList.remove("caja-picker-placeholder");
+      panel.classList.add("hidden");
+    });
+  });
+
+  const opcionActual = opciones.find(o => o.value === sel.value);
+  if (opcionActual) {
+    toggle.textContent = opcionActual.textContent;
+    toggle.classList.remove("caja-picker-placeholder");
+  } else {
+    toggle.textContent = "Selecciona una caja";
+    toggle.classList.add("caja-picker-placeholder");
+  }
+}
+
+// Cierra cualquier panel de selector de caja abierto al hacer clic afuera
+document.addEventListener("click", () => {
+  document.querySelectorAll(".caja-picker-panel").forEach(p => p.classList.add("hidden"));
+});
 
 function poblarFiltrosCajas() {
   // categorias son fijas, nada que poblar dinámicamente
@@ -1183,6 +1250,9 @@ function limpiarFormMov() {
   document.getElementById("mov-caja-destino").value = "";
   document.getElementById("mov-monto-transferencia").value = "";
   document.getElementById("mov-descripcion").value = "";
+  refrescarSelectorCaja("mov-caja");
+  refrescarSelectorCaja("mov-caja-origen");
+  refrescarSelectorCaja("mov-caja-destino");
 
   // Limpiar fotos pendientes
   pendingFotos = [];
@@ -1677,6 +1747,19 @@ function abrirConfigMes(mes) {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); }, { once: true });
 }
 
+// Abre el modal de configuración del mes activo y enfoca el input del concepto elegido
+function abrirModificarConcepto(concepto) {
+  abrirConfigMes(proyMesActivo);
+  setTimeout(() => {
+    const input = document.querySelector(`#modal-config-mes-body [data-concepto="${CSS.escape(concepto)}"]`);
+    if (input) {
+      input.focus();
+      input.select();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, 60);
+}
+
 // ---- TABLA COMPARACIÓN ----
 
 function renderTablaComparacion(movsDelMes) {
@@ -1719,7 +1802,7 @@ function renderTablaComparacion(movsDelMes) {
   });
 
   if (filas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-light)">
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-light)">
       No hay datos — agrega un presupuesto para ver la comparación.</td></tr>`;
     return;
   }
@@ -1764,6 +1847,9 @@ function renderTablaComparacion(movsDelMes) {
           <span class="pct-label ${estadoClass}" style="font-size:11px">${pctLabel}</span>
           ${desviacion !== 0 ? `<span class="proy-desv ${desvClass}" style="font-size:10px">${desvSigno}${formatMonto(Math.abs(desviacion))}</span>` : ""}
         </div>
+      </td>
+      <td>
+        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}')">Modificar</button>
       </td>
     </tr>`;
   }).join("");
