@@ -654,8 +654,8 @@ function cajaBadgeClass(nombre) {
 // Color de fondo pastel según el nombre de la caja (tarjetas y selects de caja)
 function cajaColorFondo(nombre) {
   const n = (nombre || "").toLowerCase();
-  if (n.includes("luni"))  return "rgba(241,176,255,0.4)"; // rosa/lila pastel, 60% mas transparente
-  if (n.includes("choco")) return "rgba(215,255,218,0.4)"; // verde pastel, 60% mas transparente
+  if (n.includes("luni"))  return "rgba(241,176,255,0.1)"; // rosa/lila pastel, muy transparente
+  if (n.includes("choco")) return "rgba(215,255,218,0.1)"; // verde pastel, muy transparente
   return "#ffffff";
 }
 
@@ -1749,15 +1749,33 @@ function abrirConfigMes(mes) {
 
 // Abre el modal de configuración del mes activo y enfoca el input del concepto elegido
 function abrirModificarConcepto(concepto) {
-  abrirConfigMes(proyMesActivo);
-  setTimeout(() => {
-    const input = document.querySelector(`#modal-config-mes-body [data-concepto="${CSS.escape(concepto)}"]`);
-    if (input) {
-      input.focus();
-      input.select();
-      input.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, 60);
+  const modal  = document.getElementById("modal-modificar-concepto");
+  const nombre = document.getElementById("modificar-concepto-nombre");
+  const input  = document.getElementById("modificar-concepto-monto");
+  if (!modal) return;
+
+  const mes = proyMesActivo;
+  const gastosMes = getGastosMesParaEditor(mes);
+  const valorActual = gastosMes[concepto] || 0;
+
+  nombre.textContent = `${ICONOS[concepto] || "📌"} ${concepto}`;
+  input.value = valorActual ? Number(valorActual).toLocaleString("es-CO") : "";
+  modal.classList.remove("hidden");
+  setTimeout(() => { input.focus(); input.select(); }, 60);
+
+  document.getElementById("btn-guardar-modificar-concepto").onclick = () => {
+    const nuevoValor = evaluarMonto(input.value);
+    const nuevosGastos = { ...gastosMes };
+    if (nuevoValor > 0) nuevosGastos[concepto] = nuevoValor;
+    else delete nuevosGastos[concepto];
+
+    setGastosMes(mes, Object.keys(nuevosGastos).length ? nuevosGastos : null);
+    modal.classList.add("hidden");
+    renderProyeccion();
+    SyncManager.mostrarToast(`✅ ${concepto} actualizado`);
+  };
+
+  document.getElementById("btn-cancelar-modificar-concepto").onclick = () => modal.classList.add("hidden");
 }
 
 // ---- TABLA COMPARACIÓN ----
@@ -1849,7 +1867,7 @@ function renderTablaComparacion(movsDelMes) {
         </div>
       </td>
       <td>
-        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}')">Modificar</button>
+        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}')">✏️ Modificar</button>
       </td>
     </tr>`;
   }).join("");

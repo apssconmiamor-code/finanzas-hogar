@@ -173,6 +173,19 @@
           </div>
           <button class="btn-primary" id="btn-nuevo-movimiento">+ Nuevo</button>
         </div>
+        <div class="filtros-bar">
+          <input id="filtro-mes" type="month" class="input-sm"/>
+          <select id="filtro-concepto" class="input-sm">
+            <option value="">Todas las categorías</option>
+            <option value="Ingreso">💰 Ingreso</option>
+            <option value="Gasto fijo">📌 Gasto fijo</option>
+            <option value="Gasto variable">🔀 Gasto variable</option>
+            <option value="Transferencia">🔁 Transferencia</option>
+          </select>
+          <!-- hidden compat -->
+          <select id="filtro-caja" class="hidden"></select>
+          <select id="filtro-tipo" class="hidden"></select>
+        </div>
         <div id="resumen-bar" class="resumen-bar">
           <div class="resumen-item ingreso">
             <span class="resumen-label">Ingresos</span>
@@ -186,19 +199,6 @@
             <span class="resumen-label">Balance</span>
             <span id="total-balance" class="resumen-valor">$0</span>
           </div>
-        </div>
-        <div class="filtros-bar">
-          <input id="filtro-mes" type="month" class="input-sm"/>
-          <select id="filtro-concepto" class="input-sm">
-            <option value="">Todas las categorías</option>
-            <option value="Ingreso">💰 Ingreso</option>
-            <option value="Gasto fijo">📌 Gasto fijo</option>
-            <option value="Gasto variable">🔀 Gasto variable</option>
-            <option value="Transferencia">🔁 Transferencia</option>
-          </select>
-          <!-- hidden compat -->
-          <select id="filtro-caja" class="hidden"></select>
-          <select id="filtro-tipo" class="hidden"></select>
         </div>
         <div id="movimientos-list" class="movimientos-list">
           <div class="loading-state">Cargando…</div>
@@ -601,6 +601,22 @@
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-cancelar-config-mes">Cancelar</button>
           <button class="btn-primary" id="btn-guardar-config-mes">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal modificar un solo concepto de la proyección -->
+    <div id="modal-modificar-concepto" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title">Modificar concepto</h3>
+        <p class="modal-subtitle" id="modificar-concepto-nombre"></p>
+        <div class="form-group">
+          <label>Monto estimado</label>
+          <input id="modificar-concepto-monto" type="text" inputmode="decimal" placeholder="0" class="input pres-input"/>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-modificar-concepto">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-modificar-concepto">Guardar</button>
         </div>
       </div>
     </div>
