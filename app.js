@@ -2252,6 +2252,7 @@ function setupTopbarMenu() {
 
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
+    document.getElementById("recordatorios-panel")?.classList.add("hidden");
     const abierto = !dropdown.classList.contains("hidden");
     dropdown.classList.toggle("hidden", abierto);
     btn.setAttribute("aria-expanded", String(!abierto));

@@ -98,6 +98,10 @@
           <div id="sync-badge-wrap" class="sync-badge-wrap hidden">
             <span id="sync-badge" class="sync-badge">0</span>
           </div>
+          <button class="btn-recordatorios hidden" id="btn-recordatorios-badge" title="Recordatorios guardados">
+            📝<span id="recordatorios-count" class="recordatorios-count-badge">0</span>
+          </button>
+          <div id="recordatorios-panel" class="recordatorios-panel hidden"></div>
           <img id="topbar-avatar" src="" alt="" class="topbar-avatar"/>
           <button id="btn-menu" class="btn-menu-dots" aria-label="Menú" aria-expanded="false">
             <span></span><span></span><span></span>
@@ -135,14 +139,8 @@
             <h2 class="section-title">Cuentas</h2>
             <p class="section-sub" id="cajas-saludo">Tus cuentas y billeteras</p>
           </div>
-          <div class="section-header-actions">
-            <button class="btn-recordatorios hidden" id="btn-recordatorios-badge" title="Recordatorios guardados">
-              📝<span id="recordatorios-count" class="recordatorios-count-badge">0</span>
-            </button>
-            <button class="btn-primary" id="btn-nueva-caja">+ Caja</button>
-          </div>
+          <button class="btn-primary" id="btn-nueva-caja">+ Caja</button>
         </div>
-        <div id="recordatorios-panel" class="recordatorios-panel hidden"></div>
         <div id="cajas-grid" class="cajas-grid">
           <div class="loading-state">Cargando…</div>
         </div>

@@ -176,6 +176,7 @@ function renderRecordatorioBadge() {
 function toggleRecordatoriosPanel() {
   const panel = document.getElementById("recordatorios-panel");
   if (!panel) return;
+  document.getElementById("dropdown-menu")?.classList.add("hidden");
   const abierto = !panel.classList.contains("hidden");
   panel.classList.toggle("hidden", abierto);
   if (!abierto) renderRecordatoriosPanel();
