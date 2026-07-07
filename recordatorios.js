@@ -240,6 +240,7 @@ let recordatorioMediaData = null; // { data: dataURL, type: mime, kind: "imagen"
 let recMediaRecorder = null;
 let recAudioChunks = [];
 let recGrabando = false;
+let recAudioStream = null; // se reutiliza mientras el modal está abierto para no repetir el permiso
 
 function abrirModalCrearRecordatorio() {
   document.getElementById("recordatorio-texto").value = "";
@@ -254,6 +255,10 @@ function cerrarModalCrearRecordatorio() {
   if (recGrabando && recMediaRecorder) {
     try { recMediaRecorder.stop(); } catch {}
     recGrabando = false;
+  }
+  if (recAudioStream) {
+    recAudioStream.getTracks().forEach(t => t.stop());
+    recAudioStream = null;
   }
   document.getElementById("modal-recordatorio-crear")?.classList.add("hidden");
 }
@@ -278,13 +283,19 @@ async function toggleGrabacionAudio() {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Reutiliza el stream si ya lo teníamos abierto en esta misma sesión del
+      // modal, para no volver a pedir permiso de micrófono en cada grabación.
+      const streamActivo = recAudioStream?.getAudioTracks().some(t => t.readyState === "live");
+      if (!streamActivo) {
+        recAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       recAudioChunks = [];
-      recMediaRecorder = new MediaRecorder(stream);
+      recMediaRecorder = new MediaRecorder(recAudioStream);
       recMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recAudioChunks.push(e.data); };
       recMediaRecorder.onstop = () => {
         const blob = new Blob(recAudioChunks, { type: recMediaRecorder.mimeType || "audio/webm" });
-        stream.getTracks().forEach(t => t.stop());
+        // El stream NO se detiene aquí a propósito: se mantiene vivo mientras
+        // el modal siga abierto por si el usuario graba de nuevo.
         const reader = new FileReader();
         reader.onload = (e) => {
           recordatorioMediaData = { data: e.target.result, type: blob.type, kind: "audio" };

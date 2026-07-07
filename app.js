@@ -116,6 +116,8 @@ const GASTOS_VARIABLES = [
   "Otros"
 ];
 
+const FUENTES_INGRESO = ["SURA", "MEDFAN", "TATEQUIETO", "OTRO"];
+
 const ICONOS = {
   // Ingresos
   "Ingreso": "💰",
@@ -701,7 +703,13 @@ function abrirDetalleCaja(nombre) {
 
   const movs = movimientos
     .filter(m => m.caja === nombre)
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    .sort((a, b) => {
+      const porFecha = b.fecha.localeCompare(a.fecha);
+      if (porFecha !== 0) return porFecha;
+      const idA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+      const idB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+      return idB - idA;
+    });
 
   const totalEntradas = movs.filter(m =>
     m.categoria === "Ingreso" || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"))
@@ -764,7 +772,14 @@ function renderMovimientos() {
     return true;
   });
 
-  filtrados.sort((a, b) => b.fecha.localeCompare(a.fecha));
+  filtrados.sort((a, b) => {
+    const porFecha = b.fecha.localeCompare(a.fecha);
+    if (porFecha !== 0) return porFecha;
+    // Mismo día: el último ingresado (id más reciente) va primero
+    const idA = parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+    const idB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+    return idB - idA;
+  });
 
   const subEl = document.getElementById("mov-section-sub");
   if (subEl) subEl.textContent = `${filtrados.length} movimiento${filtrados.length !== 1 ? "s" : ""}`;
@@ -1121,13 +1136,58 @@ function abrirEditarMovimiento(id) {
 
 // ---- BORRAR MOVIMIENTO ----
 
+// Encuentra la otra pata de una transferencia (egreso <-> ingreso)
+function encontrarParTransferencia(m) {
+  if (!m || m.categoria !== "Transferencia") return null;
+
+  let candidatos;
+  if (m.concepto.startsWith("Transferencia → ")) {
+    const destino = m.concepto.slice("Transferencia → ".length);
+    candidatos = movimientos.filter(x =>
+      x.id !== m.id && x.categoria === "Transferencia" &&
+      x.caja === destino && x.concepto === `Transferencia ← ${m.caja}`
+    );
+  } else if (m.concepto.startsWith("Transferencia ← ")) {
+    const origen = m.concepto.slice("Transferencia ← ".length);
+    candidatos = movimientos.filter(x =>
+      x.id !== m.id && x.categoria === "Transferencia" &&
+      x.caja === origen && x.concepto === `Transferencia → ${m.caja}`
+    );
+  } else {
+    return null;
+  }
+
+  if (candidatos.length === 0) return null;
+  if (candidatos.length === 1) return candidatos[0];
+
+  // Varias transferencias iguales el mismo día: desempatar por el id más cercano
+  // (ambas patas se crean con pocos milisegundos de diferencia)
+  const idNum = parseInt(String(m.id).replace(/\D/g, ""), 10);
+  candidatos.sort((a, b) =>
+    Math.abs(parseInt(String(a.id).replace(/\D/g, ""), 10) - idNum) -
+    Math.abs(parseInt(String(b.id).replace(/\D/g, ""), 10) - idNum)
+  );
+  return candidatos[0];
+}
+
 async function borrarMovimiento(id) {
-  if (!confirm("¿Seguro que quieres borrar este movimiento?")) return;
+  const m   = movimientos.find(x => x.id === id);
+  const par = encontrarParTransferencia(m);
+
+  const mensaje = par
+    ? "¿Seguro que quieres borrar esta transferencia? Se eliminarán el egreso y el ingreso."
+    : "¿Seguro que quieres borrar este movimiento?";
+  if (!confirm(mensaje)) return;
+
+  const idsABorrar = par ? [id, par.id] : [id];
+
   try {
-    await Sheets.borrarMovimiento(id);
+    for (const idBorrar of idsABorrar) {
+      await Sheets.borrarMovimiento(idBorrar);
+    }
 
     if (!navigator.onLine) {
-      movimientos = movimientos.filter(m => m.id !== id);
+      movimientos = movimientos.filter(x => !idsABorrar.includes(x.id));
       localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
       renderMovimientos();
       renderCajas();
@@ -1567,7 +1627,7 @@ function renderIngresosMesPanel(mes) {
 
   const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   const fuentes = getIngresosMes(mes);
-  const FUENTES = ["SURA", "MEDFAN", "TATEQUIETO", "OTRO"];
+  const FUENTES = FUENTES_INGRESO;
 
   panel.innerHTML = `
     <div class="proy-ingresos-header">
@@ -1697,7 +1757,7 @@ function abrirConfigMes(mes) {
 
   const fuentes  = getIngresosMesParaEditor(mes);
   const gastosMes = getGastosMesParaEditor(mes);
-  const FUENTES  = ["SURA", "MEDFAN", "TATEQUIETO", "OTRO"];
+  const FUENTES  = FUENTES_INGRESO;
   const todasCat = [
     ...GASTOS_FIJOS.map(c => ({ categoria: "Gasto fijo", concepto: c })),
     ...GASTOS_VARIABLES.map(c => ({ categoria: "Gasto variable", concepto: c })),
@@ -1830,13 +1890,15 @@ function renderTablaComparacion(movsDelMes) {
       .map(p => ({ categoria: p.categoria, concepto: p.concepto, estimado: p.montoEstimado, real: realesPorConcepto[p.concepto] || 0 }));
   }
 
-  // Ingresos estimados del mes (fuentes) — van primero en la tabla
+  // Ingresos estimados del mes (fuentes) — van primero en la tabla, siempre las 4 aunque estén en $0
   const ingresosMes = getIngresosMesParaEditor(proyMesActivo);
-  Object.entries(ingresosMes)
-    .filter(([, v]) => v > 0)
-    .forEach(([fuente, estimado]) => {
-      filas.push({ categoria: "Ingreso", concepto: fuente, estimado, real: realesPorConcepto[fuente] || 0 });
+  FUENTES_INGRESO.forEach(fuente => {
+    filas.push({
+      categoria: "Ingreso", concepto: fuente,
+      estimado: ingresosMes[fuente] || 0,
+      real: realesPorConcepto[fuente] || 0
     });
+  });
 
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
     if (!filas.find(f => f.concepto === concepto)) {
