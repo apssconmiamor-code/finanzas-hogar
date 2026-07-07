@@ -8,13 +8,26 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="apple-mobile-web-app-title" content="Finanzas"/>
-  <meta name="theme-color" content="#ffffff"/>
+  <meta name="theme-color" content="#f6f5f3"/>
   <title>Finanzas Hogar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+  <script>
+    // Bloqueo de zoom (pinch + doble-tap) para uso como PWA en pantalla de inicio
+    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    document.addEventListener("gesturechange", (e) => e.preventDefault());
+    document.addEventListener("gestureend", (e) => e.preventDefault());
+    document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    let __lastTouchEnd = 0;
+    document.addEventListener("touchend", (e) => {
+      const now = Date.now();
+      if (now - __lastTouchEnd <= 300) e.preventDefault();
+      __lastTouchEnd = now;
+    }, { passive: false });
+  </script>
 
   <!-- ═══════════════ LOGIN ═══════════════ -->
   <div id="login-screen" class="login-screen">
@@ -96,15 +109,14 @@
               <span class="dd-icon">📈</span> Resumen
             </button>
             <div class="dropdown-divider"></div>
-            <button class="dropdown-item" id="dd-sync">
-              <span class="dd-icon">🔄</span> Sincronizar todo
-            </button>
             <button class="dropdown-item dropdown-item-danger" id="dd-logout">
               <span class="dd-icon">🚪</span> Cerrar sesión
             </button>
             <button class="dropdown-item" id="dd-login" style="display:none">
               <span class="dd-icon">🔑</span> Iniciar sesión
             </button>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-version" id="dropdown-version"></div>
           </div>
         </div>
       </div>

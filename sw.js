@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Hogar
 // =============================================
 
-const CACHE_NAME = "finanzas-v12";
+const CACHE_NAME = "finanzas-v13";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
   "./config.js",
   "./manifest.json",
   "./icon.png",
-  "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+  "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap"
 ];
 
 // ---- INSTALL: cachea todos los assets estáticos ----
@@ -114,10 +114,5 @@ self.addEventListener("sync", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
-  }
-  if (event.data?.type === "CLEAR_APP_CACHE") {
-    event.waitUntil(
-      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-    );
   }
 });

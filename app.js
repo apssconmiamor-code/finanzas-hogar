@@ -167,9 +167,14 @@ window.onload = () => {
   const userRaw = localStorage.getItem("guser");
   const token   = localStorage.getItem("gtoken");
 
+  let usuarioValido = null;
   if (userRaw) {
+    try { usuarioValido = JSON.parse(userRaw); } catch (e) { usuarioValido = null; }
+  }
+
+  if (usuarioValido) {
     // Usuario guardado → app inmediata con caché, sin ningún popup de Google
-    currentUser = JSON.parse(userRaw);
+    currentUser = usuarioValido;
     if (token) Sheets.setToken(token);
     mostrarApp();
   } else {
@@ -2093,11 +2098,13 @@ if (document.readyState === "loading") {
 function setupTopbarMenu() {
   const btn      = document.getElementById("btn-menu");
   const dropdown = document.getElementById("dropdown-menu");
-  const ddSync   = document.getElementById("dd-sync");
   const ddLogout = document.getElementById("dd-logout");
   const ddLogin  = document.getElementById("dd-login");
+  const ddVersion = document.getElementById("dropdown-version");
 
   if (!btn) return;
+
+  if (ddVersion) ddVersion.textContent = `Finanzas Hogar v${CONFIG.VERSION}`;
 
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -2114,11 +2121,6 @@ function setupTopbarMenu() {
 
   dropdown.addEventListener("click", (e) => e.stopPropagation());
 
-  ddSync.addEventListener("click", () => {
-    dropdown.classList.add("hidden");
-    sincronizarForzado();
-  });
-
   ddLogout.addEventListener("click", () => {
     dropdown.classList.add("hidden");
     document.getElementById("btn-logout").click();
@@ -2134,7 +2136,6 @@ function actualizarDropdownUsuario() {
   const info     = document.getElementById("dropdown-user-info");
   const ddLogout = document.getElementById("dd-logout");
   const ddLogin  = document.getElementById("dd-login");
-  const ddSync   = document.getElementById("dd-sync");
 
   if (currentUser) {
     const initials = currentUser.name
@@ -2152,7 +2153,6 @@ function actualizarDropdownUsuario() {
     `;
     ddLogout.style.display = "";
     ddLogin.style.display  = "none";
-    ddSync.style.display   = "";
   } else {
     info.innerHTML = `
       <div style="font-size:13px;color:var(--text-light);width:100%;text-align:center">
@@ -2161,7 +2161,6 @@ function actualizarDropdownUsuario() {
     `;
     ddLogout.style.display = "none";
     ddLogin.style.display  = "";
-    ddSync.style.display   = "none";
   }
 }
 
@@ -2578,26 +2577,3 @@ async function guardarFotosMovimiento(fecha, concepto, caja) {
   });
 }
 
-// =============================================
-// SINCRONIZACIÓN FORZADA — limpia caché y recarga
-// =============================================
-
-async function sincronizarForzado() {
-  SyncManager.mostrarToast("🔄 Limpiando caché y recargando…");
-
-  // Borrar caches de datos (preservar auth)
-  [
-    "cache_cajas", "cache_movimientos", "cache_presupuesto",
-    "cache_cronologia", "cache_proyeccion",
-    "ingresos_por_mes", "gastos_por_mes", "proy_meses_list",
-    "cache_prestamos", "cache_compras"
-  ].forEach(k => localStorage.removeItem(k));
-
-  // Pedir al SW que limpie los archivos estáticos cacheados
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: "CLEAR_APP_CACHE" });
-  }
-
-  // Breve pausa para que el SW procese, luego recargar página fresca
-  setTimeout(() => location.reload(), 800);
-}
