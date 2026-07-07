@@ -1747,29 +1747,34 @@ function abrirConfigMes(mes) {
   modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); }, { once: true });
 }
 
-// Abre el modal de configuración del mes activo y enfoca el input del concepto elegido
-function abrirModificarConcepto(concepto) {
+// Abre un modal chico para editar el estimado de un solo concepto (gasto o ingreso)
+function abrirModificarConcepto(concepto, categoria) {
   const modal  = document.getElementById("modal-modificar-concepto");
   const nombre = document.getElementById("modificar-concepto-nombre");
   const input  = document.getElementById("modificar-concepto-monto");
   if (!modal) return;
 
-  const mes = proyMesActivo;
-  const gastosMes = getGastosMesParaEditor(mes);
-  const valorActual = gastosMes[concepto] || 0;
+  const mes     = proyMesActivo;
+  const esIngreso = categoria === "Ingreso";
+  const datosActuales = esIngreso ? getIngresosMesParaEditor(mes) : getGastosMesParaEditor(mes);
+  const valorActual = datosActuales[concepto] || 0;
 
-  nombre.textContent = `${ICONOS[concepto] || "📌"} ${concepto}`;
+  nombre.textContent = `${ICONOS[concepto] || (esIngreso ? "💰" : "📌")} ${concepto}`;
   input.value = valorActual ? Number(valorActual).toLocaleString("es-CO") : "";
   modal.classList.remove("hidden");
   setTimeout(() => { input.focus(); input.select(); }, 60);
 
   document.getElementById("btn-guardar-modificar-concepto").onclick = () => {
     const nuevoValor = evaluarMonto(input.value);
-    const nuevosGastos = { ...gastosMes };
-    if (nuevoValor > 0) nuevosGastos[concepto] = nuevoValor;
-    else delete nuevosGastos[concepto];
+    const nuevosDatos = { ...datosActuales };
+    if (nuevoValor > 0) nuevosDatos[concepto] = nuevoValor;
+    else delete nuevosDatos[concepto];
 
-    setGastosMes(mes, Object.keys(nuevosGastos).length ? nuevosGastos : null);
+    if (esIngreso) {
+      setIngresosMes(mes, nuevosDatos);
+    } else {
+      setGastosMes(mes, Object.keys(nuevosDatos).length ? nuevosDatos : null);
+    }
     modal.classList.add("hidden");
     renderProyeccion();
     SyncManager.mostrarToast(`✅ ${concepto} actualizado`);
@@ -1786,7 +1791,7 @@ function renderTablaComparacion(movsDelMes) {
 
   const realesPorConcepto = {};
   movsDelMes
-    .filter(m => m.categoria !== "Ingreso" && m.categoria !== "Transferencia")
+    .filter(m => m.categoria !== "Transferencia")
     .forEach(m => {
       realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
     });
@@ -1812,6 +1817,14 @@ function renderTablaComparacion(movsDelMes) {
       .map(p => ({ categoria: p.categoria, concepto: p.concepto, estimado: p.montoEstimado, real: realesPorConcepto[p.concepto] || 0 }));
   }
 
+  // Ingresos estimados del mes (fuentes) — van primero en la tabla
+  const ingresosMes = getIngresosMesParaEditor(proyMesActivo);
+  Object.entries(ingresosMes)
+    .filter(([, v]) => v > 0)
+    .forEach(([fuente, estimado]) => {
+      filas.push({ categoria: "Ingreso", concepto: fuente, estimado, real: realesPorConcepto[fuente] || 0 });
+    });
+
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
     if (!filas.find(f => f.concepto === concepto)) {
       const mov = movimientos.find(m => m.concepto === concepto);
@@ -1826,6 +1839,9 @@ function renderTablaComparacion(movsDelMes) {
   }
 
   filas.sort((a, b) => {
+    const aIngreso = a.categoria === "Ingreso";
+    const bIngreso = b.categoria === "Ingreso";
+    if (aIngreso !== bIngreso) return aIngreso ? -1 : 1;
     if (a.estimado > 0 && b.estimado === 0) return -1;
     if (a.estimado === 0 && b.estimado > 0) return 1;
     return a.categoria.localeCompare(b.categoria);
@@ -1867,7 +1883,7 @@ function renderTablaComparacion(movsDelMes) {
         </div>
       </td>
       <td>
-        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}')">✏️ Modificar</button>
+        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️ Modificar</button>
       </td>
     </tr>`;
   }).join("");
