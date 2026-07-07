@@ -296,6 +296,17 @@ async function mostrarApp() {
   cargarTodo().catch(() => {
     // offline o token vencido — la UI ya está lista con la caché
   });
+
+  // Recordatorios: cargar badge + preguntar si quiere dejar uno nuevo
+  if (typeof cargarRecordatorios === "function") {
+    const cacheR = localStorage.getItem("cache_recordatorios");
+    if (cacheR) { try { recordatorios = JSON.parse(cacheR); } catch {} }
+    renderRecordatorioBadge();
+    cargarRecordatorios();
+  }
+  if (typeof mostrarPromptRecordatorio === "function") {
+    setTimeout(mostrarPromptRecordatorio, 500);
+  }
 }
 
 // ---- NAVEGACIÓN ----
@@ -672,9 +683,11 @@ function renderCajas() {
     const saldo     = Math.max(0, saldoReal);
     const badgeClass = cajaBadgeClass(c.nombre);
     const colorFondo = cajaColorFondo(c.nombre);
+    const requiereAjuste = saldoReal < 0;
     return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
       <div class="caja-card-top">
         <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
+        ${requiereAjuste ? `<span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>` : ""}
       </div>
       <div class="caja-nombre">${c.nombre}</div>
       <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
