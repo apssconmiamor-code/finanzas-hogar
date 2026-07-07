@@ -297,7 +297,19 @@ async function toggleGrabacionAudio() {
       btn.classList.add("grabando");
       if (status) status.textContent = "Grabando…";
     } catch (err) {
-      alert("No se pudo acceder al micrófono: " + err.message);
+      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        alert(
+          "El navegador tiene bloqueado el micrófono para esta página.\n\n" +
+          "En iPhone: toca el ícono \"aA\" en la barra de direcciones → " +
+          "Configuración del sitio web → Micrófono → Permitir. Si no aparece esa opción, " +
+          "ve a Ajustes del iPhone → Safari → Micrófono y revisa que no esté en \"Denegar\".\n\n" +
+          "Luego vuelve a intentar."
+        );
+      } else if (err.name === "NotFoundError") {
+        alert("No se encontró un micrófono disponible en este dispositivo.");
+      } else {
+        alert("No se pudo acceder al micrófono: " + err.message);
+      }
     }
   } else {
     recMediaRecorder.stop();
