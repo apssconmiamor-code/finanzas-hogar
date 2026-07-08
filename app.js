@@ -820,7 +820,7 @@ function renderMovimientos() {
       ? `<span class="mov-desc-inline">· ${m.descripcion}</span>` : "";
     const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
     const fotoHTML = primeraFoto
-      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();window.open('${primeraFoto}','_blank')">📎</span>`
+      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')">📎</span>`
       : "";
 
     return `<div class="mov-card">
@@ -1167,15 +1167,43 @@ function abrirEditarMovimiento(id) {
 }
 
 // Muestra las fotos ya guardadas en Drive (solo lectura) al editar un movimiento
-function renderFotosExistentes(recibo) {
+// Abre una foto adjunta en pestaña nueva (descarga autenticada, no el link directo de Drive)
+async function abrirFotoMovimiento(url) {
+  const nuevaPestana = window.open("", "_blank");
+  try {
+    const blobUrl = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(url));
+    if (nuevaPestana) nuevaPestana.location.href = blobUrl;
+  } catch (err) {
+    if (nuevaPestana) nuevaPestana.close();
+    alert("No se pudo cargar la foto: " + err.message);
+  }
+}
+
+async function renderFotosExistentes(recibo) {
   const cont = document.getElementById("fotos-existentes");
   if (!cont) return;
   const urls = (recibo || "").split(",").map(u => u.trim()).filter(Boolean);
-  cont.innerHTML = urls.map(url => `
-    <a class="foto-thumb" href="${url}" target="_blank" rel="noopener" title="Ver foto completa">
-      <img src="${url}" class="foto-thumb-img" alt="foto guardada"/>
+  if (urls.length === 0) { cont.innerHTML = ""; return; }
+
+  cont.innerHTML = urls.map(() => `
+    <a class="foto-thumb" href="#" title="Cargando…">
+      <img class="foto-thumb-img" alt="foto guardada"/>
     </a>
   `).join("");
+
+  const links = cont.querySelectorAll("a.foto-thumb");
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const blobUrl = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(urls[i]));
+      links[i].href = blobUrl;
+      links[i].target = "_blank";
+      links[i].rel = "noopener";
+      links[i].title = "Ver foto completa";
+      links[i].querySelector("img").src = blobUrl;
+    } catch (err) {
+      links[i].title = "No se pudo cargar la foto: " + err.message;
+    }
+  }
 }
 
 // ---- BORRAR MOVIMIENTO ----

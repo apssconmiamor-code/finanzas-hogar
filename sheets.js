@@ -231,9 +231,26 @@ Sheets.subirArchivoDrive = async function (dataURL, nombreArchivo, mimeType) {
     throw new Error("DRIVE_SIN_PERMISO_PUBLICO");
   }
 
-  // Formato de link directo más confiable para <img>/<audio> que webContentLink
+  // Este link público sirve como referencia/backup, pero para mostrarlo dentro
+  // de la app se usa obtenerBlobUrlDrive (descarga autenticada) porque el link
+  // directo de Drive no siempre carga bien dentro de <img>/<audio>.
   const url = `https://drive.google.com/uc?export=view&id=${archivo.id}`;
   return { id: archivo.id, url };
+};
+
+// Descarga el archivo autenticado (con el token del usuario actual) y lo
+// entrega como blob: URL local — mucho más confiable para <img>/<audio> que
+// enlazar directo a drive.google.com, que a veces devuelve una página de
+// Google en vez de los bytes reales del archivo.
+Sheets.obtenerBlobUrlDrive = async function (fileId) {
+  if (!fileId) return null;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${this.token}` }
+  });
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error descargando archivo de Drive: ${res.status}`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 };
 
 Sheets.borrarArchivoDrive = async function (fileId) {

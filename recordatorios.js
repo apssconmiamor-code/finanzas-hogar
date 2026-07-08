@@ -411,10 +411,10 @@ async function abrirRecordatorioComoMovimiento(id) {
   const titulo = modal.querySelector(".modal-title");
   if (titulo) titulo.textContent = "Nuevo movimiento (desde recordatorio)";
 
-  renderRecordatorioInfoEnModal(r);
+  await renderRecordatorioInfoEnModal(r);
 }
 
-function renderRecordatorioInfoEnModal(r) {
+async function renderRecordatorioInfoEnModal(r) {
   const modal = document.getElementById("modal-movimiento");
   if (!modal) return;
   let bloque = modal.querySelector(".recordatorio-info-bloque");
@@ -424,16 +424,35 @@ function renderRecordatorioInfoEnModal(r) {
     modal.querySelector(".modal-card").insertBefore(bloque, modal.querySelector(".form-group"));
   }
 
-  const mediaHtml = `
-    ${r.imageUrl ? `<img src="${r.imageUrl}" class="recordatorio-info-imagen" alt="foto del recordatorio"/>` : ""}
-    ${r.audioUrl ? `<audio controls src="${r.audioUrl}" class="recordatorio-info-audio"></audio>` : ""}
-  `;
-
   bloque.innerHTML = `
     <div class="recordatorio-info-titulo">📝 Recordatorio del ${r.fecha}</div>
     ${r.texto ? `<div class="recordatorio-info-texto">${r.texto}</div>` : ""}
-    ${mediaHtml}
+    ${r.imageUrl ? `<img class="recordatorio-info-imagen" alt="foto del recordatorio"/>` : ""}
+    ${r.imageUrl ? `<div class="recordatorio-media-status" data-media="imagen">Cargando foto…</div>` : ""}
+    ${r.audioUrl ? `<audio controls class="recordatorio-info-audio"></audio>` : ""}
+    ${r.audioUrl ? `<div class="recordatorio-media-status" data-media="audio">Cargando audio…</div>` : ""}
   `;
+
+  if (r.imageUrl) {
+    const img = bloque.querySelector(".recordatorio-info-imagen");
+    const status = bloque.querySelector('[data-media="imagen"]');
+    try {
+      img.src = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(r.imageUrl));
+      status.remove();
+    } catch (err) {
+      status.textContent = "⚠️ No se pudo cargar la foto (" + err.message + ")";
+    }
+  }
+  if (r.audioUrl) {
+    const audio = bloque.querySelector(".recordatorio-info-audio");
+    const status = bloque.querySelector('[data-media="audio"]');
+    try {
+      audio.src = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(r.audioUrl));
+      status.remove();
+    } catch (err) {
+      status.textContent = "⚠️ No se pudo cargar el audio (" + err.message + ")";
+    }
+  }
 }
 
 function _limpiarRecordatorioContexto() {
