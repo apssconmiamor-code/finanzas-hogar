@@ -216,14 +216,19 @@ Sheets.subirArchivoDrive = async function (dataURL, nombreArchivo, mimeType) {
   if (!uploadRes.ok) throw new Error(`Error subiendo archivo a Drive: ${uploadRes.status}`);
   const archivo = await uploadRes.json();
 
-  // Visible para cualquiera que tenga el link, sin importar la cuenta de Google.
+  // Editable para cualquiera que tenga el link, sin importar la cuenta de Google.
+  // Tiene que ser "writer" y no "reader": si otra persona de la familia (con
+  // una cuenta distinta a la que subió el archivo) borra el recordatorio o el
+  // movimiento, necesita permiso de escritura para poder borrar el archivo de
+  // Drive — con solo "ver" el borrado le sería rechazado en silencio y el
+  // archivo quedaría huérfano en la cuenta original.
   // Si esto falla (p. ej. la cuenta de Google es de una organización que bloquea
   // compartir "cualquiera con el link"), el archivo queda privado y no se podrá
   // ver desde otro dispositivo — por eso se revisa la respuesta en vez de ignorarla.
   const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${archivo.id}/permissions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ role: "reader", type: "anyone" })
+    body: JSON.stringify({ role: "writer", type: "anyone" })
   });
   if (!permRes.ok) {
     const detalle = await permRes.text().catch(() => "");
@@ -256,11 +261,19 @@ Sheets.obtenerBlobUrlDrive = async function (fileId) {
 Sheets.borrarArchivoDrive = async function (fileId) {
   if (!fileId) return;
   try {
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${this.token}` }
     });
-  } catch {}
+    // No se lanza error (es una limpieza best-effort que no debe bloquear el
+    // flujo principal), pero sí se deja registro para poder diagnosticar
+    // archivos huérfanos si el borrado es rechazado por permisos.
+    if (!res.ok && res.status !== 404) {
+      console.warn(`No se pudo borrar el archivo de Drive ${fileId}: ${res.status}`);
+    }
+  } catch (err) {
+    console.warn(`Error de red borrando archivo de Drive ${fileId}:`, err);
+  }
 };
 
 Sheets.idDesdeUrlDrive = function (url) {
