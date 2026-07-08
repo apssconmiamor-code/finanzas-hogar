@@ -1112,3 +1112,57 @@ input, select, textarea, table {
 .recordatorio-info-texto { font-size: 14px; color: var(--text-2); line-height: 1.4; }
 .recordatorio-info-imagen { width: 100%; max-height: 220px; object-fit: cover; border-radius: 10px; display: block; }
 .recordatorio-info-audio { width: 100%; height: 36px; }
+
+/* ═══════════════ TRANSICIONES Y MICROINTERACCIONES ═══════════════ */
+
+/* Entrada suave al cambiar de pestaña */
+@keyframes fh-tab-entrada {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.tab-section:not(.hidden) { animation: fh-tab-entrada .28s cubic-bezier(.16,1,.3,1); }
+
+/* Entrada de los menús flotantes (usuario / recordatorios) */
+@keyframes fh-panel-entrada {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dropdown-menu:not(.hidden), .recordatorios-panel:not(.hidden), .caja-picker-panel:not(.hidden) {
+  animation: fh-panel-entrada .18s ease-out;
+}
+
+/* Anillo de foco sutil, se desvanece solo (no queda pulsando) */
+@keyframes fh-anillo-foco {
+  from { box-shadow: 0 0 0 0 rgba(47,107,79,.35); }
+  to   { box-shadow: 0 0 0 5px rgba(47,107,79,0); }
+}
+.input:focus-visible,
+.btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-outline:focus-visible,
+.caja-picker-toggle:focus-visible, .btn-recordatorios:focus-visible {
+  animation: fh-anillo-foco .5s ease-out;
+}
+
+/* Microinteracción de presión: todo lo tocable responde igual de suave */
+.btn-accion, .btn-recordatorios, .caja-picker-option, .recordatorio-item,
+.kpi-card, .compra-item, .prestamo-card, .review-card, .category-card {
+  transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.btn-accion:active, .btn-recordatorios:active { transform: scale(.92); }
+.recordatorio-item:active { transform: scale(.99); }
+
+/* Realce sutil al pasar el mouse, solo en dispositivos con hover real */
+@media (hover: hover) {
+  .kpi-card:hover, .compra-item:hover, .prestamo-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* Reduce animaciones para quien lo prefiera */
+@media (prefers-reduced-motion: reduce) {
+  .tab-section:not(.hidden), .dropdown-menu:not(.hidden), .recordatorios-panel:not(.hidden),
+  .caja-picker-panel:not(.hidden), .input:focus-visible, .btn-primary:focus-visible,
+  .btn-secondary:focus-visible, .btn-outline:focus-visible {
+    animation: none;
+  }
+}

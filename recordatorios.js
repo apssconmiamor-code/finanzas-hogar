@@ -205,13 +205,22 @@ function abrirModalCrearRecordatorio() {
   renderRecordatorioMediaPreview();
   const status = document.getElementById("recordatorio-audio-status");
   if (status) status.textContent = "";
+  resetBotonAudio();
   document.getElementById("modal-recordatorio-crear")?.classList.remove("hidden");
+}
+
+function resetBotonAudio() {
+  const btn = document.getElementById("btn-recordatorio-audio");
+  if (!btn) return;
+  btn.textContent = "▶️";
+  btn.classList.remove("grabando");
 }
 
 function cerrarModalCrearRecordatorio() {
   if (recGrabando && recMediaRecorder) {
     try { recMediaRecorder.stop(); } catch {}
     recGrabando = false;
+    resetBotonAudio();
   }
   if (recAudioStream) {
     recAudioStream.getTracks().forEach(t => t.stop());
@@ -262,7 +271,7 @@ async function toggleGrabacionAudio() {
       };
       recMediaRecorder.start();
       recGrabando = true;
-      btn.textContent = "⏹ Detener";
+      btn.textContent = "⏹";
       btn.classList.add("grabando");
       if (status) status.textContent = "Grabando…";
     } catch (err) {
@@ -283,7 +292,7 @@ async function toggleGrabacionAudio() {
   } else {
     recMediaRecorder.stop();
     recGrabando = false;
-    btn.textContent = "🎤 Audio";
+    btn.textContent = "▶️";
     btn.classList.remove("grabando");
     if (status) status.textContent = "";
   }
@@ -480,7 +489,6 @@ function setupRecordatoriosListeners() {
   });
 
   document.getElementById("recordatorio-foto-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0], "imagen"));
-  document.getElementById("recordatorio-camara-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0], "imagen"));
   document.getElementById("btn-recordatorio-audio")?.addEventListener("click", toggleGrabacionAudio);
   document.getElementById("btn-cancelar-recordatorio-crear")?.addEventListener("click", cerrarModalCrearRecordatorio);
   document.getElementById("btn-guardar-recordatorio-crear")?.addEventListener("click", guardarRecordatorio);
