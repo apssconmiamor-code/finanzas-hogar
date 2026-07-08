@@ -43,7 +43,7 @@ const Sheets = {
     const user = JSON.parse(raw);
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
       prompt: "",
       hint: user.email,
       callback: (response) => {
@@ -127,19 +127,21 @@ const Sheets = {
   },
 
   // ---- EDITAR MOVIMIENTO ----
-  async editarMovimiento(id, fecha, concepto, categoria, caja, monto, descripcion = "") {
-    const rows = await this.leer(`${CONFIG.SHEETS.MOVIMIENTOS}!A2:C`);
+  async editarMovimiento(id, fecha, concepto, categoria, caja, monto, descripcion = "", recibo = null) {
+    const rows = await this.leer(`${CONFIG.SHEETS.MOVIMIENTOS}!A2:I`);
     const rowIndex = rows.findIndex(r => r[0] === id);
     if (rowIndex === -1) throw new Error("Movimiento no encontrado");
     const sheetRow = rowIndex + 2;
     const autor = rows[rowIndex][2] || "";
-    const range = `${CONFIG.SHEETS.MOVIMIENTOS}!B${sheetRow}:H${sheetRow}`;
+    // Si no se pasa recibo explícito, conserva el que ya estaba guardado
+    const reciboFinal = recibo === null ? (rows[rowIndex][8] || "") : recibo;
+    const range = `${CONFIG.SHEETS.MOVIMIENTOS}!B${sheetRow}:I${sheetRow}`;
     const res = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [[fecha, autor, concepto, categoria, caja, monto, descripcion]] })
+        body: JSON.stringify({ values: [[fecha, autor, concepto, categoria, caja, monto, descripcion, reciboFinal]] })
       }
     );
     if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
@@ -187,6 +189,56 @@ const Sheets = {
     if (!res.ok) throw new Error(`Error borrando: ${res.status}`);
     return res.json();
   }
+};
+
+// ---- GOOGLE DRIVE (fotos y audios de recordatorios/movimientos) ----
+// Requiere el scope drive.file — solo da acceso a archivos que la app misma crea.
+Sheets.subirArchivoDrive = async function (dataURL, nombreArchivo, mimeType) {
+  const blob = await (await fetch(dataURL)).blob();
+  const metadata = { name: nombreArchivo, mimeType: mimeType || blob.type || "application/octet-stream" };
+
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+  form.append("file", blob);
+
+  const uploadRes = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}` },
+      body: form
+    }
+  );
+  if (uploadRes.status === 401 || uploadRes.status === 403) {
+    throw new Error("DRIVE_SIN_PERMISO");
+  }
+  if (!uploadRes.ok) throw new Error(`Error subiendo archivo a Drive: ${uploadRes.status}`);
+  const archivo = await uploadRes.json();
+
+  // Visible para cualquiera que tenga el link, sin importar la cuenta de Google
+  await fetch(`https://www.googleapis.com/drive/v3/files/${archivo.id}/permissions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ role: "reader", type: "anyone" })
+  });
+
+  return { id: archivo.id, url: archivo.webContentLink };
+};
+
+Sheets.borrarArchivoDrive = async function (fileId) {
+  if (!fileId) return;
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${this.token}` }
+    });
+  } catch {}
+};
+
+Sheets.idDesdeUrlDrive = function (url) {
+  if (!url) return null;
+  const m = url.match(/[?&]id=([^&]+)/);
+  return m ? m[1] : null;
 };
 
 // ---- PRESUPUESTO ----

@@ -551,6 +551,7 @@ input, select, textarea, table {
   font-size: 14px; font-weight: 600; color: var(--text);
   letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.mov-card-foto-icono { font-size: 12px; margin-left: 4px; cursor: pointer; }
 .mov-desc-inline {
   font-size: 11px; color: var(--text-4); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;

@@ -2,9 +2,11 @@
 // MÓDULO RECORDATORIOS — notas rápidas de movimiento (texto/foto/audio)
 // =============================================
 // Hoja "Recordatorios" en Google Sheets:
-// A: id | B: fecha | C: autor | D: tipo (texto/imagen/audio) | E: texto
-// La foto/audio en sí NO va en Sheets (no cabe): se guarda en IndexedDB
-// del dispositivo, igual que las fotos de movimientos.
+// A: id | B: fecha | C: autor | D: tipo (texto/imagen/audio) | E: texto | F: mediaUrl
+// La foto/audio en sí se sube a Google Drive (Sheets no soporta binarios);
+// en la hoja solo queda el link. El archivo en Drive queda con permiso
+// "cualquiera con el link puede ver", para que se pueda ver desde cualquier
+// dispositivo sin importar con qué cuenta de Google se inició sesión.
 
 // ---- EXTENSIÓN DE Sheets PARA RECORDATORIOS ----
 
@@ -34,7 +36,7 @@ Sheets._asegurarHojaRecordatorios = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "fecha", "autor", "tipo", "texto"]] })
+        body: JSON.stringify({ values: [["id", "fecha", "autor", "tipo", "texto", "mediaUrl"]] })
       }
     );
   }
@@ -43,19 +45,20 @@ Sheets._asegurarHojaRecordatorios = async function () {
 
 Sheets.getRecordatorios = async function () {
   await this._asegurarHojaRecordatorios();
-  const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:E`);
+  const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:F`);
   return rows.filter(r => r && r[0]).map(r => ({
-    id:    r[0] || "",
-    fecha: Sheets._serialToDate(r[1]),
-    autor: r[2] || "",
-    tipo:  r[3] || "texto",
-    texto: r[4] || ""
+    id:       r[0] || "",
+    fecha:    Sheets._serialToDate(r[1]),
+    autor:    r[2] || "",
+    tipo:     r[3] || "texto",
+    texto:    r[4] || "",
+    mediaUrl: r[5] || ""
   }));
 };
 
-Sheets.agregarRecordatorio = async function (id, autor, fecha, tipo, texto) {
+Sheets.agregarRecordatorio = async function (id, autor, fecha, tipo, texto, mediaUrl = "") {
   await this._asegurarHojaRecordatorios();
-  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, tipo, texto]);
+  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, tipo, texto, mediaUrl]);
   return id;
 };
 
@@ -91,55 +94,6 @@ Sheets.borrarRecordatorio = async function (id) {
   if (!res.ok) throw new Error(`Error borrando recordatorio: ${res.status}`);
   return res.json();
 };
-
-// =============================================
-// IndexedDB — foto/audio del recordatorio
-// =============================================
-
-function _dbRecordatorios() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open("finanzas-recordatorios", 1);
-    req.onupgradeneeded = (e) => e.target.result.createObjectStore("media", { keyPath: "key" });
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function guardarMediaRecordatorioIDB(key, data, type) {
-  try {
-    const db = await _dbRecordatorios();
-    await new Promise((resolve) => {
-      const tx = db.transaction("media", "readwrite");
-      tx.objectStore("media").put({ key, data, type });
-      tx.oncomplete = resolve;
-      tx.onerror = resolve;
-    });
-  } catch {}
-}
-
-async function leerMediaRecordatorioIDB(key) {
-  try {
-    const db = await _dbRecordatorios();
-    return await new Promise((resolve) => {
-      const tx = db.transaction("media", "readonly");
-      const getReq = tx.objectStore("media").get(key);
-      getReq.onsuccess = () => resolve(getReq.result || null);
-      getReq.onerror = () => resolve(null);
-    });
-  } catch { return null; }
-}
-
-async function borrarMediaRecordatorioIDB(key) {
-  try {
-    const db = await _dbRecordatorios();
-    await new Promise((resolve) => {
-      const tx = db.transaction("media", "readwrite");
-      tx.objectStore("media").delete(key);
-      tx.oncomplete = resolve;
-      tx.onerror = resolve;
-    });
-  } catch {}
-}
 
 // =============================================
 // ESTADO Y CARGA
@@ -212,12 +166,15 @@ function renderRecordatoriosPanel() {
 
 async function borrarRecordatorio(id) {
   if (!confirm("¿Eliminar este recordatorio?")) return;
+  const r = recordatorios.find(x => x.id === id);
   try {
     await Sheets.borrarRecordatorio(id);
   } catch (err) {
     console.warn("No se pudo borrar el recordatorio de Sheets:", err);
   }
-  await borrarMediaRecordatorioIDB(id);
+  if (r?.mediaUrl) {
+    await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(r.mediaUrl));
+  }
   recordatorios = recordatorios.filter(r => r.id !== id);
   localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
   renderRecordatorioBadge();
@@ -369,22 +326,34 @@ async function guardarRecordatorio() {
 
   const id    = "R" + Date.now();
   const fecha = new Date().toISOString().split("T")[0];
-  const tipo  = recordatorioMediaData ? recordatorioMediaData.kind : "texto";
+  let   tipo  = recordatorioMediaData ? recordatorioMediaData.kind : "texto";
+  let   mediaUrl = "";
 
   try {
     if (recordatorioMediaData) {
-      await guardarMediaRecordatorioIDB(id, recordatorioMediaData.data, recordatorioMediaData.type);
+      if (!navigator.onLine) {
+        alert("Sin conexión — no se puede subir la foto/audio a Drive. Se guardará solo la nota de texto.");
+        tipo = "texto";
+      } else {
+        const ext = recordatorioMediaData.kind === "imagen"
+          ? (recordatorioMediaData.type.includes("png") ? "png" : "jpg")
+          : "webm";
+        const { url } = await Sheets.subirArchivoDrive(recordatorioMediaData.data, `recordatorio-${id}.${ext}`, recordatorioMediaData.type);
+        mediaUrl = url;
+      }
     }
-    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, tipo, texto);
+    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, tipo, texto, mediaUrl);
 
-    recordatorios.unshift({ id, fecha, autor: currentUser.email, tipo, texto });
+    recordatorios.unshift({ id, fecha, autor: currentUser.email, tipo, texto, mediaUrl });
     localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
 
     cerrarModalCrearRecordatorio();
     renderRecordatorioBadge();
     SyncManager.mostrarToast("✅ Recordatorio guardado");
   } catch (err) {
-    alert("Error guardando el recordatorio: " + err.message);
+    alert(err.message === "DRIVE_SIN_PERMISO"
+      ? "Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo."
+      : "Error guardando el recordatorio: " + err.message);
   } finally {
     btn.textContent = "Guardar"; btn.disabled = false;
   }
@@ -412,10 +381,10 @@ async function abrirRecordatorioComoMovimiento(id) {
   const titulo = modal.querySelector(".modal-title");
   if (titulo) titulo.textContent = "Nuevo movimiento (desde recordatorio)";
 
-  await renderRecordatorioInfoEnModal(r);
+  renderRecordatorioInfoEnModal(r);
 }
 
-async function renderRecordatorioInfoEnModal(r) {
+function renderRecordatorioInfoEnModal(r) {
   const modal = document.getElementById("modal-movimiento");
   if (!modal) return;
   let bloque = modal.querySelector(".recordatorio-info-bloque");
@@ -426,13 +395,10 @@ async function renderRecordatorioInfoEnModal(r) {
   }
 
   let mediaHtml = "";
-  if (r.tipo !== "texto") {
-    const media = await leerMediaRecordatorioIDB(r.id);
-    if (media) {
-      mediaHtml = r.tipo === "imagen"
-        ? `<img src="${media.data}" class="recordatorio-info-imagen" alt="foto del recordatorio"/>`
-        : `<audio controls src="${media.data}" class="recordatorio-info-audio"></audio>`;
-    }
+  if (r.mediaUrl) {
+    mediaHtml = r.tipo === "imagen"
+      ? `<img src="${r.mediaUrl}" class="recordatorio-info-imagen" alt="foto del recordatorio"/>`
+      : `<audio controls src="${r.mediaUrl}" class="recordatorio-info-audio"></audio>`;
   }
 
   bloque.innerHTML = `
@@ -478,12 +444,15 @@ function inicializarInterceptorRecordatorios() {
 
     if (fromRecordatorioId && modal.classList.contains("hidden")) {
       _limpiarRecordatorioContexto();
+      const rBorrado = recordatorios.find(r => r.id === fromRecordatorioId);
       try {
         await Sheets.borrarRecordatorio(fromRecordatorioId);
       } catch (err) {
         console.warn("No se pudo borrar el recordatorio de Sheets:", err);
       }
-      await borrarMediaRecordatorioIDB(fromRecordatorioId);
+      if (rBorrado?.mediaUrl) {
+        await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(rBorrado.mediaUrl));
+      }
       recordatorios = recordatorios.filter(r => r.id !== fromRecordatorioId);
       localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
       renderRecordatorioBadge();

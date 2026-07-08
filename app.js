@@ -208,7 +208,7 @@ async function _onOneTapCredential(credentialResponse) {
   try {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
       prompt: "none",
       hint: currentUser.email,
       callback: (response) => {
@@ -232,7 +232,7 @@ document.getElementById("btn-login").addEventListener("click", () => {
   }
   const client = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
-    scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+    scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
     callback: async (response) => {
       if (response.error) { alert("Error de autenticación"); return; }
       Sheets.setToken(response.access_token);
@@ -818,6 +818,10 @@ function renderMovimientos() {
     const catCls = m.categoria.toLowerCase().replace(/ /g,"");
     const descHTML = m.descripcion
       ? `<span class="mov-desc-inline">· ${m.descripcion}</span>` : "";
+    const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
+    const fotoHTML = primeraFoto
+      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();window.open('${primeraFoto}','_blank')">📎</span>`
+      : "";
 
     return `<div class="mov-card">
       <div class="mov-card-row1">
@@ -828,7 +832,7 @@ function renderMovimientos() {
         <div class="mov-card-left">
           <span class="mov-card-icono mov-cat-${catCls}">${icono}</span>
           <div class="mov-card-texto">
-            <span class="mov-card-concepto">${m.concepto || "Sin concepto"}</span>
+            <span class="mov-card-concepto">${m.concepto || "Sin concepto"}${fotoHTML}</span>
             ${descHTML}
           </div>
         </div>
@@ -936,6 +940,26 @@ function setupTipoCambioListeners() {
   monto.addEventListener("input", actualizarPreview);
 }
 
+// Sube fotos pendientes a Drive (si hay conexión) y arma el valor final del campo "recibo".
+// reciboExistente: lo que ya tenía el movimiento (para conservarlo al editar).
+// Devuelve null si no hay que tocar el recibo (sin fotos nuevas, sin conexión, o falló la subida).
+async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExistente = "") {
+  if (pendingFotos.length === 0) return null;
+  if (!navigator.onLine) {
+    SyncManager.mostrarToast("📴 Sin conexión — se guarda sin la foto nueva");
+    return null;
+  }
+  try {
+    const nuevos = await subirFotosPendientesADrive(fecha, concepto, caja);
+    return reciboExistente ? `${reciboExistente},${nuevos}` : nuevos;
+  } catch (err) {
+    alert(err.message === "DRIVE_SIN_PERMISO"
+      ? "Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo — el movimiento se guardará sin la foto por ahora."
+      : "No se pudo subir la foto a Drive — el movimiento se guardará sin la foto nueva.");
+    return null;
+  }
+}
+
 async function guardarMovimiento() {
   const editId = document.getElementById("modal-movimiento").dataset.editId;
 
@@ -952,14 +976,15 @@ async function guardarMovimiento() {
       return;
     }
 
-   
+
 const btn = document.getElementById("btn-guardar-mov");
 if (!btn) return;
 btn.textContent = "Guardando..."; btn.disabled = true;
 
     try {
-      await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion);
-      if (pendingFotos.length > 0) await guardarFotosMovimiento(fecha, concepto, caja);
+      const movActual = movimientos.find(x => x.id === editId);
+      const recibo = await resolverReciboConNuevasFotos(fecha, concepto, caja, movActual?.recibo || "");
+      await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion, recibo);
       delete document.getElementById("modal-movimiento").dataset.editId;
       document.getElementById("modal-movimiento").classList.add("hidden");
       limpiarFormMov();
@@ -967,7 +992,10 @@ btn.textContent = "Guardando..."; btn.disabled = true;
       if (!navigator.onLine) {
         const idx = movimientos.findIndex(m => m.id === editId);
         if (idx !== -1) {
-          movimientos[idx] = { ...movimientos[idx], fecha, concepto, categoria, caja, monto, descripcion };
+          movimientos[idx] = {
+            ...movimientos[idx], fecha, concepto, categoria, caja, monto, descripcion,
+            ...(recibo !== null ? { recibo } : {})
+          };
           localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
           renderMovimientos();
         }
@@ -993,6 +1021,17 @@ if (!btn) return;
 btn.textContent = "Guardando..."; btn.disabled = true;
 
   try {
+
+    let recibo = "";
+    if (pendingFotos.length > 0) {
+      const fotoConc = categoria === "Transferencia"
+        ? `Transferencia-${document.getElementById("mov-caja-origen").value}`
+        : getConceptoActivo();
+      const fotoCaja = categoria === "Transferencia"
+        ? document.getElementById("mov-caja-origen").value
+        : document.getElementById("mov-caja").value;
+      recibo = (await resolverReciboConNuevasFotos(fecha, fotoConc, fotoCaja)) || "";
+    }
 
     if (categoria === "Transferencia") {
   const origen  = document.getElementById("mov-caja-origen").value;
@@ -1026,7 +1065,7 @@ btn.textContent = "Guardando..."; btn.disabled = true;
   await Sheets.agregarMovimiento(
     currentUser.email, fecha,
     `Transferencia → ${destino}`,
-    "Transferencia", origen, monto, descOrigen
+    "Transferencia", origen, monto, descOrigen, recibo
   );
   await Sheets.agregarMovimientoIngreso(
     currentUser.email, fecha,
@@ -1034,7 +1073,7 @@ btn.textContent = "Guardando..."; btn.disabled = true;
     "Transferencia", destino, montoDestino, descOrigen
   );
 }
-    
+
     else {
 
 let concepto = getConceptoActivo();
@@ -1059,34 +1098,21 @@ if (categoria !== "Ingreso") {
 // Si es gasto variable y el concepto no está en la lista, guardar "Otros" y mover a descripción
 if (categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(concepto)) {
   const descripcionFinal = descripcion ? concepto + " — " + descripcion : concepto;
-  await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal);
+  await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal, recibo);
 } else {
-  await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion);
+  await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion, recibo);
 }
 
 
-      
+
       if (!navigator.onLine) {
         const nuevoMov = {
           id: "M_local_" + Date.now(),
-          fecha, autor: currentUser.email, concepto, categoria, caja, monto, descripcion, recibo: ""
+          fecha, autor: currentUser.email, concepto, categoria, caja, monto, descripcion, recibo
         };
         movimientos.push(nuevoMov);
         localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
       }
-    }
-
-    // Guardar fotos si hay pendientes
-    if (pendingFotos.length > 0) {
-      const fotoFecha = document.getElementById("mov-fecha").value;
-      const fotoCat   = document.getElementById("mov-categoria").value;
-      const fotoConc  = fotoCat === "Transferencia"
-        ? `Transferencia-${document.getElementById("mov-caja-origen").value}`
-        : getConceptoActivo();
-      const fotoCaja  = fotoCat === "Transferencia"
-        ? document.getElementById("mov-caja-origen").value
-        : document.getElementById("mov-caja").value;
-      await guardarFotosMovimiento(fotoFecha, fotoConc, fotoCaja);
     }
 
     document.getElementById("modal-movimiento").classList.add("hidden");
@@ -1103,7 +1129,7 @@ if (categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(concepto)) {
       alert("Error guardando el movimiento: " + err.message);
     }
 
-  } 
+  }
 }
 
 // ---- EDITAR MOVIMIENTO ----
@@ -1130,8 +1156,22 @@ function abrirEditarMovimiento(id) {
     refrescarSelectorCaja("mov-caja");
   }
 
+  renderFotosExistentes(m.recibo);
+
   document.getElementById("modal-movimiento").dataset.editId = id;
   document.getElementById("btn-guardar-mov").textContent = "Actualizar";
+}
+
+// Muestra las fotos ya guardadas en Drive (solo lectura) al editar un movimiento
+function renderFotosExistentes(recibo) {
+  const cont = document.getElementById("fotos-existentes");
+  if (!cont) return;
+  const urls = (recibo || "").split(",").map(u => u.trim()).filter(Boolean);
+  cont.innerHTML = urls.map(url => `
+    <a class="foto-thumb" href="${url}" target="_blank" rel="noopener" title="Ver foto completa">
+      <img src="${url}" class="foto-thumb-img" alt="foto guardada"/>
+    </a>
+  `).join("");
 }
 
 // ---- BORRAR MOVIMIENTO ----
@@ -1330,6 +1370,7 @@ function limpiarFormMov() {
   // Limpiar fotos pendientes
   pendingFotos = [];
   renderFotosPreview();
+  renderFotosExistentes("");
   const reciboFile = document.getElementById("recibo-file");
   if (reciboFile) reciboFile.value = "";
   const camaraFile = document.getElementById("camara-file");
@@ -2764,23 +2805,17 @@ window.quitarFoto = function(idx) {
 };
 
 // Guarda las fotos en IndexedDB con nombre Fecha-Concepto-Caja
-async function guardarFotosMovimiento(fecha, concepto, caja) {
-  if (pendingFotos.length === 0) return;
+// Sube las fotos pendientes a Google Drive y devuelve los links separados por coma
+async function subirFotosPendientesADrive(fecha, concepto, caja) {
+  if (pendingFotos.length === 0) return "";
   const slug = `${fecha}-${String(concepto).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}-${String(caja).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}`;
-  await new Promise((resolve) => {
-    const req = indexedDB.open("finanzas-fotos", 1);
-    req.onupgradeneeded = (e) => e.target.result.createObjectStore("fotos", { keyPath: "key" });
-    req.onsuccess = (e) => {
-      const db = e.target.result;
-      const tx = db.transaction("fotos", "readwrite");
-      const store = tx.objectStore("fotos");
-      pendingFotos.forEach((foto, i) => {
-        store.put({ key: `${slug}-${i + 1}`, data: foto.data, type: foto.type });
-      });
-      tx.oncomplete = resolve;
-      tx.onerror = resolve;
-    };
-    req.onerror = resolve;
-  });
+  const urls = [];
+  for (let i = 0; i < pendingFotos.length; i++) {
+    const foto = pendingFotos[i];
+    const ext = foto.type.includes("png") ? "png" : "jpg";
+    const { url } = await Sheets.subirArchivoDrive(foto.data, `${slug}-${i + 1}.${ext}`, foto.type);
+    urls.push(url);
+  }
+  return urls.join(",");
 }
 
