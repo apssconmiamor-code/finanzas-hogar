@@ -225,6 +225,40 @@ function resetBotonAudio() {
   btn.classList.remove("grabando");
 }
 
+// Convierte el audio grabado en el dataURL que se guarda/sube; devuelve una
+// promesa para poder esperar a que termine antes de continuar con el guardado.
+function procesarBlobAudio(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      recordatorioAudioData = { data: e.target.result, type: blob.type };
+      renderRecordatorioMediaPreview();
+      resolve();
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Si hay una grabación en curso, la detiene y espera a que el audio quede
+// listo antes de continuar — así "Guardar" nunca pierde el audio por no
+// haber tocado primero el botón de detener.
+function detenerGrabacionYEsperar() {
+  return new Promise((resolve) => {
+    if (!recGrabando || !recMediaRecorder) { resolve(); return; }
+    const recorder = recMediaRecorder;
+    const chunksFinales = recAudioChunks;
+    recorder.onstop = () => {
+      const blob = new Blob(chunksFinales, { type: recorder.mimeType || "audio/webm" });
+      procesarBlobAudio(blob).then(resolve);
+    };
+    recGrabando = false;
+    resetBotonAudio();
+    const status = document.getElementById("recordatorio-audio-status");
+    if (status) status.textContent = "";
+    recorder.stop();
+  });
+}
+
 function cerrarModalCrearRecordatorio() {
   if (recGrabando && recMediaRecorder) {
     try { recMediaRecorder.stop(); } catch {}
@@ -267,16 +301,11 @@ async function toggleGrabacionAudio() {
       recAudioChunks = [];
       recMediaRecorder = new MediaRecorder(recAudioStream);
       recMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recAudioChunks.push(e.data); };
+      // El stream NO se detiene aquí a propósito: se mantiene vivo mientras
+      // el modal siga abierto por si el usuario graba de nuevo.
       recMediaRecorder.onstop = () => {
         const blob = new Blob(recAudioChunks, { type: recMediaRecorder.mimeType || "audio/webm" });
-        // El stream NO se detiene aquí a propósito: se mantiene vivo mientras
-        // el modal siga abierto por si el usuario graba de nuevo.
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          recordatorioAudioData = { data: e.target.result, type: blob.type };
-          renderRecordatorioMediaPreview();
-        };
-        reader.readAsDataURL(blob);
+        procesarBlobAudio(blob);
       };
       recMediaRecorder.start();
       recGrabando = true;
@@ -340,6 +369,10 @@ window.quitarAudioRecordatorio = function () {
 };
 
 async function guardarRecordatorio() {
+  // Si el usuario le da Guardar sin haber tocado "detener", la grabación se
+  // corta y se procesa aquí para no perder el audio.
+  await detenerGrabacionYEsperar();
+
   const texto = document.getElementById("recordatorio-texto").value.trim();
   if (!texto && !recordatorioFotoData && !recordatorioAudioData) {
     alert("Escribe una nota o adjunta una foto/audio");

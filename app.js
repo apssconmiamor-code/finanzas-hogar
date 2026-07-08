@@ -311,6 +311,51 @@ async function mostrarApp() {
   }
 }
 
+// ---- GESTO DE "VOLVER" ESTILO iPHONE (deslizar de izquierda a derecha desde el borde) ----
+
+function cerrarPantallaActual() {
+  const modalAbierto = document.querySelector(".modal:not(.hidden)");
+  if (modalAbierto) {
+    // El modal de grabar recordatorio necesita apagar el micrófono al cerrarse,
+    // no solo ocultarse — usa su propio cierre en vez del genérico.
+    if (modalAbierto.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
+      cerrarModalCrearRecordatorio();
+    } else {
+      modalAbierto.classList.add("hidden");
+    }
+    return true;
+  }
+  const dropdown = document.getElementById("dropdown-menu");
+  if (dropdown && !dropdown.classList.contains("hidden")) { dropdown.classList.add("hidden"); return true; }
+  const recPanel = document.getElementById("recordatorios-panel");
+  if (recPanel && !recPanel.classList.contains("hidden")) { recPanel.classList.add("hidden"); return true; }
+  return false;
+}
+
+(function setupGestoVolver() {
+  const BORDE_PX = 28;    // debe iniciar cerca del borde izquierdo, como el gesto de iOS
+  const SWIPE_MIN_PX = 70; // distancia horizontal mínima para contar como "volver"
+  const DESVIO_MAX_PX = 60; // tolerancia vertical antes de descartarlo como scroll
+  let inicioX = null, inicioY = null, valido = false;
+
+  document.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { valido = false; return; }
+    const t = e.touches[0];
+    valido = t.clientX <= BORDE_PX;
+    inicioX = t.clientX;
+    inicioY = t.clientY;
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    if (!valido || inicioX === null) return;
+    valido = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - inicioX;
+    const dy = Math.abs(t.clientY - inicioY);
+    if (dx > SWIPE_MIN_PX && dy < DESVIO_MAX_PX) cerrarPantallaActual();
+  }, { passive: true });
+})();
+
 // ---- NAVEGACIÓN ----
 
 function setupEventListeners() {
