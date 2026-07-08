@@ -195,7 +195,8 @@ const Sheets = {
 // Requiere el scope drive.file — solo da acceso a archivos que la app misma crea.
 Sheets.subirArchivoDrive = async function (dataURL, nombreArchivo, mimeType) {
   const blob = await (await fetch(dataURL)).blob();
-  const metadata = { name: nombreArchivo, mimeType: mimeType || blob.type || "application/octet-stream" };
+  const tipoFinal = mimeType || blob.type || "application/octet-stream";
+  const metadata = { name: nombreArchivo, mimeType: tipoFinal };
 
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
@@ -215,14 +216,24 @@ Sheets.subirArchivoDrive = async function (dataURL, nombreArchivo, mimeType) {
   if (!uploadRes.ok) throw new Error(`Error subiendo archivo a Drive: ${uploadRes.status}`);
   const archivo = await uploadRes.json();
 
-  // Visible para cualquiera que tenga el link, sin importar la cuenta de Google
-  await fetch(`https://www.googleapis.com/drive/v3/files/${archivo.id}/permissions`, {
+  // Visible para cualquiera que tenga el link, sin importar la cuenta de Google.
+  // Si esto falla (p. ej. la cuenta de Google es de una organización que bloquea
+  // compartir "cualquiera con el link"), el archivo queda privado y no se podrá
+  // ver desde otro dispositivo — por eso se revisa la respuesta en vez de ignorarla.
+  const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${archivo.id}/permissions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ role: "reader", type: "anyone" })
   });
+  if (!permRes.ok) {
+    const detalle = await permRes.text().catch(() => "");
+    console.warn("No se pudo hacer público el archivo en Drive:", permRes.status, detalle);
+    throw new Error("DRIVE_SIN_PERMISO_PUBLICO");
+  }
 
-  return { id: archivo.id, url: archivo.webContentLink };
+  // Formato de link directo más confiable para <img>/<audio> que webContentLink
+  const url = `https://drive.google.com/uc?export=view&id=${archivo.id}`;
+  return { id: archivo.id, url };
 };
 
 Sheets.borrarArchivoDrive = async function (fileId) {

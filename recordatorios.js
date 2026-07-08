@@ -2,9 +2,10 @@
 // MÓDULO RECORDATORIOS — notas rápidas de movimiento (texto/foto/audio)
 // =============================================
 // Hoja "Recordatorios" en Google Sheets:
-// A: id | B: fecha | C: autor | D: tipo (texto/imagen/audio) | E: texto | F: mediaUrl
+// A: id | B: fecha | C: autor | D: texto | E: imageUrl | F: audioUrl
+// Un recordatorio puede tener foto Y audio al mismo tiempo (no son excluyentes).
 // La foto/audio en sí se sube a Google Drive (Sheets no soporta binarios);
-// en la hoja solo queda el link. El archivo en Drive queda con permiso
+// en la hoja solo quedan los links. El archivo en Drive queda con permiso
 // "cualquiera con el link puede ver", para que se pueda ver desde cualquier
 // dispositivo sin importar con qué cuenta de Google se inició sesión.
 
@@ -36,7 +37,7 @@ Sheets._asegurarHojaRecordatorios = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "fecha", "autor", "tipo", "texto", "mediaUrl"]] })
+        body: JSON.stringify({ values: [["id", "fecha", "autor", "texto", "imageUrl", "audioUrl"]] })
       }
     );
   }
@@ -50,15 +51,15 @@ Sheets.getRecordatorios = async function () {
     id:       r[0] || "",
     fecha:    Sheets._serialToDate(r[1]),
     autor:    r[2] || "",
-    tipo:     r[3] || "texto",
-    texto:    r[4] || "",
-    mediaUrl: r[5] || ""
+    texto:    r[3] || "",
+    imageUrl: r[4] || "",
+    audioUrl: r[5] || ""
   }));
 };
 
-Sheets.agregarRecordatorio = async function (id, autor, fecha, tipo, texto, mediaUrl = "") {
+Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "") {
   await this._asegurarHojaRecordatorios();
-  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, tipo, texto, mediaUrl]);
+  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, texto, imageUrl, audioUrl]);
   return id;
 };
 
@@ -148,13 +149,13 @@ function renderRecordatoriosPanel() {
   const orden = [...recordatorios].sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   panel.innerHTML = orden.map(r => {
-    const iconoTipo = r.tipo === "imagen" ? "📷" : r.tipo === "audio" ? "🎤" : "📝";
+    const iconos = `${r.imageUrl ? "📷" : ""}${r.audioUrl ? "🎤" : ""}` || "📝";
     const resumen = r.texto
       ? (r.texto.length > 60 ? r.texto.slice(0, 60) + "…" : r.texto)
-      : (r.tipo === "imagen" ? "Foto adjunta" : "Audio adjunto");
+      : [r.imageUrl && "Foto adjunta", r.audioUrl && "Audio adjunto"].filter(Boolean).join(" · ");
     return `
       <div class="recordatorio-item" onclick="abrirRecordatorioComoMovimiento('${r.id}')">
-        <span class="recordatorio-item-icon">${iconoTipo}</span>
+        <span class="recordatorio-item-icon">${iconos}</span>
         <div class="recordatorio-item-body">
           <div class="recordatorio-item-texto">${resumen}</div>
           <div class="recordatorio-item-fecha">${r.fecha}</div>
@@ -162,6 +163,13 @@ function renderRecordatoriosPanel() {
         <button class="btn-accion btn-borrar" title="Eliminar" onclick="event.stopPropagation(); borrarRecordatorio('${r.id}')">🗑️</button>
       </div>`;
   }).join("");
+}
+
+// Borra en Drive la foto y/o el audio de un recordatorio (los que existan)
+async function borrarMediaRecordatorio(r) {
+  if (!r) return;
+  if (r.imageUrl) await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(r.imageUrl));
+  if (r.audioUrl) await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(r.audioUrl));
 }
 
 async function borrarRecordatorio(id) {
@@ -172,9 +180,7 @@ async function borrarRecordatorio(id) {
   } catch (err) {
     console.warn("No se pudo borrar el recordatorio de Sheets:", err);
   }
-  if (r?.mediaUrl) {
-    await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(r.mediaUrl));
-  }
+  await borrarMediaRecordatorio(r);
   recordatorios = recordatorios.filter(r => r.id !== id);
   localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
   renderRecordatorioBadge();
@@ -193,7 +199,9 @@ function mostrarPromptRecordatorio() {
 // MODAL CREAR RECORDATORIO (texto / imagen / audio)
 // =============================================
 
-let recordatorioMediaData = null; // { data: dataURL, type: mime, kind: "imagen"|"audio" }
+// Una foto y un audio pueden coexistir en el mismo recordatorio — slots independientes
+let recordatorioFotoData  = null; // { data: dataURL, type: mime }
+let recordatorioAudioData = null; // { data: dataURL, type: mime }
 let recMediaRecorder = null;
 let recAudioChunks = [];
 let recGrabando = false;
@@ -201,7 +209,8 @@ let recAudioStream = null; // se reutiliza mientras el modal está abierto para 
 
 function abrirModalCrearRecordatorio() {
   document.getElementById("recordatorio-texto").value = "";
-  recordatorioMediaData = null;
+  recordatorioFotoData  = null;
+  recordatorioAudioData = null;
   renderRecordatorioMediaPreview();
   const status = document.getElementById("recordatorio-audio-status");
   if (status) status.textContent = "";
@@ -229,11 +238,11 @@ function cerrarModalCrearRecordatorio() {
   document.getElementById("modal-recordatorio-crear")?.classList.add("hidden");
 }
 
-function cargarMediaRecordatorio(file, kind) {
+function cargarMediaRecordatorio(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    recordatorioMediaData = { data: e.target.result, type: file.type, kind };
+    recordatorioFotoData = { data: e.target.result, type: file.type };
     renderRecordatorioMediaPreview();
   };
   reader.readAsDataURL(file);
@@ -264,7 +273,7 @@ async function toggleGrabacionAudio() {
         // el modal siga abierto por si el usuario graba de nuevo.
         const reader = new FileReader();
         reader.onload = (e) => {
-          recordatorioMediaData = { data: e.target.result, type: blob.type, kind: "audio" };
+          recordatorioAudioData = { data: e.target.result, type: blob.type };
           renderRecordatorioMediaPreview();
         };
         reader.readAsDataURL(blob);
@@ -301,31 +310,38 @@ async function toggleGrabacionAudio() {
 function renderRecordatorioMediaPreview() {
   const preview = document.getElementById("recordatorio-media-preview");
   if (!preview) return;
-  if (!recordatorioMediaData) { preview.innerHTML = ""; return; }
 
-  if (recordatorioMediaData.kind === "imagen") {
-    preview.innerHTML = `
+  let html = "";
+  if (recordatorioFotoData) {
+    html += `
       <div class="foto-thumb">
-        <img src="${recordatorioMediaData.data}" class="foto-thumb-img" alt="foto adjunta"/>
-        <button class="foto-thumb-remove" type="button" onclick="quitarMediaRecordatorio()">×</button>
-      </div>`;
-  } else {
-    preview.innerHTML = `
-      <div class="recordatorio-audio-preview">
-        <audio controls src="${recordatorioMediaData.data}"></audio>
-        <button class="foto-thumb-remove" type="button" onclick="quitarMediaRecordatorio()">×</button>
+        <img src="${recordatorioFotoData.data}" class="foto-thumb-img" alt="foto adjunta"/>
+        <button class="foto-thumb-remove" type="button" onclick="quitarFotoRecordatorio()">×</button>
       </div>`;
   }
+  if (recordatorioAudioData) {
+    html += `
+      <div class="recordatorio-audio-preview">
+        <audio controls src="${recordatorioAudioData.data}"></audio>
+        <button class="foto-thumb-remove" type="button" onclick="quitarAudioRecordatorio()">×</button>
+      </div>`;
+  }
+  preview.innerHTML = html;
 }
 
-window.quitarMediaRecordatorio = function () {
-  recordatorioMediaData = null;
+window.quitarFotoRecordatorio = function () {
+  recordatorioFotoData = null;
+  renderRecordatorioMediaPreview();
+};
+
+window.quitarAudioRecordatorio = function () {
+  recordatorioAudioData = null;
   renderRecordatorioMediaPreview();
 };
 
 async function guardarRecordatorio() {
   const texto = document.getElementById("recordatorio-texto").value.trim();
-  if (!texto && !recordatorioMediaData) {
+  if (!texto && !recordatorioFotoData && !recordatorioAudioData) {
     alert("Escribe una nota o adjunta una foto/audio");
     return;
   }
@@ -335,34 +351,39 @@ async function guardarRecordatorio() {
 
   const id    = "R" + Date.now();
   const fecha = new Date().toISOString().split("T")[0];
-  let   tipo  = recordatorioMediaData ? recordatorioMediaData.kind : "texto";
-  let   mediaUrl = "";
+  let imageUrl = "";
+  let audioUrl = "";
 
   try {
-    if (recordatorioMediaData) {
-      if (!navigator.onLine) {
-        alert("Sin conexión — no se puede subir la foto/audio a Drive. Se guardará solo la nota de texto.");
-        tipo = "texto";
-      } else {
-        const ext = recordatorioMediaData.kind === "imagen"
-          ? (recordatorioMediaData.type.includes("png") ? "png" : "jpg")
-          : "webm";
-        const { url } = await Sheets.subirArchivoDrive(recordatorioMediaData.data, `recordatorio-${id}.${ext}`, recordatorioMediaData.type);
-        mediaUrl = url;
+    if ((recordatorioFotoData || recordatorioAudioData) && !navigator.onLine) {
+      alert("Sin conexión — no se puede subir la foto/audio a Drive. Se guardará solo la nota de texto.");
+    } else {
+      if (recordatorioFotoData) {
+        const ext = recordatorioFotoData.type.includes("png") ? "png" : "jpg";
+        const { url } = await Sheets.subirArchivoDrive(recordatorioFotoData.data, `recordatorio-${id}-foto.${ext}`, recordatorioFotoData.type);
+        imageUrl = url;
+      }
+      if (recordatorioAudioData) {
+        const { url } = await Sheets.subirArchivoDrive(recordatorioAudioData.data, `recordatorio-${id}-audio.webm`, recordatorioAudioData.type);
+        audioUrl = url;
       }
     }
-    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, tipo, texto, mediaUrl);
+    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl);
 
-    recordatorios.unshift({ id, fecha, autor: currentUser.email, tipo, texto, mediaUrl });
+    recordatorios.unshift({ id, fecha, autor: currentUser.email, texto, imageUrl, audioUrl });
     localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
 
     cerrarModalCrearRecordatorio();
     renderRecordatorioBadge();
     SyncManager.mostrarToast("✅ Recordatorio guardado");
   } catch (err) {
-    alert(err.message === "DRIVE_SIN_PERMISO"
-      ? "Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo."
-      : "Error guardando el recordatorio: " + err.message);
+    if (err.message === "DRIVE_SIN_PERMISO") {
+      alert("Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo.");
+    } else if (err.message === "DRIVE_SIN_PERMISO_PUBLICO") {
+      alert("El archivo se subió a Drive, pero Google no dejó hacerlo visible con el link (puede ser una restricción de tu cuenta/organización). No se guardó el recordatorio — intenta de nuevo o guárdalo solo con texto.");
+    } else {
+      alert("Error guardando el recordatorio: " + err.message);
+    }
   } finally {
     btn.textContent = "Guardar"; btn.disabled = false;
   }
@@ -403,12 +424,10 @@ function renderRecordatorioInfoEnModal(r) {
     modal.querySelector(".modal-card").insertBefore(bloque, modal.querySelector(".form-group"));
   }
 
-  let mediaHtml = "";
-  if (r.mediaUrl) {
-    mediaHtml = r.tipo === "imagen"
-      ? `<img src="${r.mediaUrl}" class="recordatorio-info-imagen" alt="foto del recordatorio"/>`
-      : `<audio controls src="${r.mediaUrl}" class="recordatorio-info-audio"></audio>`;
-  }
+  const mediaHtml = `
+    ${r.imageUrl ? `<img src="${r.imageUrl}" class="recordatorio-info-imagen" alt="foto del recordatorio"/>` : ""}
+    ${r.audioUrl ? `<audio controls src="${r.audioUrl}" class="recordatorio-info-audio"></audio>` : ""}
+  `;
 
   bloque.innerHTML = `
     <div class="recordatorio-info-titulo">📝 Recordatorio del ${r.fecha}</div>
@@ -459,9 +478,7 @@ function inicializarInterceptorRecordatorios() {
       } catch (err) {
         console.warn("No se pudo borrar el recordatorio de Sheets:", err);
       }
-      if (rBorrado?.mediaUrl) {
-        await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(rBorrado.mediaUrl));
-      }
+      await borrarMediaRecordatorio(rBorrado);
       recordatorios = recordatorios.filter(r => r.id !== fromRecordatorioId);
       localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
       renderRecordatorioBadge();
@@ -488,7 +505,7 @@ function setupRecordatoriosListeners() {
     abrirModalCrearRecordatorio();
   });
 
-  document.getElementById("recordatorio-foto-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0], "imagen"));
+  document.getElementById("recordatorio-foto-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0]));
   document.getElementById("btn-recordatorio-audio")?.addEventListener("click", toggleGrabacionAudio);
   document.getElementById("btn-cancelar-recordatorio-crear")?.addEventListener("click", cerrarModalCrearRecordatorio);
   document.getElementById("btn-guardar-recordatorio-crear")?.addEventListener("click", guardarRecordatorio);

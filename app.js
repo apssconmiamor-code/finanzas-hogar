@@ -953,9 +953,13 @@ async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExisten
     const nuevos = await subirFotosPendientesADrive(fecha, concepto, caja);
     return reciboExistente ? `${reciboExistente},${nuevos}` : nuevos;
   } catch (err) {
-    alert(err.message === "DRIVE_SIN_PERMISO"
-      ? "Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo — el movimiento se guardará sin la foto por ahora."
-      : "No se pudo subir la foto a Drive — el movimiento se guardará sin la foto nueva.");
+    if (err.message === "DRIVE_SIN_PERMISO") {
+      alert("Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo — el movimiento se guardará sin la foto por ahora.");
+    } else if (err.message === "DRIVE_SIN_PERMISO_PUBLICO") {
+      alert("La foto se subió a Drive, pero Google no dejó hacerla visible con el link (puede ser una restricción de tu cuenta/organización). El movimiento se guardará sin la foto por ahora.");
+    } else {
+      alert("No se pudo subir la foto a Drive — el movimiento se guardará sin la foto nueva.");
+    }
     return null;
   }
 }
