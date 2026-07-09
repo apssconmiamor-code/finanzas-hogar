@@ -188,14 +188,6 @@ async function borrarRecordatorio(id) {
 }
 
 // =============================================
-// PROMPT AL ABRIR: "¿Quieres hacer un recordatorio de movimiento?"
-// =============================================
-
-function mostrarPromptRecordatorio() {
-  document.getElementById("modal-recordatorio-prompt")?.classList.remove("hidden");
-}
-
-// =============================================
 // MODAL CREAR RECORDATORIO (texto / imagen / audio)
 // =============================================
 
@@ -552,11 +544,6 @@ if (document.readyState === "loading") {
 function setupRecordatoriosListeners() {
   document.getElementById("btn-recordatorios-badge")?.addEventListener("click", toggleRecordatoriosPanel);
 
-  document.getElementById("btn-aceptar-recordatorio-prompt")?.addEventListener("click", () => {
-    document.getElementById("modal-recordatorio-prompt").classList.add("hidden");
-    abrirModalCrearRecordatorio();
-  });
-
   document.getElementById("recordatorio-foto-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0]));
   document.getElementById("btn-recordatorio-audio")?.addEventListener("click", toggleGrabacionAudio);
   document.getElementById("btn-cancelar-recordatorio-crear")?.addEventListener("click", cerrarModalCrearRecordatorio);
@@ -582,4 +569,106 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", setupRecordatoriosListeners);
 } else {
   setTimeout(setupRecordatoriosListeners, 0);
+}
+
+// =============================================
+// BOTÓN FLOTANTE — abre "Nuevo recordatorio" desde cualquier pestaña
+// =============================================
+// Circular, semitransparente, arrastrable con el dedo/mouse a cualquier
+// parte de la pantalla. Un toque sin arrastrar abre el modal; la posición
+// elegida por el usuario se recuerda entre sesiones.
+
+function setupFabRecordatorio() {
+  const fab = document.getElementById("fab-recordatorio");
+  if (!fab) return;
+
+  const MARGEN = 14;
+  const POS_KEY = "fab_recordatorio_pos";
+  let arrastrando = false;
+  let seMovio = false;
+  let startX = 0, startY = 0, origX = 0, origY = 0;
+
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+
+  function limites() {
+    return {
+      maxX: window.innerWidth  - fab.offsetWidth  - MARGEN,
+      maxY: window.innerHeight - fab.offsetHeight - MARGEN
+    };
+  }
+
+  function ubicar(x, y, guardar) {
+    const { maxX, maxY } = limites();
+    x = clamp(x, MARGEN, Math.max(MARGEN, maxX));
+    y = clamp(y, MARGEN, Math.max(MARGEN, maxY));
+    fab.style.left = x + "px";
+    fab.style.top  = y + "px";
+    if (guardar) localStorage.setItem(POS_KEY, JSON.stringify({ x, y }));
+  }
+
+  function posicionInicial() {
+    const guardada = localStorage.getItem(POS_KEY);
+    if (guardada) {
+      try {
+        const { x, y } = JSON.parse(guardada);
+        ubicar(x, y, false);
+        return;
+      } catch {}
+    }
+    // Lado derecho, centrado verticalmente
+    const x = window.innerWidth - fab.offsetWidth - MARGEN;
+    const y = (window.innerHeight - fab.offsetHeight) / 2;
+    ubicar(x, y, false);
+  }
+
+  fab.addEventListener("pointerdown", (e) => {
+    arrastrando = true;
+    seMovio = false;
+    fab.classList.add("arrastrando");
+    fab.setPointerCapture(e.pointerId);
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = fab.getBoundingClientRect();
+    origX = rect.left;
+    origY = rect.top;
+  });
+
+  fab.addEventListener("pointermove", (e) => {
+    if (!arrastrando) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) seMovio = true;
+    if (!seMovio) return;
+    ubicar(origX + dx, origY + dy, false);
+  });
+
+  function terminarArrastre(e) {
+    if (!arrastrando) return;
+    arrastrando = false;
+    fab.classList.remove("arrastrando");
+    try { fab.releasePointerCapture(e.pointerId); } catch {}
+    if (seMovio) {
+      const rect = fab.getBoundingClientRect();
+      ubicar(rect.left, rect.top, true);
+    } else {
+      abrirModalCrearRecordatorio();
+    }
+  }
+
+  fab.addEventListener("pointerup", terminarArrastre);
+  fab.addEventListener("pointercancel", terminarArrastre);
+
+  // Si rota la pantalla o cambia el tamaño, que no quede fuera de la vista
+  window.addEventListener("resize", () => {
+    const rect = fab.getBoundingClientRect();
+    ubicar(rect.left, rect.top, true);
+  });
+
+  posicionInicial();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupFabRecordatorio);
+} else {
+  setTimeout(setupFabRecordatorio, 0);
 }

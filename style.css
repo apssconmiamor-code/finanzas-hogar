@@ -882,6 +882,33 @@ input, select, textarea, table {
 /* "Más" button in bottom nav */
 #btn-bottom-menu .nav-icon { font-size: 24px; letter-spacing: 2px; color: var(--text-3); }
 
+/* ═══════════════ BOTÓN FLOTANTE: nuevo recordatorio ═══════════════ */
+.fab-recordatorio {
+  position: fixed;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(47,107,79,0.55);
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  color: #fff;
+  font-size: 24px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-lg);
+  z-index: 500;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.15s;
+  opacity: 0.82;
+}
+.fab-recordatorio:hover { opacity: 1; }
+.fab-recordatorio:active { transform: scale(0.94); }
+.fab-recordatorio.arrastrando {
+  opacity: 1; cursor: grabbing; transition: none;
+  box-shadow: var(--shadow-lg), 0 0 0 6px rgba(47,107,79,0.15);
+}
+
 /* ═══════════════ SYNC TOAST ═══════════════ */
 .sync-toast {
   position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
@@ -1098,14 +1125,6 @@ input, select, textarea, table {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .recordatorio-item-fecha { font-size: 11px; color: var(--text-4); margin-top: 2px; }
-
-/* Modal centrado (prompt de recordatorio) */
-.modal.modal-center { align-items: center; }
-.modal-card-prompt {
-  text-align: center; max-width: 340px; padding: 32px 24px 24px;
-}
-.modal-card-prompt::before { display: none; }
-.recordatorio-prompt-icon { font-size: 40px; margin-bottom: 8px; }
 
 /* Preview de audio en el modal de crear recordatorio */
 .recordatorio-audio-preview {

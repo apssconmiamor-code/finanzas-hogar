@@ -396,15 +396,12 @@ async function mostrarApp() {
     // offline o token vencido — la UI ya está lista con la caché
   });
 
-  // Recordatorios: cargar badge + preguntar si quiere dejar uno nuevo
+  // Recordatorios: cargar badge (el botón flotante es ahora la forma de crear uno nuevo)
   if (typeof cargarRecordatorios === "function") {
     const cacheR = localStorage.getItem("cache_recordatorios");
     if (cacheR) { try { recordatorios = JSON.parse(cacheR); } catch {} }
     renderRecordatorioBadge();
     cargarRecordatorios();
-  }
-  if (typeof mostrarPromptRecordatorio === "function") {
-    setTimeout(mostrarPromptRecordatorio, 500);
   }
 }
 
