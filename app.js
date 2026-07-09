@@ -2162,7 +2162,11 @@ function renderTablaComparacion(movsDelMes) {
   });
 
   tbody.innerHTML = filas.map(f => {
-    const excedido = f.real > f.estimado;
+    // Gastos: rojo si te pasaste de lo estimado. Ingresos: al revés — rojo
+    // si no llegaste a lo estimado (la meta de ingreso no se cumplió).
+    const excedido = f.categoria === "Ingreso"
+      ? f.real < f.estimado
+      : f.real > f.estimado;
 
     return `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}">
       <td>
