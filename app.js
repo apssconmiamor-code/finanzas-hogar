@@ -1966,26 +1966,34 @@ function render4MesesResumen() {
     });
   });
 
-  // Variables para detectar doble clic
+  // Variables para detectar doble clic. 300ms (igual que el umbral de
+  // doble-toque que ya usa esta app para bloquear el zoom en iOS) y
+  // exigiendo que el segundo clic caiga en la misma tarjeta — si no, tocar
+  // dos tarjetas distintas rápido abría la configuración de la equivocada.
   let clickTimer = null;
+  let clickCard = null;
 
   grid.querySelectorAll(".proy-4m-card").forEach(card => {
     card.addEventListener("click", (e) => {
       if (e.target.classList.contains("proy-4m-remove")) return;
-      if (clickTimer) {
+      if (clickTimer && clickCard === card) {
         // Doble clic: abrir configuración
         clearTimeout(clickTimer);
         clickTimer = null;
+        clickCard = null;
         abrirConfigMes(card.dataset.mes);
       } else {
+        clearTimeout(clickTimer);
+        clickCard = card;
         clickTimer = setTimeout(() => {
           clickTimer = null;
+          clickCard = null;
           // Clic simple: seleccionar mes
           proyMesActivo = card.dataset.mes;
           document.getElementById("proyeccion-mes").value = proyMesActivo;
           renderProyeccion();
           document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 220);
+        }, 300);
       }
     });
   });
