@@ -274,6 +274,36 @@ function cargarMediaRecordatorio(file) {
   reader.readAsDataURL(file);
 }
 
+// Consigue el stream del micrófono pidiendo permiso una sola vez por sesión:
+// reutiliza el stream mientras siga vivo y, si el navegador permite consultar
+// el estado del permiso sin disparar el diálogo, lo hace primero para no
+// llamar a getUserMedia de más. Una vez el usuario concede el permiso, ni el
+// navegador ni esta función vuelven a pedirlo mientras la app siga abierta.
+// (En iPhone, que dentro de la MISMA sesión no repita el permiso depende de
+// esto; que no lo repita al cerrar y volver a abrir la app depende de que
+// iOS recuerde el permiso del sitio — eso ya es una decisión del sistema
+// operativo, no algo que el código de la app pueda forzar.)
+async function obtenerStreamMicrofono() {
+  const activo = recAudioStream?.getAudioTracks().some(t => t.readyState === "live");
+  if (activo) return recAudioStream;
+
+  try {
+    if (navigator.permissions?.query) {
+      const estado = await navigator.permissions.query({ name: "microphone" });
+      if (estado.state === "denied") {
+        throw Object.assign(new Error("Permiso de micrófono denegado"), { name: "NotAllowedError" });
+      }
+    }
+  } catch (e) {
+    if (e.name === "NotAllowedError") throw e;
+    // Safari/iOS no soporta consultar "microphone" con la Permissions API — seguimos igual
+  }
+
+  recAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  localStorage.setItem("mic_permiso_otorgado", "1");
+  return recAudioStream;
+}
+
 async function toggleGrabacionAudio() {
   const btn    = document.getElementById("btn-recordatorio-audio");
   const status = document.getElementById("recordatorio-audio-status");
@@ -284,12 +314,7 @@ async function toggleGrabacionAudio() {
       return;
     }
     try {
-      // Reutiliza el stream si ya lo teníamos abierto en esta misma sesión del
-      // modal, para no volver a pedir permiso de micrófono en cada grabación.
-      const streamActivo = recAudioStream?.getAudioTracks().some(t => t.readyState === "live");
-      if (!streamActivo) {
-        recAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
+      await obtenerStreamMicrofono();
       recAudioChunks = [];
       recMediaRecorder = new MediaRecorder(recAudioStream);
       recMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recAudioChunks.push(e.data); };

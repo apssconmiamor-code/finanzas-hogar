@@ -885,14 +885,14 @@ input, select, textarea, table {
 /* ═══════════════ BOTÓN FLOTANTE: nuevo recordatorio ═══════════════ */
 .fab-recordatorio {
   position: fixed;
-  width: 56px; height: 56px;
+  width: 64px; height: 64px;
   border-radius: 50%;
   border: none;
   background: rgba(47,107,79,0.55);
   backdrop-filter: blur(6px) saturate(140%);
   -webkit-backdrop-filter: blur(6px) saturate(140%);
   color: #fff;
-  font-size: 24px;
+  font-size: 28px;
   display: flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow-lg);
   z-index: 500;
