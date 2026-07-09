@@ -6,10 +6,14 @@
 // SUGIERE — nunca guarda nada por su cuenta; el usuario revisa y decide.
 
 const Gemini = {
-  MODEL: "gemini-2.0-flash",
+  // "gemini-2.0-flash" devolvía 429 (cuota en 0 para esta key/proyecto) y
+  // el key con prefijo "AQ." que usamos no es válido como parámetro
+  // ?key=... (Google lo rechaza con 401) — hay que mandarlo en el header
+  // X-goog-api-key. Verificado a mano contra la API real antes de dejarlo así.
+  MODEL: "gemini-flash-lite-latest",
 
   url() {
-    return `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+    return `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL}:generateContent`;
   },
 
   async analizarRecordatorio({ texto, fotos, audio }) {
@@ -42,7 +46,10 @@ Reglas:
 
     const res = await fetch(this.url(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-goog-api-key": CONFIG.GEMINI_API_KEY
+      },
       body: JSON.stringify({
         contents: [{ parts }],
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
