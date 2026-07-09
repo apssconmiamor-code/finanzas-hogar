@@ -755,7 +755,7 @@ input, select, textarea, table {
   display: block; margin-top: 6px; font-size: 12px; font-weight: 600;
   color: var(--red);
 }
-.proy-tabla-row { border-bottom: 1px solid var(--border); }
+.proy-tabla-row { border-bottom: 1px solid var(--border); cursor: pointer; }
 .proy-tabla-row:last-child { border-bottom: none; }
 .proy-tabla-row:hover td { background: var(--bg); }
 .proy-tabla-row td { padding: 11px 12px; vertical-align: middle; }

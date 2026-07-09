@@ -2193,7 +2193,7 @@ function renderTablaComparacion(movsDelMes) {
   }).join("");
 }
 
-// ---- DETALLE DE MOVIMIENTOS REALES (doble clic en una fila) ----
+// ---- DETALLE DE MOVIMIENTOS REALES (clic en una fila) ----
 
 function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
   const mes = proyMesActivo;
@@ -2675,27 +2675,14 @@ function setupProyeccionListeners() {
     document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
   });
 
-  // Doble clic/toque en una fila de "Detalle por concepto" → ver los
-  // movimientos reales que la componen ese mes. Usa un temporizador en vez
-  // de "dblclick" nativo (mismo patrón que ya usan las tarjetas de mes),
-  // con 300ms (igual que el umbral de doble-toque que ya usa esta app para
-  // bloquear el zoom en iOS) y exigiendo que el segundo toque caiga en la
-  // misma fila.
-  let proyFilaClickTimer = null;
-  let proyFilaClickRow = null;
+  // Toque/clic en una fila de "Detalle por concepto" → ver los movimientos
+  // reales que la componen ese mes. Un solo clic, igual que las tarjetas de
+  // Cajas (abrirDetalleCaja) — nada de temporizadores de doble clic, que en
+  // touch son poco confiables.
   document.getElementById("proy-tabla-body")?.addEventListener("click", (e) => {
     const row = e.target.closest(".proy-tabla-row");
     if (!row || e.target.closest("button")) return;
-    if (proyFilaClickTimer && proyFilaClickRow === row) {
-      clearTimeout(proyFilaClickTimer);
-      proyFilaClickTimer = null;
-      proyFilaClickRow = null;
-      abrirDetalleRealConcepto(row.dataset.concepto, row.dataset.categoria, !!row.dataset.esOtros);
-    } else {
-      clearTimeout(proyFilaClickTimer);
-      proyFilaClickRow = row;
-      proyFilaClickTimer = setTimeout(() => { proyFilaClickTimer = null; proyFilaClickRow = null; }, 300);
-    }
+    abrirDetalleRealConcepto(row.dataset.concepto, row.dataset.categoria, !!row.dataset.esOtros);
   });
   document.getElementById("btn-cerrar-detalle-real")?.addEventListener("click", () => {
     document.getElementById("modal-detalle-real-concepto").classList.add("hidden");
