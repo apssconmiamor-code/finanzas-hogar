@@ -623,7 +623,6 @@ input, select, textarea, table {
 .cat-badge.cat-gastovariable { background: var(--amber-soft); color: var(--amber-dark); }
 .cat-badge.cat-ingreso       { background: var(--green-soft); color: var(--green-dark); }
 .cat-badge.cat-transferencia { background: var(--purple-soft); color: var(--purple); }
-.cat-badge.cat-otros         { background: var(--slate-soft); color: var(--text-4); }
 
 /* Hints en modal */
 .mov-saldo-hint {

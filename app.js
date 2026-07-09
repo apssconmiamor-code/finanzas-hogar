@@ -2142,15 +2142,21 @@ function renderTablaComparacion(movsDelMes) {
     });
   });
 
-  // Movimientos reales cuyo concepto no está en el presupuesto ni entre las
-  // fuentes de ingreso: en vez de una fila por cada concepto suelto, se
-  // suman todos juntos en una sola fila "Otros" (sin opción de borrar).
+  // Movimientos reales cuyo concepto no está en la lista de este mes se
+  // suman al concepto "Otros" de categoría Gasto variable — SIEMPRE una
+  // sola fila: si "Otros" ya tiene fila propia (tiene estimado este mes),
+  // se le suma ahí en vez de crear una segunda fila "Otros" aparte.
   let otrosReal = 0;
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
     if (!filas.find(f => f.concepto === concepto)) otrosReal += real;
   });
-  if (otrosReal > 0) {
-    filas.push({ categoria: "Otros", concepto: "Otros", estimado: 0, real: otrosReal, esOtros: true });
+  const filaOtros = filas.find(f => f.concepto === "Otros");
+  if (filaOtros) {
+    filaOtros.categoria = "Gasto variable";
+    filaOtros.real = (filaOtros.real || 0) + otrosReal;
+    filaOtros.esOtros = true;
+  } else if (otrosReal > 0) {
+    filas.push({ categoria: "Gasto variable", concepto: "Otros", estimado: 0, real: otrosReal, esOtros: true });
   }
 
   if (filas.length === 0) {
@@ -2206,12 +2212,15 @@ function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
   let lista, titulo;
   if (esOtros) {
     // Mismo criterio que renderTablaComparacion usa para armar la fila
-    // "Otros": conceptos que no tienen estimado este mes ni son fuente de ingreso.
+    // "Otros": conceptos que no tienen estimado este mes ni son fuente de
+    // ingreso, más los movimientos con el concepto "Otros" en sí (que
+    // siempre caen ahí, tenga o no estimado propio configurado).
     const gastosMes = getGastosMesParaEditor(mes);
     const conocidos = new Set([
       ...Object.entries(gastosMes).filter(([, v]) => v > 0).map(([c]) => c),
       ...FUENTES_INGRESO
     ]);
+    conocidos.delete("Otros");
     lista = movsDelMes.filter(m => !conocidos.has(m.concepto));
     titulo = "🗂️ Otros";
   } else {
