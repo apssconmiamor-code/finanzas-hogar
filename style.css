@@ -437,6 +437,26 @@ input, select, textarea, table {
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 4px; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-close {
+  background: var(--bg); border: none; border-radius: 50%;
+  width: 28px; height: 28px; flex-shrink: 0;
+  font-size: 14px; color: var(--text-3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { background: var(--border); color: var(--text); }
+
+.detalle-real-lista { display: flex; flex-direction: column; gap: 8px; }
+.detalle-real-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; background: var(--bg); border-radius: 10px;
+}
+.detalle-real-item-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.detalle-real-item-caja { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.detalle-real-item-desc { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detalle-real-item-fecha { font-size: 11px; color: var(--text-4); }
+.detalle-real-item-monto { font-size: 14px; font-weight: 700; font-family: var(--font-display); color: var(--text); flex-shrink: 0; }
+.detalle-real-vacio { text-align: center; color: var(--text-4); padding: 24px; font-size: 13px; }
 
 /* On desktop, center modals */
 @media (min-width: 640px) {
@@ -603,6 +623,7 @@ input, select, textarea, table {
 .cat-badge.cat-gastovariable { background: var(--amber-soft); color: var(--amber-dark); }
 .cat-badge.cat-ingreso       { background: var(--green-soft); color: var(--green-dark); }
 .cat-badge.cat-transferencia { background: var(--purple-soft); color: var(--purple); }
+.cat-badge.cat-otros         { background: var(--slate-soft); color: var(--text-4); }
 
 /* Hints en modal */
 .mov-saldo-hint {

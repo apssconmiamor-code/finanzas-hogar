@@ -2139,12 +2139,16 @@ function renderTablaComparacion(movsDelMes) {
     });
   });
 
+  // Movimientos reales cuyo concepto no está en el presupuesto ni entre las
+  // fuentes de ingreso: en vez de una fila por cada concepto suelto, se
+  // suman todos juntos en una sola fila "Otros" (sin opción de borrar).
+  let otrosReal = 0;
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
-    if (!filas.find(f => f.concepto === concepto)) {
-      const mov = movimientos.find(m => m.concepto === concepto);
-      filas.push({ categoria: mov ? mov.categoria : "Sin categoría", concepto, estimado: 0, real });
-    }
+    if (!filas.find(f => f.concepto === concepto)) otrosReal += real;
   });
+  if (otrosReal > 0) {
+    filas.push({ categoria: "Otros", concepto: "Otros", estimado: 0, real: otrosReal, esOtros: true });
+  }
 
   if (filas.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-light)">
@@ -2168,7 +2172,7 @@ function renderTablaComparacion(movsDelMes) {
       ? f.real < f.estimado
       : f.real > f.estimado;
 
-    return `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}">
+    return `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${f.concepto.replace(/"/g, "&quot;")}" data-categoria="${f.categoria.replace(/"/g, "&quot;")}" ${f.esOtros ? 'data-es-otros="1"' : ""}>
       <td>
         <div class="proy-cell-concepto">
           <span class="cat-badge cat-${f.categoria.toLowerCase().replace(/ /g,'')}">
@@ -2181,12 +2185,62 @@ function renderTablaComparacion(movsDelMes) {
       <td class="proy-cell-num">${f.real > 0 ? formatMonto(f.real) : "—"}</td>
       <td>
         <div class="proy-cell-acciones">
-          <button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>
+          ${f.esOtros ? "" : `<button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>`}
           ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable") ? `<button type="button" class="btn-icono-fila btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
         </div>
       </td>
     </tr>`;
   }).join("");
+}
+
+// ---- DETALLE DE MOVIMIENTOS REALES (doble clic en una fila) ----
+
+function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
+  const mes = proyMesActivo;
+  const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
+
+  let lista, titulo;
+  if (esOtros) {
+    // Mismo criterio que renderTablaComparacion usa para armar la fila
+    // "Otros": conceptos que no tienen estimado este mes ni son fuente de ingreso.
+    const gastosMes = getGastosMesParaEditor(mes);
+    const conocidos = new Set([
+      ...Object.entries(gastosMes).filter(([, v]) => v > 0).map(([c]) => c),
+      ...FUENTES_INGRESO
+    ]);
+    lista = movsDelMes.filter(m => !conocidos.has(m.concepto));
+    titulo = "🗂️ Otros";
+  } else {
+    lista = movsDelMes.filter(m => m.concepto === concepto);
+    titulo = `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
+  }
+
+  document.getElementById("detalle-real-titulo").textContent = titulo;
+  document.getElementById("detalle-real-subtitulo").textContent = `Movimientos reales de ${mesLabel}`;
+
+  const cont = document.getElementById("detalle-real-lista");
+  if (lista.length === 0) {
+    cont.innerHTML = `<div class="detalle-real-vacio">No hay movimientos reales de este concepto en ${mesLabel}.</div>`;
+  } else {
+    const ordenados = [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    cont.innerHTML = ordenados.map(m => {
+      const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+      const esIngreso = m.categoria === "Ingreso";
+      const etiqueta = esOtros ? `${ICONOS[m.concepto] || "📌"} ${m.concepto}` : m.caja;
+      const metaFecha = esOtros ? `${fechaFmt} · ${m.caja}` : fechaFmt;
+      return `<div class="detalle-real-item">
+        <div class="detalle-real-item-texto">
+          <span class="detalle-real-item-caja">${etiqueta}</span>
+          ${m.descripcion ? `<span class="detalle-real-item-desc">${m.descripcion}</span>` : ""}
+          <span class="detalle-real-item-fecha">${metaFecha}</span>
+        </div>
+        <span class="detalle-real-item-monto" style="color:${esIngreso ? "var(--green-dark)" : "var(--text)"}">${esIngreso ? "+" : "-"}${formatMonto(Math.abs(m.monto))}</span>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("modal-detalle-real-concepto")?.classList.remove("hidden");
 }
 
 // ---- DASHBOARD DONUTS ----
@@ -2619,6 +2673,26 @@ function setupProyeccionListeners() {
     document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
+  });
+
+  // Doble clic/toque en una fila de "Detalle por concepto" → ver los
+  // movimientos reales que la componen ese mes. Usa un temporizador en vez
+  // de "dblclick" nativo (mismo patrón que ya usan las tarjetas de mes),
+  // para que funcione igual de bien con toques en iOS.
+  let proyFilaClickTimer = null;
+  document.getElementById("proy-tabla-body")?.addEventListener("click", (e) => {
+    const row = e.target.closest(".proy-tabla-row");
+    if (!row || e.target.closest("button")) return;
+    if (proyFilaClickTimer) {
+      clearTimeout(proyFilaClickTimer);
+      proyFilaClickTimer = null;
+      abrirDetalleRealConcepto(row.dataset.concepto, row.dataset.categoria, !!row.dataset.esOtros);
+    } else {
+      proyFilaClickTimer = setTimeout(() => { proyFilaClickTimer = null; }, 220);
+    }
+  });
+  document.getElementById("btn-cerrar-detalle-real")?.addEventListener("click", () => {
+    document.getElementById("modal-detalle-real-concepto").classList.add("hidden");
   });
 }
 
