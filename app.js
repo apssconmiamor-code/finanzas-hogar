@@ -858,26 +858,29 @@ function abrirDetalleCaja(nombre) {
     m.categoria !== "Ingreso" && !(m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"))
   ).reduce((s, m) => s + Math.abs(m.monto), 0);
 
-  const filas = movs.map(m => {
+  // Entradas/salidas se calculan con el historial completo; la lista solo
+  // muestra los últimos 50 movimientos (mismo formato que el detalle de
+  // una fila en Proyección).
+  const movsMostrados = movs.slice(0, 50);
+  const filas = movsMostrados.map(m => {
     const esEntrada = m.categoria === "Ingreso" || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"));
-    const signo = esEntrada ? "+" : "-";
-    const color = esEntrada ? "var(--green)" : "var(--red)";
-    return `<tr>
-      <td>${m.fecha}</td>
-      <td>${m.concepto}</td>
-      <td style="color:var(--text-light);font-size:0.82rem">${m.categoria}</td>
-      <td style="text-align:right;color:${color};font-weight:600">${signo}${formatMonto(Math.abs(m.monto), moneda)}</td>
-    </tr>`;
+    const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+    return `<div class="detalle-real-item">
+      <div class="detalle-real-item-texto">
+        <span class="detalle-real-item-caja">${ICONOS[m.concepto] || (esEntrada ? "💰" : "📌")} ${m.concepto}</span>
+        ${m.descripcion ? `<span class="detalle-real-item-desc">${m.descripcion}</span>` : ""}
+        <span class="detalle-real-item-fecha">${fechaFmt}</span>
+      </div>
+      <span class="detalle-real-item-monto" style="color:${esEntrada ? "var(--green-dark)" : "var(--text)"}">${esEntrada ? "+" : "-"}${formatMonto(Math.abs(m.monto), moneda)}</span>
+    </div>`;
   }).join("");
 
+  const aviso = movs.length > 50
+    ? `<p class="modal-subtitle" style="margin:-4px 0 0">Mostrando los últimos 50 de ${movs.length} movimientos</p>` : "";
+
   const cuerpo = movs.length === 0
-    ? `<p style="text-align:center;color:var(--text-light);padding:24px">Sin movimientos registrados</p>`
-    : `<div class="detalle-caja-scroll">
-        <table class="detalle-caja-table">
-          <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th style="text-align:right">Monto</th></tr></thead>
-          <tbody>${filas}</tbody>
-        </table>
-       </div>`;
+    ? `<div class="detalle-real-vacio">Sin movimientos registrados</div>`
+    : `${aviso}<div class="detalle-caja-scroll"><div class="detalle-real-lista">${filas}</div></div>`;
 
   document.getElementById("detalle-caja-titulo").textContent = nombre;
   document.getElementById("detalle-caja-resumen").innerHTML = `

@@ -1047,29 +1047,8 @@ input, select, textarea, table {
   background: var(--bg);
 }
 .detalle-caja-scroll {
-  overflow-y: auto; overflow-x: hidden; max-height: 52vh; padding: 0 4px 12px;
+  overflow-y: auto; overflow-x: hidden; max-height: 52vh; padding: 4px 4px 12px;
 }
-.detalle-caja-table {
-  width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem;
-}
-.detalle-caja-table th {
-  position: sticky; top: 0; background: var(--surface);
-  padding: 8px 10px 6px; font-size: 0.75rem; font-weight: 700;
-  color: var(--text-3); text-align: left;
-  border-bottom: 1px solid var(--border);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.detalle-caja-table td {
-  padding: 7px 10px; border-bottom: 1px solid var(--border-light, var(--border));
-  vertical-align: middle;
-  overflow: hidden; text-overflow: ellipsis; word-break: break-word;
-}
-.detalle-caja-table th:nth-child(1), .detalle-caja-table td:nth-child(1) { width: 22%; }
-.detalle-caja-table th:nth-child(2), .detalle-caja-table td:nth-child(2) { width: 34%; }
-.detalle-caja-table th:nth-child(3), .detalle-caja-table td:nth-child(3) { width: 22%; }
-.detalle-caja-table th:nth-child(4), .detalle-caja-table td:nth-child(4) { width: 22%; }
-.detalle-caja-table tr:last-child td { border-bottom: none; }
-.detalle-caja-table tr:hover td { background: var(--bg); }
 .caja-card { user-select: none; }
 
 /* ═══════════════ FOTOS EN MOVIMIENTO ═══════════════ */
