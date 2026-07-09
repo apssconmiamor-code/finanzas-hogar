@@ -1634,8 +1634,12 @@ function setIngresosMes(mes, fuentes) {
   guardarTodaProyeccion();
 }
 
+// Usa la misma resolución que el editor/tabla (propio mes → mes anterior
+// como referencia) para que el bloque de resumen del mes coincida con lo
+// que la tabla ya está mostrando, en vez de mostrar 0 hasta que el usuario
+// toque algo.
 function totalIngresosMes(mes) {
-  const fuentes = getIngresosMes(mes);
+  const fuentes = getIngresosMesParaEditor(mes);
   return Object.values(fuentes).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
 
@@ -1660,9 +1664,8 @@ function setGastosMes(mes, gastos) {
 }
 
 function totalGastosMes(mes) {
-  const gastos = getGastosMes(mes);
-  if (gastos) return Object.values(gastos).reduce((s, v) => s + (parseFloat(v) || 0), 0);
-  return presupuesto.filter(p => p.montoEstimado > 0).reduce((s, p) => s + p.montoEstimado, 0);
+  const gastos = getGastosMesParaEditor(mes);
+  return Object.values(gastos).reduce((s, v) => s + (parseFloat(v) || 0), 0);
 }
 
 function getMesAnterior(mes) {
@@ -2108,26 +2111,21 @@ function renderTablaComparacion(movsDelMes) {
       realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
     });
 
-  // Usar gastos configurados para este mes específico, o caer al presupuesto global
-  const gastosMes = getGastosMes(proyMesActivo);
+  // Mes propio → mes anterior como referencia → presupuesto global. Misma
+  // resolución que usa el editor y el bloque de resumen del mes, para que
+  // tabla y resumen siempre muestren el mismo estimado.
+  const gastosMes = getGastosMesParaEditor(proyMesActivo);
   const todasCat  = [
     ...GASTOS_FIJOS.map(c => ({ categoria: "Gasto fijo", concepto: c })),
     ...GASTOS_VARIABLES.map(c => ({ categoria: "Gasto variable", concepto: c })),
   ];
 
-  let filas;
-  if (gastosMes) {
-    filas = Object.entries(gastosMes)
-      .filter(([, v]) => v > 0)
-      .map(([concepto, estimado]) => {
-        const cat = todasCat.find(c => c.concepto === concepto);
-        return { categoria: cat ? cat.categoria : "Gasto variable", concepto, estimado, real: realesPorConcepto[concepto] || 0 };
-      });
-  } else {
-    filas = presupuesto
-      .filter(p => p.montoEstimado > 0)
-      .map(p => ({ categoria: p.categoria, concepto: p.concepto, estimado: p.montoEstimado, real: realesPorConcepto[p.concepto] || 0 }));
-  }
+  const filas = Object.entries(gastosMes)
+    .filter(([, v]) => v > 0)
+    .map(([concepto, estimado]) => {
+      const cat = todasCat.find(c => c.concepto === concepto);
+      return { categoria: cat ? cat.categoria : "Gasto variable", concepto, estimado, real: realesPorConcepto[concepto] || 0 };
+    });
 
   // Ingresos estimados del mes (fuentes) — van primero en la tabla, siempre las 4 aunque estén en $0
   const ingresosMes = getIngresosMesParaEditor(proyMesActivo);
