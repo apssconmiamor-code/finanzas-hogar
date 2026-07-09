@@ -37,6 +37,7 @@ const Sheets = {
     const raw = localStorage.getItem("guser");
     if (!raw) {
       document.getElementById("app")?.classList.add("hidden");
+      document.getElementById("faceid-screen")?.classList.add("hidden");
       document.getElementById("login-screen")?.classList.remove("hidden");
       return;
     }
@@ -44,7 +45,7 @@ const Sheets = {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.GOOGLE_CLIENT_ID,
       scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-      prompt: "",
+      prompt: "none",
       hint: user.email,
       callback: (response) => {
         if (response.error) {

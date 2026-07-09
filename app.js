@@ -165,7 +165,7 @@ const ICONOS = {
 
 // ---- INIT ----
 
-window.onload = () => {
+window.onload = async () => {
   const userRaw = localStorage.getItem("guser");
   const token   = localStorage.getItem("gtoken");
 
@@ -175,10 +175,19 @@ window.onload = () => {
   }
 
   if (usuarioValido) {
-    // Usuario guardado → app inmediata con caché, sin ningún popup de Google
     currentUser = usuarioValido;
     if (token) Sheets.setToken(token);
-    mostrarApp();
+
+    if (FaceAuth.tieneCredencial() && (await FaceAuth.disponiblePlataforma())) {
+      // Ya está enrolado → entrada rápida solo con Face ID, sin ninguna pantalla de Google
+      iniciarConFaceID();
+    } else {
+      // Usuario ya logueado pero sin Face ID activado aún → entra directo
+      // y lo activa en segundo plano para que la próxima vez sea con Face ID
+      mostrarApp();
+      renovarTokenSilencioso();
+      if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
+    }
   } else {
     // Sin usuario → intentar One Tap (auto-selecciona sin popup si hay sesión activa)
     try {
@@ -194,6 +203,67 @@ window.onload = () => {
 
   setupEventListeners();
 };
+
+// Pantalla de Face ID: dispara la verificación biométrica de inmediato
+// (rápido, sin toques extra) y solo muestra un botón si el navegador
+// bloqueó la llamada automática por falta de gesto del usuario.
+async function iniciarConFaceID(esIntentoAutomatico = true) {
+  document.getElementById("login-screen").classList.add("hidden");
+  const pantalla  = document.getElementById("faceid-screen");
+  const status    = document.getElementById("faceid-status");
+  const btnRetry  = document.getElementById("btn-faceid-retry");
+  const btnGoogle = document.getElementById("btn-faceid-google");
+  pantalla.classList.remove("hidden");
+  btnRetry.classList.add("hidden");
+  btnGoogle.classList.add("hidden");
+  status.textContent = "Verificando con Face ID…";
+
+  const ok = await FaceAuth.verificar();
+  if (ok) {
+    pantalla.classList.add("hidden");
+    mostrarApp();
+    renovarTokenSilencioso();
+  } else if (esIntentoAutomatico) {
+    // El primer intento es automático (sin toque previo del usuario): en iOS eso
+    // suele bloquear WebAuthn por falta de "gesto", no porque el rostro haya fallado.
+    status.textContent = "Toca para entrar con Face ID";
+    btnRetry.classList.remove("hidden");
+    btnGoogle.classList.remove("hidden");
+  } else {
+    status.textContent = "No se pudo verificar. Intenta de nuevo.";
+    btnRetry.classList.remove("hidden");
+    btnGoogle.classList.remove("hidden");
+  }
+}
+
+document.getElementById("btn-faceid-retry").addEventListener("click", () => iniciarConFaceID(false));
+document.getElementById("btn-faceid-google").addEventListener("click", () => {
+  document.getElementById("faceid-screen").classList.add("hidden");
+  document.getElementById("login-screen").classList.remove("hidden");
+});
+
+// Renueva el token de Google 100% en segundo plano (prompt:"none"): si no
+// se puede renovar sin interacción, la app se queda con lo que hay en
+// caché — nunca se muestra ninguna pantalla ni popup de Google.
+function renovarTokenSilencioso() {
+  if (typeof google === "undefined" || !currentUser?.email) return;
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+      prompt: "none",
+      hint: currentUser.email,
+      callback: (response) => {
+        if (!response.error) {
+          Sheets.setToken(response.access_token);
+          localStorage.setItem("gtoken", response.access_token);
+          cargarTodo().catch(() => {});
+        }
+      }
+    });
+    client.requestAccessToken();
+  } catch (e) { /* sin conexión — la app sigue con caché */ }
+}
 
 // Callback de One Tap: guarda usuario y obtiene token para Sheets en silencio
 async function _onOneTapCredential(credentialResponse) {
@@ -211,12 +281,13 @@ async function _onOneTapCredential(credentialResponse) {
       scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
       prompt: "none",
       hint: currentUser.email,
-      callback: (response) => {
+      callback: async (response) => {
         if (!response.error) {
           Sheets.setToken(response.access_token);
           localStorage.setItem("gtoken", response.access_token);
         }
         mostrarApp();
+        if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
       }
     });
     client.requestAccessToken();
@@ -243,15 +314,17 @@ document.getElementById("btn-login").addEventListener("click", () => {
       currentUser = { name: perfil.name, email: perfil.email, picture: perfil.picture };
       localStorage.setItem("guser", JSON.stringify(currentUser));
       mostrarApp();
+      if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
     }
   });
   client.requestAccessToken();
 });
 
 document.getElementById("btn-logout").addEventListener("click", () => {
-  // Al cerrar sesión limpiamos solo auth, NO el caché de datos
+  // Al cerrar sesión limpiamos auth y el candado de Face ID, NO el caché de datos
   localStorage.removeItem("gtoken");
   localStorage.removeItem("guser");
+  FaceAuth.borrarCredencial();
   currentUser = null;
   cajas = [];
   movimientos = [];

@@ -119,6 +119,20 @@ input, select, textarea, table {
 .btn-google:hover { background: #ebebed; transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .btn-google:active { transform: scale(0.98); }
 
+.faceid-icon-wrap { margin-bottom: 20px; display: flex; justify-content: center; animation: faceid-pulse 1.4s ease-in-out infinite; }
+@keyframes faceid-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.94); } }
+.faceid-status { color: var(--text-3); margin-bottom: 24px; font-size: 16px; }
+.btn-faceid {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 15px 20px;
+  background: var(--brand); color: #fff;
+  border: none; border-radius: 14px;
+  font-size: 16px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; font-family: var(--font);
+}
+.btn-faceid:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn-faceid:active { transform: scale(0.98); }
+
 /* ═══════════════ LAYOUT ═══════════════ */
 .app { display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
 

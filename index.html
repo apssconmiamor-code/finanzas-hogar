@@ -49,6 +49,27 @@
     </div>
   </div>
 
+  <!-- ═══════════════ FACE ID ═══════════════ -->
+  <div id="faceid-screen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="faceid-icon-wrap" id="faceid-icon-wrap">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 16V8a4 4 0 0 1 4-4h8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M60 16V8a4 4 0 0 0-4-4h-8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M4 48v8a4 4 0 0 0 4 4h8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M60 48v8a4 4 0 0 1-4 4h-8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M24 26v4M40 26v4" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M32 26v10h-3" stroke="#2f6b4f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24 42c2.5 2 5 3 8 3s5.5-1 8-3" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="login-title">Finanzas Hogar</h1>
+      <p class="faceid-status" id="faceid-status">Verificando con Face ID…</p>
+      <button id="btn-faceid-retry" class="btn-faceid hidden">Entrar con Face ID</button>
+      <button id="btn-faceid-google" class="btn-google hidden" style="margin-top:12px">Usar Google en su lugar</button>
+    </div>
+  </div>
+
   <!-- ═══════════════ APP ═══════════════ -->
   <div id="app" class="app hidden">
 
@@ -668,6 +689,7 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
+  <script src="faceid.js"></script>
   <script src="sheets.js"></script>
   <script src="sync.js"></script>
   <script src="sheets-offline.js"></script>
