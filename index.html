@@ -365,7 +365,10 @@
         <!-- Tabla comparativa -->
         <div class="card-section">
           <div class="card-section-header">
-            <span class="card-section-title">Detalle por concepto</span>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="card-section-title">Detalle por concepto</span>
+              <button class="btn-agregar-mes" id="btn-agregar-concepto" title="Agregar concepto">+ Concepto</button>
+            </div>
             <div class="proy-leyenda">
               <span class="leyenda-item"><span class="leyenda-dot estado-ok"></span>0–80%</span>
               <span class="leyenda-item"><span class="leyenda-dot estado-alerta"></span>80–100%</span>
@@ -398,6 +401,36 @@
             <div class="modal-actions">
               <button class="btn-secondary" id="btn-cancelar-presupuesto">Cancelar</button>
               <button class="btn-primary" id="btn-guardar-presupuesto">Guardar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal nuevo concepto de presupuesto -->
+        <div id="modal-nuevo-concepto" class="modal hidden">
+          <div class="modal-card">
+            <h3 class="modal-title">Nuevo concepto</h3>
+            <div class="form-group">
+              <label>Concepto</label>
+              <input id="nuevo-concepto-nombre" type="text" list="lista-conceptos-existentes"
+                placeholder="Ej: Gimnasio, Parqueadero…" class="input" autocomplete="off"/>
+              <datalist id="lista-conceptos-existentes"></datalist>
+              <span id="nuevo-concepto-duplicado" class="nuevo-concepto-aviso hidden">⚠️ Ese concepto ya existe</span>
+            </div>
+            <div class="form-group">
+              <label>Categoría</label>
+              <div class="cat-btn-group" id="nuevo-concepto-cat-group">
+                <button type="button" class="cat-btn" data-value="Gasto fijo">📌 Gasto fijo</button>
+                <button type="button" class="cat-btn" data-value="Gasto variable">🔀 Gasto variable</button>
+              </div>
+              <input type="hidden" id="nuevo-concepto-categoria" value=""/>
+            </div>
+            <div class="form-group">
+              <label>Monto estimado</label>
+              <input id="nuevo-concepto-monto" type="text" inputmode="decimal" placeholder="0" class="input pres-input"/>
+            </div>
+            <div class="modal-actions">
+              <button class="btn-secondary" id="btn-cancelar-nuevo-concepto">Cancelar</button>
+              <button class="btn-primary" id="btn-guardar-nuevo-concepto">Guardar</button>
             </div>
           </div>
         </div>

@@ -728,6 +728,18 @@ input, select, textarea, table {
   line-height: 1.2; transition: all 0.12s;
 }
 .btn-modificar-fila:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.proy-cell-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-eliminar-fila {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 1px solid var(--border-mid);
+  border-radius: 8px; padding: 5px 8px; font-size: 11px;
+  cursor: pointer; font-family: var(--font); transition: all 0.12s;
+}
+.btn-eliminar-fila:hover { background: var(--red-soft); border-color: var(--red); }
+.nuevo-concepto-aviso {
+  display: block; margin-top: 6px; font-size: 12px; font-weight: 600;
+  color: var(--red);
+}
 .proy-tabla-row { border-bottom: 1px solid var(--border); }
 .proy-tabla-row:last-child { border-bottom: none; }
 .proy-tabla-row:hover td { background: var(--bg); }

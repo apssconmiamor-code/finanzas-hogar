@@ -1818,7 +1818,33 @@ function obtener4Meses() {
 let proyMesActivo = new Date().toISOString().slice(0, 7);
 
 // ---- RENDER PROYECCIÓN ----
+// Mantiene GASTOS_FIJOS/GASTOS_VARIABLES sincronizados con los conceptos
+// guardados en el presupuesto (hoja "Presupuesto"). Las mutamos en el lugar
+// (push/splice, sin reasignar) para que un concepto nuevo — o uno borrado —
+// aparezca o desaparezca automáticamente en TODOS los lugares que usan estas
+// dos constantes: el modal de nuevo movimiento, los filtros, el presupuesto
+// mensual, la configuración de mes, los KPIs de resumen, etc.
+function sincronizarListasConceptos() {
+  presupuesto.forEach(p => {
+    if (!p.concepto) return;
+    if (p.categoria === "Gasto fijo" && !GASTOS_FIJOS.includes(p.concepto)) {
+      GASTOS_FIJOS.push(p.concepto);
+    } else if (p.categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(p.concepto)) {
+      GASTOS_VARIABLES.push(p.concepto);
+    }
+  });
+}
+
+function conceptoYaExiste(nombre) {
+  const n = (nombre || "").trim().toLowerCase();
+  if (!n) return false;
+  return GASTOS_FIJOS.some(c => c.toLowerCase() === n) ||
+    GASTOS_VARIABLES.some(c => c.toLowerCase() === n) ||
+    FUENTES_INGRESO.some(c => c.toLowerCase() === n);
+}
+
 function renderProyeccion() {
+  sincronizarListasConceptos();
   const mes = proyMesActivo;
   document.getElementById("proyeccion-mes").value = mes;
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes));
@@ -2170,7 +2196,10 @@ function renderTablaComparacion(movsDelMes) {
         </div>
       </td>
       <td>
-        <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️ Modificar</button>
+        <div class="proy-cell-acciones">
+          <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️ Modificar</button>
+          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable") ? `<button type="button" class="btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
+        </div>
       </td>
     </tr>`;
   }).join("");
@@ -2494,6 +2523,90 @@ function renderCronologia(datos) {
   `;
 }
 
+// ---- MODAL NUEVO CONCEPTO (agregar fila al presupuesto) ----
+
+function abrirModalNuevoConcepto() {
+  const modal = document.getElementById("modal-nuevo-concepto");
+  if (!modal) return;
+
+  document.getElementById("nuevo-concepto-nombre").value = "";
+  document.getElementById("nuevo-concepto-monto").value = "";
+  document.getElementById("nuevo-concepto-categoria").value = "";
+  document.getElementById("nuevo-concepto-duplicado").classList.add("hidden");
+  document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
+
+  const dl = document.getElementById("lista-conceptos-existentes");
+  dl.innerHTML = [...GASTOS_FIJOS, ...GASTOS_VARIABLES].map(c => `<option value="${c}"/>`).join("");
+
+  modal.classList.remove("hidden");
+  setTimeout(() => document.getElementById("nuevo-concepto-nombre").focus(), 60);
+}
+
+function cerrarModalNuevoConcepto() {
+  document.getElementById("modal-nuevo-concepto")?.classList.add("hidden");
+}
+
+function validarNombreNuevoConcepto() {
+  const nombre = document.getElementById("nuevo-concepto-nombre").value;
+  const existe = conceptoYaExiste(nombre);
+  document.getElementById("nuevo-concepto-duplicado").classList.toggle("hidden", !existe);
+  return existe;
+}
+
+async function guardarNuevoConcepto() {
+  const nombre    = document.getElementById("nuevo-concepto-nombre").value.trim();
+  const categoria = document.getElementById("nuevo-concepto-categoria").value;
+  const monto     = evaluarMonto(document.getElementById("nuevo-concepto-monto").value);
+
+  if (!nombre) { alert("Escribe el nombre del concepto"); return; }
+  if (validarNombreNuevoConcepto()) return;
+  if (!categoria) { alert("Selecciona si es gasto fijo o gasto variable"); return; }
+  if (!monto || monto <= 0) { alert("Escribe el monto estimado"); return; }
+
+  const btn = document.getElementById("btn-guardar-nuevo-concepto");
+  btn.textContent = "Guardando..."; btn.disabled = true;
+
+  try {
+    const nuevaLista = [...presupuesto, { categoria, concepto: nombre, montoEstimado: monto, ingresoEstimado: 0 }];
+    await Sheets.guardarPresupuesto(nuevaLista);
+    presupuesto = nuevaLista;
+    sincronizarListasConceptos();
+    cerrarModalNuevoConcepto();
+    renderProyeccion();
+    SyncManager.mostrarToast(`✅ "${nombre}" agregado al presupuesto`);
+  } catch (err) {
+    alert("Error guardando el concepto: " + err.message);
+  } finally {
+    btn.textContent = "Guardar"; btn.disabled = false;
+  }
+}
+
+// Quita un concepto del presupuesto (y de los selectores de la app). Los
+// movimientos ya registrados con ese concepto NO se tocan ni se borran.
+async function eliminarConceptoPresupuesto(concepto, categoria) {
+  if (!confirm(`¿Eliminar "${concepto}" del presupuesto?\n\nLos movimientos ya registrados con este concepto no se borran.`)) return;
+
+  const listaOriginal = presupuesto;
+  const nuevaLista = presupuesto.filter(p => p.concepto !== concepto);
+
+  try {
+    await Sheets.guardarPresupuesto(nuevaLista);
+    presupuesto = nuevaLista;
+    if (categoria === "Gasto fijo") {
+      const i = GASTOS_FIJOS.indexOf(concepto);
+      if (i !== -1) GASTOS_FIJOS.splice(i, 1);
+    } else if (categoria === "Gasto variable") {
+      const i = GASTOS_VARIABLES.indexOf(concepto);
+      if (i !== -1) GASTOS_VARIABLES.splice(i, 1);
+    }
+    renderProyeccion();
+    SyncManager.mostrarToast(`🗑️ "${concepto}" eliminado del presupuesto`);
+  } catch (err) {
+    presupuesto = listaOriginal;
+    alert("Error eliminando el concepto: " + err.message);
+  }
+}
+
 // ---- SETUP LISTENERS PROYECCIÓN ----
 
 function setupProyeccionListeners() {
@@ -2504,6 +2617,22 @@ function setupProyeccionListeners() {
 
   document.getElementById("modal-presupuesto")?.addEventListener("click", (e) => {
     if (e.target === document.getElementById("modal-presupuesto")) cerrarModalPresupuesto();
+  });
+
+  document.getElementById("btn-agregar-concepto")
+    ?.addEventListener("click", abrirModalNuevoConcepto);
+  document.getElementById("btn-cancelar-nuevo-concepto")
+    ?.addEventListener("click", cerrarModalNuevoConcepto);
+  document.getElementById("btn-guardar-nuevo-concepto")
+    ?.addEventListener("click", guardarNuevoConcepto);
+  document.getElementById("nuevo-concepto-nombre")
+    ?.addEventListener("input", validarNombreNuevoConcepto);
+  document.getElementById("nuevo-concepto-cat-group")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".cat-btn");
+    if (!btn) return;
+    document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
   });
 }
 
