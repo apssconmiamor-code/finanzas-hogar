@@ -62,13 +62,29 @@ Reglas:
     }
 
     const data = await res.json();
-    const textoRespuesta = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (data?.promptFeedback?.blockReason) {
+      throw new Error(`Gemini bloqueó la solicitud: ${data.promptFeedback.blockReason}`);
+    }
+    const candidato = data?.candidates?.[0];
+    if (candidato?.finishReason && !["STOP", "MAX_TOKENS"].includes(candidato.finishReason)) {
+      throw new Error(`Gemini no terminó la respuesta (${candidato.finishReason})`);
+    }
+    // Filtra partes de "pensamiento" (thought:true) — solo interesa la
+    // respuesta final, que es la que debería venir en JSON.
+    const textoRespuesta = candidato?.content?.parts
+      ?.filter(p => !p.thought)
+      .map(p => p.text || "")
+      .join("");
     if (!textoRespuesta) throw new Error("Gemini no devolvió una respuesta utilizable");
 
+    // Por si acaso viene envuelta en ```json ... ``` a pesar de haber
+    // pedido responseMimeType "application/json".
+    const limpio = textoRespuesta.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+
     try {
-      return JSON.parse(textoRespuesta);
+      return JSON.parse(limpio);
     } catch (e) {
-      throw new Error("La respuesta de la IA no vino en el formato esperado");
+      throw new Error("La respuesta de la IA no vino en el formato esperado: " + limpio.slice(0, 150));
     }
   }
 };

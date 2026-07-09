@@ -492,8 +492,13 @@ async function precargarConIA(r) {
     const resultado = await Gemini.analizarRecordatorio({ texto: r.texto, fotos, audio });
 
     // Si el usuario ya cerró el modal (o abrió otro) mientras la IA
-    // trabajaba, no pisar lo que esté viendo ahora.
-    if (document.getElementById("modal-movimiento").dataset.fromRecordatorioId !== r.id) return;
+    // trabajaba, no pisar lo que esté viendo ahora — pero SIEMPRE hay que
+    // actualizar el estado, si no el "Analizando…" se queda pegado.
+    const modalSigueAbierto = document.getElementById("modal-movimiento").dataset.fromRecordatorioId === r.id;
+    if (!modalSigueAbierto) {
+      status.classList.add("hidden");
+      return;
+    }
 
     if (["Gasto fijo", "Gasto variable", "Ingreso"].includes(resultado.categoria)) {
       document.getElementById("mov-categoria").value = resultado.categoria;
@@ -513,8 +518,9 @@ async function precargarConIA(r) {
       : "🤖 Prellenado con IA — revisa que esté bien antes de guardar";
     status.className = "ia-status" + (resultado.confianza === "baja" ? " ia-status-baja" : "");
   } catch (err) {
-    console.warn("No se pudo autocompletar con IA:", err.message);
-    status.classList.add("hidden");
+    console.warn("No se pudo autocompletar con IA:", err);
+    status.textContent = "🤖 No se pudo autocompletar: " + err.message;
+    status.className = "ia-status ia-status-baja";
   }
 }
 
