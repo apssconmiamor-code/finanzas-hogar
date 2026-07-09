@@ -2109,11 +2109,16 @@ function renderTablaComparacion(movsDelMes) {
   const tbody = document.getElementById("proy-tabla-body");
   if (!tbody) return;
 
+  // Se acumula con signo (ingreso resta, gasto suma) para poder mezclar
+  // ambos correctamente en la fila "Otros" más abajo. Para las filas de un
+  // solo concepto (que en la práctica son siempre de una sola categoría)
+  // se usa el valor absoluto al armar cada fila, así que no cambian.
   const realesPorConcepto = {};
   movsDelMes
     .filter(m => m.categoria !== "Transferencia")
     .forEach(m => {
-      realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
+      const signo = m.categoria === "Ingreso" ? 1 : -1;
+      realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + signo * Math.abs(m.monto);
     });
 
   // Mes propio → mes anterior como referencia → presupuesto global. Misma
@@ -2129,7 +2134,7 @@ function renderTablaComparacion(movsDelMes) {
     .filter(([, v]) => v > 0)
     .map(([concepto, estimado]) => {
       const cat = todasCat.find(c => c.concepto === concepto);
-      return { categoria: cat ? cat.categoria : "Gasto variable", concepto, estimado, real: realesPorConcepto[concepto] || 0 };
+      return { categoria: cat ? cat.categoria : "Gasto variable", concepto, estimado, real: Math.abs(realesPorConcepto[concepto] || 0) };
     });
 
   // Ingresos estimados del mes (fuentes) — van primero en la tabla, siempre las 4 aunque estén en $0
@@ -2138,14 +2143,15 @@ function renderTablaComparacion(movsDelMes) {
     filas.push({
       categoria: "Ingreso", concepto: fuente,
       estimado: ingresosMes[fuente] || 0,
-      real: realesPorConcepto[fuente] || 0
+      real: Math.abs(realesPorConcepto[fuente] || 0)
     });
   });
 
   // Movimientos reales cuyo concepto no está en la lista de este mes se
   // suman al concepto "Otros" de categoría Gasto variable — SIEMPRE una
-  // sola fila: si "Otros" ya tiene fila propia (tiene estimado este mes),
-  // se le suma ahí en vez de crear una segunda fila "Otros" aparte.
+  // sola fila. Se respeta el signo real de cada movimiento (los ingresos
+  // restan, los gastos suman) en vez de sumar todo como valor absoluto,
+  // para que un ingreso mezclado ahí no infle el total de "Otros".
   let otrosReal = 0;
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
     if (!filas.find(f => f.concepto === concepto)) otrosReal += real;
@@ -2153,9 +2159,9 @@ function renderTablaComparacion(movsDelMes) {
   const filaOtros = filas.find(f => f.concepto === "Otros");
   if (filaOtros) {
     filaOtros.categoria = "Gasto variable";
-    filaOtros.real = (filaOtros.real || 0) + otrosReal;
+    filaOtros.real = (realesPorConcepto["Otros"] || 0) + otrosReal;
     filaOtros.esOtros = true;
-  } else if (otrosReal > 0) {
+  } else if (otrosReal !== 0) {
     filas.push({ categoria: "Gasto variable", concepto: "Otros", estimado: 0, real: otrosReal, esOtros: true });
   }
 
@@ -2191,7 +2197,7 @@ function renderTablaComparacion(movsDelMes) {
         </div>
       </td>
       <td class="proy-cell-num">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
-      <td class="proy-cell-num">${f.real > 0 ? formatMonto(f.real) : "—"}</td>
+      <td class="proy-cell-num">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
       <td>
         <div class="proy-cell-acciones">
           ${f.esOtros ? "" : `<button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>`}
