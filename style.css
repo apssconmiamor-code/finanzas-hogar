@@ -703,7 +703,7 @@ input, select, textarea, table {
 }
 .proy-4m-card:hover { box-shadow: var(--shadow-sm); border-color: var(--brand); }
 .proy-4m-card.proy-4m-active { border-color: var(--brand); background: var(--brand-soft); }
-.proy-4m-mes { font-size: 12px; font-weight: 700; color: var(--brand); text-transform: capitalize; margin-bottom: 6px; }
+.proy-4m-mes { font-size: 12px; font-weight: 700; color: var(--brand); text-transform: capitalize; margin-bottom: 6px; padding-left: 16px; }
 .proy-4m-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
 .proy-4m-row strong { color: var(--text-2); font-size: 12px; }
 .proy-4m-divider { height: 1px; background: var(--border); margin: 6px 0; }
@@ -1037,6 +1037,15 @@ input, select, textarea, table {
 }
 .proy-4m-card:hover .proy-4m-remove { display: block; }
 .proy-4m-card { position: relative; }
+/* Siempre visible (no depende de :hover, que en touch no es confiable) —
+   es el único control para configurar el mes ahora que no hay doble clic. */
+.proy-4m-card .proy-4m-config {
+  position: absolute; top: 6px; left: 6px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 2px;
+  opacity: 0.55;
+}
+.proy-4m-card .proy-4m-config:hover, .proy-4m-card .proy-4m-config:active { opacity: 1; }
 
 /* ═══════════════ DETALLE CUENTA (MODAL) ═══════════════ */
 .detalle-caja-resumen {

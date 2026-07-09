@@ -1952,6 +1952,7 @@ function render4MesesResumen() {
 
     return `<div class="proy-4m-card ${isActivo ? "proy-4m-active" : ""}" data-mes="${mes}">
       ${puedeEliminar ? `<button class="proy-4m-remove" data-mes-rm="${mes}" title="Quitar mes">×</button>` : ""}
+      <button class="proy-4m-config" data-mes-config="${mes}" title="Configurar este mes">⚙️</button>
       <div class="proy-4m-mes">${label}</div>
       <div class="proy-4m-row"><span>Ingresos est.</span><strong>${formatMonto(ingEst)}</strong></div>
       <div class="proy-4m-row"><span>Gastos est.</span><strong>${formatMonto(gastosEstimados)}</strong></div>
@@ -1975,37 +1976,28 @@ function render4MesesResumen() {
     });
   });
 
-  // Un solo clic no hace nada (ya no selecciona mes). Doble clic en la
-  // misma tarjeta: pone ese mes como activo (así la tabla de abajo pasa a
-  // mostrar SU información — antes se quedaba pegada al mes actual y no
-  // dejaba ver ni modificar las filas del mes que tocaste), abre su
-  // configuración y baja hasta la tabla. 300ms (igual que el umbral de
-  // doble-toque que ya usa esta app para bloquear el zoom en iOS) y
-  // exigiendo que el segundo clic caiga en la misma tarjeta, para no abrir
-  // la configuración de la tarjeta equivocada.
-  let clickTimer = null;
-  let clickCard = null;
+  // Configurar mes (⚙️): activa ese mes y abre su configuración
+  grid.querySelectorAll(".proy-4m-config").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const mesTocado = btn.dataset.mesConfig;
+      proyMesActivo = mesTocado;
+      renderProyeccion();
+      abrirConfigMes(mesTocado);
+      document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 
+  // Un toque en la tarjeta (fuera de los botones) activa ese mes de una vez
+  // y baja a la tabla — sin depender de doble clic/temporizadores, que
+  // fallaban si una sincronización de fondo volvía a dibujar las tarjetas
+  // justo entre el primer y el segundo toque.
   grid.querySelectorAll(".proy-4m-card").forEach(card => {
     card.addEventListener("click", (e) => {
-      if (e.target.classList.contains("proy-4m-remove")) return;
-      if (clickTimer && clickCard === card) {
-        // Doble clic: activar ese mes, abrir su configuración y bajar a la tabla
-        clearTimeout(clickTimer);
-        clickTimer = null;
-        clickCard = null;
-        proyMesActivo = card.dataset.mes;
-        renderProyeccion();
-        abrirConfigMes(card.dataset.mes);
-        document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        clearTimeout(clickTimer);
-        clickCard = card;
-        clickTimer = setTimeout(() => {
-          clickTimer = null;
-          clickCard = null;
-        }, 300);
-      }
+      if (e.target.closest(".proy-4m-remove, .proy-4m-config")) return;
+      proyMesActivo = card.dataset.mes;
+      renderProyeccion();
+      document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 }
