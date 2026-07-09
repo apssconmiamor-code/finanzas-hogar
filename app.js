@@ -507,6 +507,7 @@ document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
 
 document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => {
     document.getElementById("modal-movimiento").classList.remove("hidden");
+    document.getElementById("ia-status")?.classList.add("hidden");
     poblarSelectCajas("mov-caja");
     actualizarConceptosPrestamo();
   });
@@ -1285,6 +1286,7 @@ function abrirEditarMovimiento(id) {
   if (!m) return;
 
   document.getElementById("modal-movimiento").classList.remove("hidden");
+  document.getElementById("ia-status")?.classList.add("hidden");
   poblarSelectCajas("mov-caja");
 
   document.getElementById("mov-fecha").value       = m.fecha;
@@ -1525,6 +1527,7 @@ function limpiarFormCaja() {
 }
 
 function limpiarFormMov() {
+  document.getElementById("ia-status")?.classList.add("hidden");
   document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
   document.getElementById("mov-categoria").value = "";
   document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));

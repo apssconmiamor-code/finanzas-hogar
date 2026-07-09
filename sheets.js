@@ -259,6 +259,26 @@ Sheets.obtenerBlobUrlDrive = async function (fileId) {
   return URL.createObjectURL(blob);
 };
 
+// Igual que obtenerBlobUrlDrive, pero entrega los bytes en base64 (sin el
+// prefijo "data:...;base64,") — lo que necesita la API de Gemini para
+// analizar fotos/audio directamente.
+Sheets.obtenerBase64Drive = async function (fileId) {
+  if (!fileId) return null;
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${this.token}` }
+  });
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error descargando archivo de Drive: ${res.status}`);
+  const blob = await res.blob();
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  return { data: dataUrl.split(",")[1] || "", mimeType: blob.type || "application/octet-stream" };
+};
+
 Sheets.borrarArchivoDrive = async function (fileId) {
   if (!fileId) return;
   try {
