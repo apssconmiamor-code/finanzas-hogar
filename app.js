@@ -2149,20 +2149,26 @@ function renderTablaComparacion(movsDelMes) {
 
   // Movimientos reales cuyo concepto no está en la lista de este mes se
   // suman al concepto "Otros" de categoría Gasto variable — SIEMPRE una
-  // sola fila. Se respeta el signo real de cada movimiento (los ingresos
-  // restan, los gastos suman) en vez de sumar todo como valor absoluto,
-  // para que un ingreso mezclado ahí no infle el total de "Otros".
-  let otrosReal = 0;
+  // sola fila. realesPorConcepto usa la convención ingreso=+/gasto=-, así
+  // que para mostrarlo como un "gasto neto" (positivo = se gastó de más,
+  // negativo = en realidad entró más plata de la que salió) hay que
+  // invertir el signo — igual que Math.abs() hace para las filas de un
+  // solo concepto, pero sin perder la resta cuando hay ingresos mezclados.
+  let otrosInterno = 0;
   Object.entries(realesPorConcepto).forEach(([concepto, real]) => {
-    if (!filas.find(f => f.concepto === concepto)) otrosReal += real;
+    if (!filas.find(f => f.concepto === concepto)) otrosInterno += real;
   });
   const filaOtros = filas.find(f => f.concepto === "Otros");
   if (filaOtros) {
+    otrosInterno += (realesPorConcepto["Otros"] || 0);
+  }
+  const otrosGastoNeto = -otrosInterno;
+  if (filaOtros) {
     filaOtros.categoria = "Gasto variable";
-    filaOtros.real = (realesPorConcepto["Otros"] || 0) + otrosReal;
+    filaOtros.real = otrosGastoNeto;
     filaOtros.esOtros = true;
-  } else if (otrosReal !== 0) {
-    filas.push({ categoria: "Gasto variable", concepto: "Otros", estimado: 0, real: otrosReal, esOtros: true });
+  } else if (otrosGastoNeto !== 0) {
+    filas.push({ categoria: "Gasto variable", concepto: "Otros", estimado: 0, real: otrosGastoNeto, esOtros: true });
   }
 
   if (filas.length === 0) {

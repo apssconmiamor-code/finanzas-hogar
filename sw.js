@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Hogar
 // =============================================
 
-const CACHE_NAME = "finanzas-v47";
+const CACHE_NAME = "finanzas-v48";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
