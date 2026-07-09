@@ -1810,7 +1810,6 @@ function eliminarMesProyeccion(mes) {
   const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   if (!confirm(`¿Quitar ${label} de la proyección?`)) return;
   mesesProyeccion = meses.filter(m => m !== mes);
-  if (proyMesActivo === mes) proyMesActivo = mesesProyeccion[0];
   saveMesesProyeccion();
   render4MesesResumen();
   renderTablaComparacion(movimientos.filter(m => m.fecha.startsWith(proyMesActivo)));
@@ -1966,10 +1965,12 @@ function render4MesesResumen() {
     });
   });
 
-  // Variables para detectar doble clic. 300ms (igual que el umbral de
-  // doble-toque que ya usa esta app para bloquear el zoom en iOS) y
-  // exigiendo que el segundo clic caiga en la misma tarjeta — si no, tocar
-  // dos tarjetas distintas rápido abría la configuración de la equivocada.
+  // El mes activo de la tabla ya no se elige tocando una tarjeta — siempre
+  // es el mes actual (ver proyMesActivo). Un solo clic no hace nada; doble
+  // clic en la misma tarjeta abre su configuración y baja hasta la tabla.
+  // 300ms (igual que el umbral de doble-toque que ya usa esta app para
+  // bloquear el zoom en iOS) y exigiendo que el segundo clic caiga en la
+  // misma tarjeta, para no abrir la configuración de la tarjeta equivocada.
   let clickTimer = null;
   let clickCard = null;
 
@@ -1977,22 +1978,18 @@ function render4MesesResumen() {
     card.addEventListener("click", (e) => {
       if (e.target.classList.contains("proy-4m-remove")) return;
       if (clickTimer && clickCard === card) {
-        // Doble clic: abrir configuración
+        // Doble clic: abrir configuración y bajar a la tabla
         clearTimeout(clickTimer);
         clickTimer = null;
         clickCard = null;
         abrirConfigMes(card.dataset.mes);
+        document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
         clearTimeout(clickTimer);
         clickCard = card;
         clickTimer = setTimeout(() => {
           clickTimer = null;
           clickCard = null;
-          // Clic simple: seleccionar mes
-          proyMesActivo = card.dataset.mes;
-          document.getElementById("proyeccion-mes").value = proyMesActivo;
-          renderProyeccion();
-          document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 300);
       }
     });
@@ -2485,40 +2482,50 @@ async function guardarPresupuesto() {
 // CRONOLOGÍA MENSUAL
 // =============================================
 
+// Se revisa CADA VEZ que se abre la app (no solo el día 1 del mes): busca
+// todos los meses ya cerrados (anteriores al actual) que tengan movimientos
+// reales pero todavía no tengan registro en la cronología, y los completa.
+// Así, si no abriste la app justo el día 1, el mes anterior no se queda
+// sin guardar para siempre — se pone al día en la próxima visita.
 async function verificarYGuardarCronologia() {
   try {
-    const hoy = new Date();
-    if (hoy.getDate() !== 1) return;
+    const mesActual = new Date().toISOString().slice(0, 7);
 
-    const mesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-    const mesStr = mesAnterior.toISOString().slice(0, 7);
+    const mesesConDatos = [...new Set(movimientos.map(m => m.fecha.slice(0, 7)))]
+      .filter(mes => mes < mesActual)
+      .sort();
+    if (mesesConDatos.length === 0) return;
 
-    const yaExiste = await Sheets.existeCronologiaMes(mesStr);
-    if (yaExiste) return;
+    const cronologiaExistente = await Sheets.getCronologia();
+    const mesesYaRegistrados = new Set(cronologiaExistente.map(c => c.mes));
+    const mesesFaltantes = mesesConDatos.filter(mes => !mesesYaRegistrados.has(mes));
+    if (mesesFaltantes.length === 0) return;
 
-    const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mesStr));
+    for (const mesStr of mesesFaltantes) {
+      const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mesStr));
 
-    const fijoReal = movsDelMes
-      .filter(m => m.categoria === "Gasto fijo")
-      .reduce((s, m) => s + Math.abs(m.monto), 0);
+      const fijoReal = movsDelMes
+        .filter(m => m.categoria === "Gasto fijo")
+        .reduce((s, m) => s + Math.abs(m.monto), 0);
 
-    const varReal = movsDelMes
-      .filter(m => m.categoria === "Gasto variable")
-      .reduce((s, m) => s + Math.abs(m.monto), 0);
+      const varReal = movsDelMes
+        .filter(m => m.categoria === "Gasto variable")
+        .reduce((s, m) => s + Math.abs(m.monto), 0);
 
-    const fijoEst = presupuesto
-      .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
-      .reduce((s, p) => s + p.montoEstimado, 0);
+      const fijoEst = presupuesto
+        .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
+        .reduce((s, p) => s + p.montoEstimado, 0);
 
-    const varEst = presupuesto
-      .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
-      .reduce((s, p) => s + p.montoEstimado, 0);
+      const varEst = presupuesto
+        .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
+        .reduce((s, p) => s + p.montoEstimado, 0);
 
-    const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
-    const varAser  = varEst  > 0 ? Math.round(((varReal  - varEst)  / varEst)  * 100) : 0;
+      const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
+      const varAser  = varEst  > 0 ? Math.round(((varReal  - varEst)  / varEst)  * 100) : 0;
 
-    await Sheets.guardarCronologia(mesStr, fijoAser, fijoReal, varAser, varReal);
-    console.log(`✅ Cronología guardada para ${mesStr}`);
+      await Sheets.guardarCronologia(mesStr, fijoAser, fijoReal, varAser, varReal);
+      console.log(`✅ Cronología guardada para ${mesStr}`);
+    }
   } catch (err) {
     console.error("Error guardando cronología:", err);
   }

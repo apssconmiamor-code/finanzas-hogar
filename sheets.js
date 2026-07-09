@@ -337,11 +337,6 @@ Sheets.guardarCronologia = async function(mes, fijoAser, fijoCant, varAser, varC
   return id;
 };
 
-Sheets.existeCronologiaMes = async function(mes) {
-  const rows = await this.leer(`${CONFIG.SHEETS.CRONOLOGIA}!A2:B`);
-  return rows.some(r => r[1] === mes);
-};
-
 // ---- PROYECCION ----
 // Estructura hoja Proyeccion:
 // A: tipo ("mes_lista" | "ingreso" | "gasto")
