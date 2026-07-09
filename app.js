@@ -1858,6 +1858,13 @@ function renderProyeccion() {
   sincronizarListasConceptos();
   const mes = proyMesActivo;
   document.getElementById("proyeccion-mes").value = mes;
+
+  const label = document.getElementById("proy-detalle-mes-label");
+  if (label) {
+    const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+    label.textContent = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
+  }
+
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes));
   renderTablaComparacion(movsDelMes);
   render4MesesResumen();
@@ -1968,12 +1975,14 @@ function render4MesesResumen() {
     });
   });
 
-  // El mes activo de la tabla ya no se elige tocando una tarjeta — siempre
-  // es el mes actual (ver proyMesActivo). Un solo clic no hace nada; doble
-  // clic en la misma tarjeta abre su configuración y baja hasta la tabla.
-  // 300ms (igual que el umbral de doble-toque que ya usa esta app para
-  // bloquear el zoom en iOS) y exigiendo que el segundo clic caiga en la
-  // misma tarjeta, para no abrir la configuración de la tarjeta equivocada.
+  // Un solo clic no hace nada (ya no selecciona mes). Doble clic en la
+  // misma tarjeta: pone ese mes como activo (así la tabla de abajo pasa a
+  // mostrar SU información — antes se quedaba pegada al mes actual y no
+  // dejaba ver ni modificar las filas del mes que tocaste), abre su
+  // configuración y baja hasta la tabla. 300ms (igual que el umbral de
+  // doble-toque que ya usa esta app para bloquear el zoom en iOS) y
+  // exigiendo que el segundo clic caiga en la misma tarjeta, para no abrir
+  // la configuración de la tarjeta equivocada.
   let clickTimer = null;
   let clickCard = null;
 
@@ -1981,10 +1990,12 @@ function render4MesesResumen() {
     card.addEventListener("click", (e) => {
       if (e.target.classList.contains("proy-4m-remove")) return;
       if (clickTimer && clickCard === card) {
-        // Doble clic: abrir configuración y bajar a la tabla
+        // Doble clic: activar ese mes, abrir su configuración y bajar a la tabla
         clearTimeout(clickTimer);
         clickTimer = null;
         clickCard = null;
+        proyMesActivo = card.dataset.mes;
+        renderProyeccion();
         abrirConfigMes(card.dataset.mes);
         document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
