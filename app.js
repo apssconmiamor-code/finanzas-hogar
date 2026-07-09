@@ -72,6 +72,28 @@ function activarCalculoMonto(inputId, hintId) {
 let currentUser = null;
 let cajas = [];
 let movimientos = [];
+let faceidDisponible = false; // se calcula una vez en window.onload
+let actualizacionDisponible = false; // true cuando el service worker ya descargó una versión nueva
+
+// Cambia "Finanzas Hogar vX.Y.Z" por "Sincronizar" (y viceversa) en el
+// menú ⋯ — es lo único que se toca, sin tocar el resto de la UI.
+function actualizarTextoVersion() {
+  const ddVersion = document.getElementById("dropdown-version");
+  if (!ddVersion) return;
+  if (actualizacionDisponible) {
+    ddVersion.textContent = "🔄 Sincronizar";
+    ddVersion.classList.add("dropdown-version-sync");
+  } else {
+    ddVersion.textContent = `Finanzas Hogar v${CONFIG.VERSION}`;
+    ddVersion.classList.remove("dropdown-version-sync");
+  }
+}
+
+// Llamado por sw-register.js cuando detecta una versión nueva ya descargada
+function marcarActualizacionDisponible() {
+  actualizacionDisponible = true;
+  actualizarTextoVersion();
+}
 
 // ---- LISTAS DE CONCEPTOS ----
 
@@ -174,19 +196,21 @@ window.onload = async () => {
     try { usuarioValido = JSON.parse(userRaw); } catch (e) { usuarioValido = null; }
   }
 
+  faceidDisponible = await FaceAuth.disponiblePlataforma();
+
   if (usuarioValido) {
     currentUser = usuarioValido;
     if (token) Sheets.setToken(token);
 
-    if (FaceAuth.tieneCredencial() && (await FaceAuth.disponiblePlataforma())) {
+    if (FaceAuth.tieneCredencial() && faceidDisponible) {
       // Ya está enrolado → entrada rápida solo con Face ID, sin ninguna pantalla de Google
       iniciarConFaceID();
     } else {
-      // Usuario ya logueado pero sin Face ID activado aún → entra directo
-      // y lo activa en segundo plano para que la próxima vez sea con Face ID
+      // Usuario ya logueado pero sin Face ID activado aún → entra directo.
+      // iOS exige un toque real del usuario para poder crear la credencial,
+      // así que se activa desde el menú (⋯ → Activar Face ID), no aquí solo.
       mostrarApp();
       renovarTokenSilencioso();
-      if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
     }
   } else {
     // Sin usuario → intentar One Tap (auto-selecciona sin popup si hay sesión activa)
@@ -2501,7 +2525,15 @@ function setupTopbarMenu() {
 
   if (!btn) return;
 
-  if (ddVersion) ddVersion.textContent = `Finanzas Hogar v${CONFIG.VERSION}`;
+  actualizarTextoVersion();
+  if (ddVersion) {
+    ddVersion.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!actualizacionDisponible) return;
+      ddVersion.textContent = "Sincronizando…";
+      if (typeof window.__swSincronizarAhora === "function") window.__swSincronizarAhora();
+    });
+  }
 
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -2528,12 +2560,29 @@ function setupTopbarMenu() {
     dropdown.classList.add("hidden");
     document.getElementById("btn-login").click();
   });
+
+  const ddFaceid = document.getElementById("dd-faceid");
+  ddFaceid.addEventListener("click", async () => {
+    dropdown.classList.add("hidden");
+    // Este clic SÍ cuenta como gesto real del usuario, así que aquí
+    // iOS deja crear la credencial de Face ID sin bloquearla.
+    const ok = await FaceAuth.registrar(currentUser?.email);
+    if (typeof SyncManager !== "undefined") {
+      SyncManager.mostrarToast(ok ? "✅ Face ID activado" : "No se pudo activar Face ID");
+    }
+    actualizarDropdownUsuario();
+  });
 }
 
 function actualizarDropdownUsuario() {
   const info     = document.getElementById("dropdown-user-info");
   const ddLogout = document.getElementById("dd-logout");
   const ddLogin  = document.getElementById("dd-login");
+  const ddFaceid = document.getElementById("dd-faceid");
+
+  if (ddFaceid) {
+    ddFaceid.style.display = (currentUser && faceidDisponible && !FaceAuth.tieneCredencial()) ? "" : "none";
+  }
 
   if (currentUser) {
     const initials = currentUser.name

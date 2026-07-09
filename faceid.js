@@ -7,7 +7,10 @@
 // de Google cada vez que se abre la app desde la pantalla de inicio.
 
 const FaceAuth = {
-  CRED_KEY: "faceid_cred_id",
+  // v2: credenciales NO discoverable (residentKey: "discouraged"), para que
+  // iOS pida el rostro directo en vez de mostrar la tarjeta "Iniciar sesión
+  // con llave de acceso guardada en Contraseñas" propia de las passkeys.
+  CRED_KEY: "faceid_cred_id_v2",
 
   soportado() {
     return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
@@ -62,7 +65,12 @@ const FaceAuth = {
             { type: "public-key", alg: -7 },
             { type: "public-key", alg: -257 }
           ],
-          authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+            residentKey: "discouraged",
+            requireResidentKey: false
+          },
           timeout: 60000,
           attestation: "none"
         }
@@ -91,3 +99,7 @@ const FaceAuth = {
     } catch (e) { return false; }
   }
 };
+
+// Limpieza de la credencial vieja (v1, discoverable) que mostraba la
+// tarjeta de "Iniciar sesión con llave de acceso" en vez de ir directo a Face ID.
+localStorage.removeItem("faceid_cred_id");

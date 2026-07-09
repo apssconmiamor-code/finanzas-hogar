@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Hogar
 // =============================================
 
-const CACHE_NAME = "finanzas-v30";
+const CACHE_NAME = "finanzas-v32";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -23,6 +23,10 @@ const STATIC_ASSETS = [
 ];
 
 // ---- INSTALL: cachea todos los assets estáticos ----
+// OJO: ya NO hace self.skipWaiting() automático — la nueva versión se
+// queda "esperando" hasta que el usuario toque "Sincronizar" en la app
+// (ver mensaje SKIP_WAITING más abajo), para que el usuario decida cuándo
+// actualizar en vez de recargarse solo sin avisar.
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -32,7 +36,7 @@ self.addEventListener("install", (event) => {
           cache.add(url).catch(() => console.warn("SW: no se pudo cachear", url))
         )
       );
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
