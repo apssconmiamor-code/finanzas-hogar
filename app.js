@@ -1804,6 +1804,8 @@ function agregarMesProyeccion() {
 function eliminarMesProyeccion(mes) {
   const meses = getMesesProyeccion();
   if (meses.length <= 1) return;
+  const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  if (!confirm(`¿Quitar ${label} de la proyección?`)) return;
   mesesProyeccion = meses.filter(m => m !== mes);
   if (proyMesActivo === mes) proyMesActivo = mesesProyeccion[0];
   saveMesesProyeccion();
