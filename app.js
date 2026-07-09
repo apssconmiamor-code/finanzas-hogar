@@ -2678,17 +2678,23 @@ function setupProyeccionListeners() {
   // Doble clic/toque en una fila de "Detalle por concepto" → ver los
   // movimientos reales que la componen ese mes. Usa un temporizador en vez
   // de "dblclick" nativo (mismo patrón que ya usan las tarjetas de mes),
-  // para que funcione igual de bien con toques en iOS.
+  // con 300ms (igual que el umbral de doble-toque que ya usa esta app para
+  // bloquear el zoom en iOS) y exigiendo que el segundo toque caiga en la
+  // misma fila.
   let proyFilaClickTimer = null;
+  let proyFilaClickRow = null;
   document.getElementById("proy-tabla-body")?.addEventListener("click", (e) => {
     const row = e.target.closest(".proy-tabla-row");
     if (!row || e.target.closest("button")) return;
-    if (proyFilaClickTimer) {
+    if (proyFilaClickTimer && proyFilaClickRow === row) {
       clearTimeout(proyFilaClickTimer);
       proyFilaClickTimer = null;
+      proyFilaClickRow = null;
       abrirDetalleRealConcepto(row.dataset.concepto, row.dataset.categoria, !!row.dataset.esOtros);
     } else {
-      proyFilaClickTimer = setTimeout(() => { proyFilaClickTimer = null; }, 220);
+      clearTimeout(proyFilaClickTimer);
+      proyFilaClickRow = row;
+      proyFilaClickTimer = setTimeout(() => { proyFilaClickTimer = null; proyFilaClickRow = null; }, 300);
     }
   });
   document.getElementById("btn-cerrar-detalle-real")?.addEventListener("click", () => {
