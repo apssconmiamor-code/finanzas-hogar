@@ -1832,6 +1832,7 @@ function sincronizarListasConceptos() {
     } else if (p.categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(p.concepto)) {
       GASTOS_VARIABLES.push(p.concepto);
     }
+    if (p.icono) ICONOS[p.concepto] = p.icono;
   });
 }
 
@@ -2146,7 +2147,7 @@ function renderTablaComparacion(movsDelMes) {
   });
 
   if (filas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-light)">
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-light)">
       No hay datos — agrega un presupuesto para ver la comparación.</td></tr>`;
     return;
   }
@@ -2161,21 +2162,9 @@ function renderTablaComparacion(movsDelMes) {
   });
 
   tbody.innerHTML = filas.map(f => {
-    const desviacion = f.real - f.estimado;
-    const pct = f.estimado > 0 ? (f.real / f.estimado) : (f.real > 0 ? 999 : 0);
-    const pctNum = f.estimado > 0 ? Math.round(pct * 100) : (f.real > 0 ? null : 0);
+    const excedido = f.real > f.estimado;
 
-    let estadoClass = "estado-ok";
-    if (pct > 1)        estadoClass = "estado-mal";
-    else if (pct > 0.8) estadoClass = "estado-alerta";
-    if (f.estimado === 0 && f.real > 0) estadoClass = "estado-mal";
-
-    const desvClass = desviacion > 0 ? "desv-positivo" : desviacion < 0 ? "desv-negativo" : "";
-    const desvSigno = desviacion > 0 ? "+" : "";
-    const pctLabel  = pctNum !== null ? pctNum + "%" : "—";
-    const barW      = Math.min((pct > 0 ? pct : 0) * 100, 100);
-
-    return `<tr class="proy-tabla-row">
+    return `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}">
       <td>
         <div class="proy-cell-concepto">
           <span class="cat-badge cat-${f.categoria.toLowerCase().replace(/ /g,'')}">
@@ -2186,19 +2175,10 @@ function renderTablaComparacion(movsDelMes) {
       </td>
       <td class="proy-cell-num">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
       <td class="proy-cell-num">${f.real > 0 ? formatMonto(f.real) : "—"}</td>
-      <td class="proy-cell-estado">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-          <div style="width:48px;height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
-            <div style="width:${barW}%;height:100%;background:var(--${estadoClass === 'estado-ok' ? 'green' : estadoClass === 'estado-alerta' ? 'amber' : 'red'});border-radius:3px"></div>
-          </div>
-          <span class="pct-label ${estadoClass}" style="font-size:11px">${pctLabel}</span>
-          ${desviacion !== 0 ? `<span class="proy-desv ${desvClass}" style="font-size:10px">${desvSigno}${formatMonto(Math.abs(desviacion))}</span>` : ""}
-        </div>
-      </td>
       <td>
         <div class="proy-cell-acciones">
-          <button type="button" class="btn-modificar-fila" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️ Modificar</button>
-          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable") ? `<button type="button" class="btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
+          <button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>
+          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable") ? `<button type="button" class="btn-icono-fila btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
         </div>
       </td>
     </tr>`;
@@ -2532,6 +2512,7 @@ function abrirModalNuevoConcepto() {
   document.getElementById("nuevo-concepto-nombre").value = "";
   document.getElementById("nuevo-concepto-monto").value = "";
   document.getElementById("nuevo-concepto-categoria").value = "";
+  document.getElementById("nuevo-concepto-icono").value = "";
   document.getElementById("nuevo-concepto-duplicado").classList.add("hidden");
   document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
 
@@ -2556,6 +2537,7 @@ function validarNombreNuevoConcepto() {
 async function guardarNuevoConcepto() {
   const nombre    = document.getElementById("nuevo-concepto-nombre").value.trim();
   const categoria = document.getElementById("nuevo-concepto-categoria").value;
+  const icono     = document.getElementById("nuevo-concepto-icono").value.trim();
   const monto     = evaluarMonto(document.getElementById("nuevo-concepto-monto").value);
 
   if (!nombre) { alert("Escribe el nombre del concepto"); return; }
@@ -2567,7 +2549,7 @@ async function guardarNuevoConcepto() {
   btn.textContent = "Guardando..."; btn.disabled = true;
 
   try {
-    const nuevaLista = [...presupuesto, { categoria, concepto: nombre, montoEstimado: monto, ingresoEstimado: 0 }];
+    const nuevaLista = [...presupuesto, { categoria, concepto: nombre, montoEstimado: monto, ingresoEstimado: 0, icono }];
     await Sheets.guardarPresupuesto(nuevaLista);
     presupuesto = nuevaLista;
     sincronizarListasConceptos();

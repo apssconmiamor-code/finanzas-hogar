@@ -285,18 +285,19 @@ Sheets.idDesdeUrlDrive = function (url) {
 
 // ---- PRESUPUESTO ----
 Sheets.getPresupuesto = async function() {
-  const rows = await this.leer(`${CONFIG.SHEETS.PRESUPUESTO}!A2:D`);
+  const rows = await this.leer(`${CONFIG.SHEETS.PRESUPUESTO}!A2:E`);
   return rows.filter(r => r && r[0]).map(r => ({
     categoria:        r[0] || "",
     concepto:         r[1] || "",
     montoEstimado:    isNaN(parseFloat(r[2])) ? 0 : parseFloat(r[2]),
     ingresoEstimado:  isNaN(parseFloat(r[3])) ? 0 : parseFloat(r[3]),
+    icono:            r[4] || "",
   }));
 };
 
 Sheets.guardarPresupuesto = async function(filas) {
   const clearRes = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.PRESUPUESTO + "!A2:D")}:clear`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.PRESUPUESTO + "!A2:E")}:clear`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }
@@ -304,7 +305,7 @@ Sheets.guardarPresupuesto = async function(filas) {
   );
   if (!clearRes.ok) throw new Error(`Error limpiando presupuesto: ${clearRes.status}`);
   if (filas.length === 0) return;
-  const values = filas.map(f => [f.categoria, f.concepto, f.montoEstimado, f.ingresoEstimado || 0]);
+  const values = filas.map(f => [f.categoria, f.concepto, f.montoEstimado, f.ingresoEstimado || 0, f.icono || ""]);
   const writeRes = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.PRESUPUESTO + "!A2")}?valueInputOption=RAW`,
     {

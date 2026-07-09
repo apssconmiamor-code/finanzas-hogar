@@ -707,34 +707,28 @@ input, select, textarea, table {
 .donut-empty-msg { color: var(--text-4); font-size: 13px; text-align: center; padding: 20px; }
 
 /* Tabla proyección */
-.proy-tabla { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.proy-tabla { width: 100%; border-collapse: collapse; }
 .proy-tabla thead th {
   background: var(--bg); font-size: 10px; font-weight: 700;
   letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-3);
   padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border);
 }
-.proy-tabla thead th:nth-child(1) { width: 30%; }
-.proy-tabla thead th:nth-child(2) { width: 16%; text-align: right; }
-.proy-tabla thead th:nth-child(3) { width: 16%; text-align: right; }
-.proy-tabla thead th:nth-child(4) { width: 18%; text-align: center; }
-.proy-tabla thead th:nth-child(5) { width: 20%; }
-.proy-tabla td:nth-child(5) { overflow: visible; }
-.btn-modificar-fila {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  max-width: 100%; background: var(--bg); border: 1px solid var(--border-mid);
-  border-radius: 8px; padding: 5px 8px; font-size: 11px;
-  font-weight: 600; color: var(--text-2); cursor: pointer;
-  font-family: var(--font); white-space: normal; word-break: break-word;
-  line-height: 1.2; transition: all 0.12s;
+/* Detalle por concepto: 4 columnas fijas, sin scroll horizontal —
+   botones de acción reducidos a solo ícono para que siempre quepan. */
+.proy-tabla-detalle { table-layout: fixed; }
+.proy-tabla-detalle thead th:nth-child(1) { width: 42%; }
+.proy-tabla-detalle thead th:nth-child(2) { width: 20%; text-align: right; }
+.proy-tabla-detalle thead th:nth-child(3) { width: 20%; text-align: right; }
+.proy-tabla-detalle thead th:nth-child(4) { width: 18%; }
+.btn-icono-fila {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: var(--bg); border: 1px solid var(--border-mid);
+  border-radius: 8px; font-size: 13px;
+  cursor: pointer; font-family: var(--font); transition: all 0.12s;
 }
 .btn-modificar-fila:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .proy-cell-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
-.btn-eliminar-fila {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--bg); border: 1px solid var(--border-mid);
-  border-radius: 8px; padding: 5px 8px; font-size: 11px;
-  cursor: pointer; font-family: var(--font); transition: all 0.12s;
-}
 .btn-eliminar-fila:hover { background: var(--red-soft); border-color: var(--red); }
 .nuevo-concepto-aviso {
   display: block; margin-top: 6px; font-size: 12px; font-weight: 600;
@@ -744,13 +738,11 @@ input, select, textarea, table {
 .proy-tabla-row:last-child { border-bottom: none; }
 .proy-tabla-row:hover td { background: var(--bg); }
 .proy-tabla-row td { padding: 11px 12px; vertical-align: middle; }
+.proy-tabla-row.fila-excedida { background: rgba(255,59,48,0.15); }
+.proy-tabla-row.fila-excedida:hover td { background: rgba(255,59,48,0.2); }
 .proy-cell-concepto { display: flex; align-items: center; gap: 6px; }
 .proy-concepto-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
 .proy-cell-num { text-align: right; font-size: 13px; font-family: var(--font-display); font-weight: 600; color: var(--text-2); letter-spacing: -0.2px; }
-.proy-cell-estado { text-align: center; }
-.proy-desv { font-size: 12px; font-weight: 700; }
-.desv-positivo { color: var(--red); }
-.desv-negativo { color: var(--green-dark); }
 /* Legacy compat */
 .proy-fila td, .proy-fila-2 td { padding: 0; }
 .proy-fila-1 { display: flex; align-items: center; gap: 8px; padding: 10px 14px 2px; }
@@ -770,8 +762,6 @@ input, select, textarea, table {
 .proy-leyenda { display: flex; gap: 12px; flex-wrap: wrap; }
 .leyenda-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-3); }
 .leyenda-dot { width: 8px; height: 8px; border-radius: 50%; }
-.leyenda-dot.estado-ok    { background: var(--green); }
-.leyenda-dot.estado-alerta{ background: var(--amber); }
 .leyenda-dot.estado-mal   { background: var(--red); }
 
 /* Cronología */
