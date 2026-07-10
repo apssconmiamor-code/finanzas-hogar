@@ -463,65 +463,6 @@ async function abrirRecordatorioComoMovimiento(id) {
   if (titulo) titulo.textContent = "Nuevo movimiento (desde recordatorio)";
 
   await renderRecordatorioInfoEnModal(r);
-  precargarConIA(r);
-}
-
-// Analiza el recordatorio (nota + foto + audio) con IA y pre-llena
-// categoría/concepto/monto en el formulario — el usuario revisa y decide
-// si guardar; esto NUNCA guarda nada por su cuenta.
-async function precargarConIA(r) {
-  const status = document.getElementById("ia-status");
-  if (!status) return;
-  if (typeof Gemini === "undefined" || !CONFIG.GEMINI_API_KEY) return;
-  if (!navigator.onLine) return;
-  if (!r.texto && !r.imageUrl && !r.audioUrl) return;
-
-  status.textContent = "🤖 Analizando con IA…";
-  status.className = "ia-status ia-status-cargando";
-
-  try {
-    const fotos = [];
-    if (r.imageUrl) {
-      const foto = await Sheets.obtenerBase64Drive(Sheets.idDesdeUrlDrive(r.imageUrl));
-      if (foto) fotos.push(foto);
-    }
-    const audio = r.audioUrl
-      ? await Sheets.obtenerBase64Drive(Sheets.idDesdeUrlDrive(r.audioUrl))
-      : null;
-
-    const resultado = await Gemini.analizarRecordatorio({ texto: r.texto, fotos, audio });
-
-    // Si el usuario ya cerró el modal (o abrió otro) mientras la IA
-    // trabajaba, no pisar lo que esté viendo ahora — pero SIEMPRE hay que
-    // actualizar el estado, si no el "Analizando…" se queda pegado.
-    const modalSigueAbierto = document.getElementById("modal-movimiento").dataset.fromRecordatorioId === r.id;
-    if (!modalSigueAbierto) {
-      status.classList.add("hidden");
-      return;
-    }
-
-    if (["Gasto fijo", "Gasto variable", "Ingreso"].includes(resultado.categoria)) {
-      document.getElementById("mov-categoria").value = resultado.categoria;
-      document.querySelectorAll(".cat-btn").forEach(b => {
-        b.classList.toggle("active", b.dataset.value === resultado.categoria);
-      });
-      actualizarCampoConcepto();
-      if (resultado.concepto) setConceptoActivo(resultado.concepto);
-      if (resultado.categoria !== "Ingreso") refrescarSelectorCaja("mov-caja");
-    }
-    if (typeof resultado.monto === "number" && resultado.monto > 0) {
-      document.getElementById("mov-monto").value = resultado.monto.toLocaleString("es-CO");
-    }
-
-    status.textContent = resultado.confianza === "baja"
-      ? "🤖 Sugerencia de IA con poca confianza — revisa bien antes de guardar"
-      : "🤖 Prellenado con IA — revisa que esté bien antes de guardar";
-    status.className = "ia-status" + (resultado.confianza === "baja" ? " ia-status-baja" : "");
-  } catch (err) {
-    console.warn("No se pudo autocompletar con IA:", err);
-    status.textContent = "🤖 No se pudo autocompletar: " + err.message;
-    status.className = "ia-status ia-status-baja";
-  }
 }
 
 async function renderRecordatorioInfoEnModal(r) {
@@ -573,7 +514,6 @@ function _limpiarRecordatorioContexto() {
   if (titulo) titulo.textContent = "Nuevo movimiento";
   const bloque = modal.querySelector(".recordatorio-info-bloque");
   if (bloque) bloque.remove();
-  document.getElementById("ia-status")?.classList.add("hidden");
 }
 
 // ---- INTERCEPTAR guardarMovimiento (igual patrón que compras.js) ----
