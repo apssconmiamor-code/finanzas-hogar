@@ -269,9 +269,28 @@ document.getElementById("btn-faceid-google").addEventListener("click", () => {
 // caché — nunca se muestra ninguna pantalla ni popup de Google.
 // Devuelve una Promise<boolean> para que quien la llame pueda ESPERAR el
 // resultado real (antes era "fire and forget" y nadie sabía si terminó).
+//
+// OJO: en PWAs instaladas en la pantalla de inicio de iOS (WKWebView, sin el
+// cookie jar de Safari) el iframe interno que usa Google para el refresh
+// silencioso a veces se queda colgado y JAMÁS llama al callback — ni éxito
+// ni error. Sin un límite de tiempo, este await nunca se resuelve, cargarTodo()
+// se queda esperando para siempre y la barra "Conectando…" no desaparece
+// nunca (justo el síntoma reportado: se queda en "Conectando" hasta que el
+// usuario toca otra pestaña y esa SÍ logra renovar el token por su cuenta).
+// Por eso se corre contra un timeout que garantiza que esta promesa SIEMPRE
+// se resuelve en un tiempo acotado.
 function renovarTokenSilencioso() {
   return new Promise((resolve) => {
     if (typeof google === "undefined" || !currentUser?.email) { resolve(false); return; }
+
+    let resuelto = false;
+    const resolverUnaVez = (valor) => {
+      if (resuelto) return;
+      resuelto = true;
+      resolve(valor);
+    };
+    const timeoutId = setTimeout(() => resolverUnaVez(false), 7000);
+
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: CONFIG.GOOGLE_CLIENT_ID,
@@ -279,17 +298,18 @@ function renovarTokenSilencioso() {
         prompt: "none",
         hint: currentUser.email,
         callback: (response) => {
+          clearTimeout(timeoutId);
           if (!response.error) {
             Sheets.setToken(response.access_token);
             localStorage.setItem("gtoken", response.access_token);
-            resolve(true);
+            resolverUnaVez(true);
           } else {
-            resolve(false);
+            resolverUnaVez(false);
           }
         }
       });
       client.requestAccessToken();
-    } catch (e) { resolve(false); /* sin conexión — la app sigue con caché */ }
+    } catch (e) { clearTimeout(timeoutId); resolverUnaVez(false); /* sin conexión — la app sigue con caché */ }
   });
 }
 
@@ -372,10 +392,23 @@ function ocultarConectando() {
 // Carga inicial tras abrir la app: muestra "Conectando…" mientras trae los
 // datos reales de Google Sheets, para que nunca se quede en silencio con
 // la caché vieja sin que el usuario sepa que algo está pasando.
+//
+// Red de seguridad extra: si por lo que sea cargarTodo() se queda colgada
+// (algún fetch sin timeout que nunca responde, etc.), esta carrera contra un
+// límite de tiempo garantiza que la barra "Conectando…" desaparezca igual —
+// la UI ya tiene la caché en pantalla, así que es mejor mostrar eso que
+// quedarse pegado indefinidamente.
 async function cargarInicial() {
   mostrarConectando();
+  let seColgo = true;
   try {
-    await cargarTodo();
+    await Promise.race([
+      cargarTodo().then(() => { seColgo = false; }),
+      new Promise(r => setTimeout(r, 15000))
+    ]);
+    if (seColgo) {
+      SyncManager.mostrarToast("⏱️ La carga está tardando demasiado — mostrando datos guardados", "warn");
+    }
   } finally {
     ocultarConectando();
   }

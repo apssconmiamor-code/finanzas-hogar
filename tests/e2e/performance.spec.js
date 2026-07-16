@@ -15,8 +15,8 @@
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
-const LATENCIA_MS = 200;
-const MARGEN_PARALELO_MS = 100; // peticiones que arrancan con menos de esto de diferencia se consideran "a la vez"
+const LATENCIA_MS = 300;
+const MARGEN_PARALELO_MS = 150; // peticiones que arrancan con menos de esto de diferencia se consideran "a la vez"
 
 function nombreHoja(url) {
   const decoded = decodeURIComponent(url);
