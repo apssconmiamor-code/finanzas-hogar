@@ -773,16 +773,24 @@ function actualizarFiltroConcepto() {
 
 async function cargarTodo(reintentando = false) {
   try {
-    cajas       = await Sheets.getCajas();
-    movimientos = await Sheets.getMovimientos();
+    // Cajas y movimientos son lecturas independientes → en paralelo (antes
+    // eran 2 round-trips secuenciales a la API de Sheets).
+    [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos()]);
     renderCajas();
     renderMovimientos();
     poblarFiltrosCajas();
-    await cargarPresupuesto();
-    await cargarProyeccion();
+
+    // Presupuesto, proyección y préstamos tampoco dependen entre sí → en
+    // paralelo. Cada una atrapa sus propios errores internamente, así que
+    // un fallo aislado no tumba a las demás. Cronología sí depende de que
+    // el presupuesto ya esté cargado, así que va después de este bloque.
+    await Promise.all([
+      cargarPresupuesto(),
+      cargarProyeccion(),
+      cargarPrestamos()
+    ]);
     await verificarYGuardarCronologia();
     await cargarYRenderCronologia();
-    await cargarPrestamos();
     renderResumen();
 
   } catch (err) {
@@ -1751,6 +1759,16 @@ function getIngresosMesParaEditor(mes) {
 // ---- MESES DINÁMICOS DE PROYECCIÓN ----
 let mesesProyeccion = null;
 
+// OJO: getMesesProyeccion() se llama también desde renderProyeccion() (parte
+// del camino de solo-lectura de la carga inicial), y puede correr ANTES de
+// que cargarProyeccion() haya traído los meses reales desde Sheets — sobre
+// todo en un dispositivo nuevo o con caché borrada, donde "proy_meses_list"
+// todavía no existe en localStorage. Por eso los ajustes automáticos de acá
+// (generar meses por defecto, recortar meses pasados) solo persisten en
+// localStorage y NUNCA disparan una escritura a la red: hacerlo podía
+// sobreescribir la Proyeccion real del usuario con meses por defecto justo
+// antes de que la lectura real llegara. El guardado en red (saveMesesProyeccion)
+// queda reservado para cuando el usuario agrega/quita un mes a propósito.
 function getMesesProyeccion() {
   if (!mesesProyeccion) {
     try {
@@ -1765,20 +1783,24 @@ function getMesesProyeccion() {
       const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1);
       mesesProyeccion.push(d.toISOString().slice(0, 7));
     }
-    saveMesesProyeccion();
+    guardarMesesProyeccionLocal();
   }
   // Eliminar meses anteriores al mes actual
   const mesActual = new Date().toISOString().slice(0, 7);
   const sinPasados = mesesProyeccion.filter(m => m >= mesActual);
   if (sinPasados.length !== mesesProyeccion.length) {
     mesesProyeccion = sinPasados;
-    saveMesesProyeccion();
+    guardarMesesProyeccionLocal();
   }
   return mesesProyeccion;
 }
 
-function saveMesesProyeccion() {
+function guardarMesesProyeccionLocal() {
   try { localStorage.setItem("proy_meses_list", JSON.stringify(mesesProyeccion)); } catch {}
+}
+
+function saveMesesProyeccion() {
+  guardarMesesProyeccionLocal();
   guardarTodaProyeccion();
 }
 
