@@ -124,11 +124,11 @@ function renderCompras() {
         <div class="compra-body">
           <div class="compra-top">
             <div class="compra-info">
-              <span class="compra-concepto">${c.concepto}</span>
+              <span class="compra-concepto">${escapeHtml(c.concepto)}</span>
               <span class="compra-urgencia-badge" style="background:${urg.bg};color:${urg.color}">
-                ${urg.icon} ${c.urgencia}
+                ${urg.icon} ${escapeHtml(c.urgencia)}
               </span>
-              ${c.categoria ? `<span class="compra-cat-badge">${c.categoria}</span>` : ""}
+              ${c.categoria ? `<span class="compra-cat-badge">${escapeHtml(c.categoria)}</span>` : ""}
             </div>
             <div class="compra-monto-wrap">
               ${tienePresupuesto

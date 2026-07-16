@@ -157,8 +157,8 @@ function renderRecordatoriosPanel() {
       <div class="recordatorio-item" onclick="abrirRecordatorioComoMovimiento('${r.id}')">
         <span class="recordatorio-item-icon">${iconos}</span>
         <div class="recordatorio-item-body">
-          <div class="recordatorio-item-texto">${resumen}</div>
-          <div class="recordatorio-item-fecha">${r.fecha}</div>
+          <div class="recordatorio-item-texto">${escapeHtml(resumen)}</div>
+          <div class="recordatorio-item-fecha">${escapeHtml(r.fecha)}</div>
         </div>
         <button class="btn-accion btn-borrar" title="Eliminar" onclick="event.stopPropagation(); borrarRecordatorio('${r.id}')">🗑️</button>
       </div>`;
@@ -476,8 +476,8 @@ async function renderRecordatorioInfoEnModal(r) {
   }
 
   bloque.innerHTML = `
-    <div class="recordatorio-info-titulo">📝 Recordatorio del ${r.fecha}</div>
-    ${r.texto ? `<div class="recordatorio-info-texto">${r.texto}</div>` : ""}
+    <div class="recordatorio-info-titulo">📝 Recordatorio del ${escapeHtml(r.fecha)}</div>
+    ${r.texto ? `<div class="recordatorio-info-texto">${escapeHtml(r.texto)}</div>` : ""}
     ${r.imageUrl ? `<img class="recordatorio-info-imagen" alt="foto del recordatorio"/>` : ""}
     ${r.imageUrl ? `<div class="recordatorio-media-status" data-media="imagen">Cargando foto…</div>` : ""}
     ${r.audioUrl ? `<audio controls class="recordatorio-info-audio"></audio>` : ""}

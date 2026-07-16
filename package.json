@@ -1,0 +1,14 @@
+{
+  "name": "finanzas-hogar",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tests E2E para la app estatica Finanzas Hogar (sin build step).",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

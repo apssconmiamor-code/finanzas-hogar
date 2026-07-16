@@ -204,7 +204,7 @@ function renderPrestamos() {
         <div class="prest-left-bar" style="background:${p.pagado ? "var(--green)" : "var(--red)"}"></div>
         <div class="prest-body">
           <div class="prest-header">
-            <span class="prestamo-nombre">${p.nombre}</span>
+            <span class="prestamo-nombre">${escapeHtml(p.nombre)}</span>
             ${p.pagado
               ? `<span class="prestamo-badge pagado-badge">✅ Pagado</span>`
               : `<span class="prestamo-badge activo-badge">En curso</span>`}

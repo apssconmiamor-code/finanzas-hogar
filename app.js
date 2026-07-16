@@ -959,7 +959,7 @@ function renderMovimientos() {
       { day: "2-digit", month: "short", year: "numeric" });
     const catCls = m.categoria.toLowerCase().replace(/ /g,"");
     const descHTML = m.descripcion
-      ? `<span class="mov-desc-inline">· ${m.descripcion}</span>` : "";
+      ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
     const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
     const fotoHTML = primeraFoto
       ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')">📎</span>`
@@ -967,14 +967,14 @@ function renderMovimientos() {
 
     return `<div class="mov-card">
       <div class="mov-card-row1">
-        <span class="mov-card-caja">${m.caja}</span>
+        <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
       </div>
       <div class="mov-card-row2">
         <div class="mov-card-left">
           <span class="mov-card-icono mov-cat-${catCls}">${icono}</span>
           <div class="mov-card-texto">
-            <span class="mov-card-concepto">${m.concepto || "Sin concepto"}${fotoHTML}</span>
+            <span class="mov-card-concepto">${escapeHtml(m.concepto) || "Sin concepto"}${fotoHTML}</span>
             ${descHTML}
           </div>
         </div>
@@ -1517,6 +1517,20 @@ function formatMonto(n, moneda = "COP") {
     style: "currency", currency: moneda,
     minimumFractionDigits: 0, maximumFractionDigits: 0
   }).format(n);
+}
+
+// Escapa texto de usuario antes de insertarlo en innerHTML — sin esto,
+// un concepto/descripción/caja/nota con HTML (ej. "<img onerror=...>")
+// se ejecuta como código en la sesión de cualquiera que lo vea, con
+// acceso a su token de Google guardado en localStorage.
+function escapeHtml(texto) {
+  if (texto === null || texto === undefined) return "";
+  return String(texto)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function limpiarFormCaja() {
