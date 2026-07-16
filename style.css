@@ -331,6 +331,20 @@ input, select, textarea, table {
   cursor: pointer; font-family: var(--font);
 }
 
+/* Barra "conectando" — mientras cargan los datos reales tras abrir la app */
+.conectando-bar {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  background: var(--purple-soft); border-bottom: 1px solid rgba(88,86,214,.18);
+  padding: 9px 24px; font-size: 13px; font-weight: 600; color: var(--purple);
+  flex-shrink: 0;
+}
+.conectando-spinner {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid rgba(88,86,214,.25); border-top-color: var(--purple);
+  animation: conectando-spin 0.7s linear infinite;
+}
+@keyframes conectando-spin { to { transform: rotate(360deg); } }
+
 /* ═══════════════ SECTION HEADERS ═══════════════ */
 .section-header {
   display: flex; align-items: flex-start; justify-content: space-between;

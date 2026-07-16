@@ -210,7 +210,6 @@ window.onload = async () => {
       // iOS exige un toque real del usuario para poder crear la credencial,
       // así que se activa desde el menú (⋯ → Activar Face ID), no aquí solo.
       mostrarApp();
-      renovarTokenSilencioso();
     }
   } else {
     // Sin usuario → intentar One Tap (auto-selecciona sin popup si hay sesión activa)
@@ -246,7 +245,6 @@ async function iniciarConFaceID(esIntentoAutomatico = true) {
   if (ok) {
     pantalla.classList.add("hidden");
     mostrarApp();
-    renovarTokenSilencioso();
   } else if (esIntentoAutomatico) {
     // El primer intento es automático (sin toque previo del usuario): en iOS eso
     // suele bloquear WebAuthn por falta de "gesto", no porque el rostro haya fallado.
@@ -269,24 +267,30 @@ document.getElementById("btn-faceid-google").addEventListener("click", () => {
 // Renueva el token de Google 100% en segundo plano (prompt:"none"): si no
 // se puede renovar sin interacción, la app se queda con lo que hay en
 // caché — nunca se muestra ninguna pantalla ni popup de Google.
+// Devuelve una Promise<boolean> para que quien la llame pueda ESPERAR el
+// resultado real (antes era "fire and forget" y nadie sabía si terminó).
 function renovarTokenSilencioso() {
-  if (typeof google === "undefined" || !currentUser?.email) return;
-  try {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-      prompt: "none",
-      hint: currentUser.email,
-      callback: (response) => {
-        if (!response.error) {
-          Sheets.setToken(response.access_token);
-          localStorage.setItem("gtoken", response.access_token);
-          cargarTodo().catch(() => {});
+  return new Promise((resolve) => {
+    if (typeof google === "undefined" || !currentUser?.email) { resolve(false); return; }
+    try {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+        prompt: "none",
+        hint: currentUser.email,
+        callback: (response) => {
+          if (!response.error) {
+            Sheets.setToken(response.access_token);
+            localStorage.setItem("gtoken", response.access_token);
+            resolve(true);
+          } else {
+            resolve(false);
+          }
         }
-      }
-    });
-    client.requestAccessToken();
-  } catch (e) { /* sin conexión — la app sigue con caché */ }
+      });
+      client.requestAccessToken();
+    } catch (e) { resolve(false); /* sin conexión — la app sigue con caché */ }
+  });
 }
 
 // Callback de One Tap: guarda usuario y obtiene token para Sheets en silencio
@@ -356,6 +360,27 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   document.getElementById("login-screen").classList.remove("hidden");
 });
 
+// ---- BARRA "CONECTANDO…" (mientras se cargan los datos reales tras abrir la app) ----
+
+function mostrarConectando() {
+  document.getElementById("conectando-bar")?.classList.remove("hidden");
+}
+function ocultarConectando() {
+  document.getElementById("conectando-bar")?.classList.add("hidden");
+}
+
+// Carga inicial tras abrir la app: muestra "Conectando…" mientras trae los
+// datos reales de Google Sheets, para que nunca se quede en silencio con
+// la caché vieja sin que el usuario sepa que algo está pasando.
+async function cargarInicial() {
+  mostrarConectando();
+  try {
+    await cargarTodo();
+  } finally {
+    ocultarConectando();
+  }
+}
+
 // ---- MOSTRAR APP (sin bloquear en red) ----
 
 async function mostrarApp() {
@@ -390,11 +415,11 @@ async function mostrarApp() {
   if (presupuesto && presupuesto.length > 0) renderProyeccion();
   if (cacheCron) { try { renderCronologia(JSON.parse(cacheCron)); } catch {} }
 
-  // Intentar sincronizar con la red SIN bloquear la UI
-  // Si está offline o falla, la app ya funciona con el caché
-  cargarTodo().catch(() => {
-    // offline o token vencido — la UI ya está lista con la caché
-  });
+  // Intentar sincronizar con la red SIN bloquear la UI (la caché ya está
+  // en pantalla) — pero SÍ mostrar "Conectando…" mientras tanto, para que
+  // quede claro que la info real está en camino y no se quede pegado en
+  // datos viejos sin ningún aviso.
+  cargarInicial();
 
   // Recordatorios: cargar badge (el botón flotante es ahora la forma de crear uno nuevo)
   if (typeof cargarRecordatorios === "function") {
@@ -746,7 +771,7 @@ function actualizarFiltroConcepto() {
 
 // ---- CARGA DE DATOS ----
 
-async function cargarTodo() {
+async function cargarTodo(reintentando = false) {
   try {
     cajas       = await Sheets.getCajas();
     movimientos = await Sheets.getMovimientos();
@@ -760,8 +785,19 @@ async function cargarTodo() {
     await cargarPrestamos();
     renderResumen();
 
-  } catch (err) {    
-    if (err.message === "TOKEN_EXPIRADO") return;
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") {
+      // Primer intento: el token guardado venció (típico al volver a abrir
+      // la app tras un buen rato). Renovamos en silencio y reintentamos UNA
+      // vez, en vez de rendirnos y dejar al usuario con datos viejos hasta
+      // que por casualidad navegue a otra pestaña.
+      if (!reintentando) {
+        const renovado = await renovarTokenSilencioso();
+        if (renovado) { await cargarTodo(true); return; }
+      }
+      SyncManager.mostrarToast("📴 No se pudo renovar la sesión — mostrando datos guardados", "warn");
+      return;
+    }
 
     if (err.message === "TIMEOUT") {
       SyncManager.mostrarToast("⏱️ Conexión lenta — mostrando datos en caché", "warn");
