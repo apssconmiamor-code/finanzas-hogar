@@ -32,8 +32,12 @@ const Sheets = {
     }
   },
 
+  // Renovación fire-and-forget disparada por cualquier llamada a Sheets que
+  // reciba un 401 fuera del flujo principal de cargarTodo() (ej. cargarPrestamos,
+  // cargarCompras). Usa el mismo backend que renovarTokenSilencioso() de
+  // app.js (Worker con refresh_token guardado por usuario) — ya trae su
+  // propio timeout, así que esta función no necesita el suyo.
   _renovarToken() {
-    if (typeof google === "undefined") return; // offline — la app sigue con caché
     const raw = localStorage.getItem("guser");
     if (!raw) {
       document.getElementById("app")?.classList.add("hidden");
@@ -41,46 +45,19 @@ const Sheets = {
       document.getElementById("login-screen")?.classList.remove("hidden");
       return;
     }
-    const user = JSON.parse(raw);
+    let user;
+    try { user = JSON.parse(raw); } catch (e) { return; }
 
-    // El callback de Google a veces no se dispara nunca en una PWA instalada
-    // en la pantalla de inicio de iOS (WKWebView sin la sesión de Safari) —
-    // sin este timeout, esta llamada fire-and-forget se queda colgada para
-    // siempre y el usuario nunca ve el botón de "Reconectar".
-    let resuelto = false;
-    const fallar = () => {
-      if (resuelto) return;
-      resuelto = true;
-      if (typeof SyncManager !== "undefined")
-        SyncManager.mostrarToast("📴 Sin conexión con Google — mostrando datos guardados", "warn");
-      if (typeof mostrarReconectar === "function") mostrarReconectar();
-    };
-    const timeoutId = setTimeout(fallar, 7000);
-
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-        prompt: "none",
-        hint: user.email,
-        callback: (response) => {
-          clearTimeout(timeoutId);
-          if (resuelto) return;
-          resuelto = true;
-          if (response.error) {
-            if (typeof SyncManager !== "undefined")
-              SyncManager.mostrarToast("📴 Sin conexión con Google — mostrando datos guardados", "warn");
-            if (typeof mostrarReconectar === "function") mostrarReconectar();
-            return;
-          }
-          Sheets.setToken(response.access_token);
-          localStorage.setItem("gtoken", response.access_token);
-          if (typeof ocultarReconectar === "function") ocultarReconectar();
-          cargarTodo();
-        }
-      });
-      client.requestAccessToken();
-    } catch (e) { clearTimeout(timeoutId); fallar(); }
+    if (typeof renovarTokenDesdeWorker !== "function") return;
+    renovarTokenDesdeWorker(user.email).then((ok) => {
+      if (ok) {
+        cargarTodo();
+      } else {
+        if (typeof SyncManager !== "undefined")
+          SyncManager.mostrarToast("📴 Sin conexión con Google — mostrando datos guardados", "warn");
+        if (typeof mostrarReconectar === "function") mostrarReconectar();
+      }
+    });
   },
 
   async agregar(hoja, fila) {

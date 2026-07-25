@@ -1,50 +1,72 @@
-// Reproduce el bug reportado: tras un rato sin usar la app, el token de
-// Google vence (primer GET devuelve 401). La app intenta renovar el token
-// en silencio con Google Identity Services — pero en PWAs instaladas en la
-// pantalla de inicio de iOS ese callback a veces JAMÁS se dispara (ni éxito
-// ni error), dejando la app "pegada" en la barra "Conectando…" para
-// siempre. Este test simula exactamente ese cuelgue y comprueba que la app
-// se recupera igual, en vez de quedarse pegada.
+// Verifica la renovación de sesión vía el Worker (finanzas-hogar-token):
+// cuando el access_token de Google vence (primer GET a Sheets devuelve
+// 401), la app debe pedirle uno nuevo al Worker usando el sessionToken
+// guardado — sin ningún toque del usuario — y solo si ESO también falla
+// debe caer al botón fijo de "Reconectar".
 
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockWorkerToken } = require('./helpers/workerMock');
 
-test.describe('Renovación de token — token vencido al reabrir la app', () => {
-  test('si el refresh silencioso de Google se cuelga, la app igual se recupera (no se queda en "Conectando" para siempre)', async ({ page }) => {
+// Simula un dispositivo que ya se conectó antes con Google: además de
+// guser/gtoken (iniciarSesionFalsa), tiene un sessionToken del Worker
+// guardado en localStorage.
+async function conSessionTokenGuardado(page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('worker_session', 'FAKE_SESSION_TOKEN');
+  });
+}
+
+function mockPrimerGet401(page) {
+  let primerGetHecho = false;
+  return page.route('**sheets.googleapis.com/**/values/**', async (route) => {
+    if (route.request().method() === 'GET' && !primerGetHecho) {
+      primerGetHecho = true;
+      return route.fulfill({ status: 401, json: { error: { code: 401 } } });
+    }
+    await route.fallback();
+  });
+}
+
+test.describe('Renovación de token vía Worker', () => {
+  test('token vencido + Worker responde bien → se recupera solo, sin mostrar Reconectar', async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
     await iniciarSesionFalsa(page);
-
-    // Stub de Google Identity Services que simula el cuelgue real: el
-    // objeto "google" existe y expone initTokenClient, pero requestAccessToken()
-    // nunca invoca el callback — ni con éxito ni con error.
-    await page.addInitScript(() => {
-      window.google = {
-        accounts: {
-          id: { initialize: () => {}, prompt: () => {} },
-          oauth2: {
-            initTokenClient: () => ({
-              requestAccessToken: () => { /* nunca llama al callback: simula el cuelgue */ }
-            })
-          }
-        }
-      };
-    });
-
+    await conSessionTokenGuardado(page);
+    await mockWorkerToken(page, { disponible: true });
     await mockGoogleApis(page, {
       'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
-      'Movimiento de Caja': [['M1', 45658, 'prueba@example.com', 'Salario', 'Ingreso', 'Efectivo', 1000000, '', '']],
+      'Movimiento de Caja': [['M1', hoy, 'prueba@example.com', 'Salario', 'Ingreso', 'Efectivo', 1000000, '', '']],
     });
+    await mockPrimerGet401(page);
 
-    // El primer GET a cualquier hoja de Sheets devuelve 401 (token vencido);
-    // los siguientes ya no, para que si la app reintenta con otro mecanismo
-    // (ej. Sheets._renovarToken de sheets.js) logre cargar datos igual.
-    let primerGetHecho = false;
-    await page.route('**sheets.googleapis.com/**/values/**', async (route) => {
-      if (route.request().method() === 'GET' && !primerGetHecho) {
-        primerGetHecho = true;
-        return route.fulfill({ status: 401, json: { error: { code: 401 } } });
-      }
-      await route.fallback();
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    await page.waitForFunction(() => {
+      const el = document.getElementById('conectando-bar');
+      return el && el.classList.contains('hidden');
+    }, { timeout: 15000 });
+
+    // Se recuperó solo: no debería estar pidiendo reconectar.
+    await expect(page.locator('#reconectar-bar')).toBeHidden();
+    await expect(page.locator('#cajas-grid')).toContainText('Efectivo');
+    await expect(page.locator('#movimientos-list')).toContainText('Salario');
+  });
+
+  test('token vencido + Worker no responde (timeout) → la app se recupera igual, mostrando Reconectar', async ({ page }) => {
+    await iniciarSesionFalsa(page);
+    await conSessionTokenGuardado(page);
+    // El Worker nunca responde (simula timeout/caída) — la app no debe
+    // quedarse colgada esperando para siempre gracias al AbortController.
+    await page.context().route('https://finanzas-hogar-token.byco85.workers.dev/token**', () => {
+      /* no fulfill, no fallback: la petición nunca resuelve */
     });
+    await mockGoogleApis(page, {
+      'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [],
+    });
+    await mockPrimerGet401(page);
 
     await page.goto('/');
     await esperarAppLista(page);
@@ -57,8 +79,7 @@ test.describe('Renovación de token — token vencido al reabrir la app', () => 
       return el && el.classList.contains('hidden');
     }, { timeout: 20000 });
 
-    // Y la app debe mostrar ALGO (la caché local, aunque la renovación
-    // silenciosa se haya colgado) en vez de quedar en blanco.
     await expect(page.locator('#app')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#reconectar-bar')).toBeVisible();
   });
 });

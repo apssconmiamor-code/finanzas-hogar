@@ -264,56 +264,54 @@ document.getElementById("btn-faceid-google").addEventListener("click", () => {
   document.getElementById("login-screen").classList.remove("hidden");
 });
 
-// Renueva el token de Google 100% en segundo plano (prompt:"none"): si no
-// se puede renovar sin interacción, la app se queda con lo que hay en
-// caché — nunca se muestra ninguna pantalla ni popup de Google.
-// Devuelve una Promise<boolean> para que quien la llame pueda ESPERAR el
-// resultado real (antes era "fire and forget" y nadie sabía si terminó).
+// Pide al Worker (finanzas-hogar-token) un access_token fresco usando el
+// sessionToken guardado (emitido la última vez que se conectó con Google
+// vía conectarConGooglePopup). Esto reemplaza el viejo flujo silencioso de
+// Google Identity Services (prompt:"none"), que dependía de una cookie de
+// sesión de Google en el navegador — algo que las PWAs instaladas en la
+// pantalla de inicio de iOS NUNCA tienen (WKWebView aislado de Safari), así
+// que ese flujo fallaba siempre, no solo a veces.
 //
-// OJO: en PWAs instaladas en la pantalla de inicio de iOS (WKWebView, sin el
-// cookie jar de Safari) el iframe interno que usa Google para el refresh
-// silencioso a veces se queda colgado y JAMÁS llama al callback — ni éxito
-// ni error. Sin un límite de tiempo, este await nunca se resuelve, cargarTodo()
-// se queda esperando para siempre y la barra "Conectando…" no desaparece
-// nunca (justo el síntoma reportado: se queda en "Conectando" hasta que el
-// usuario toca otra pestaña y esa SÍ logra renovar el token por su cuenta).
-// Por eso se corre contra un timeout que garantiza que esta promesa SIEMPRE
-// se resuelve en un tiempo acotado.
-function renovarTokenSilencioso() {
-  return new Promise((resolve) => {
-    if (typeof google === "undefined" || !currentUser?.email) { resolve(false); return; }
+// El Worker guarda un refresh_token real de Google por usuario y lo usa acá
+// para pedir un access_token nuevo — no depende de nada del navegador, así
+// que funciona igual de bien recién abierta la app que después de semanas.
+// Tiene su propio timeout (AbortController, 7s) para nunca dejar a quien la
+// llama esperando para siempre.
+async function renovarTokenDesdeWorker(email) {
+  const sessionToken = localStorage.getItem("worker_session");
+  if (!email || !sessionToken) return false;
 
-    let resuelto = false;
-    const resolverUnaVez = (valor) => {
-      if (resuelto) return;
-      resuelto = true;
-      resolve(valor);
-    };
-    const timeoutId = setTimeout(() => resolverUnaVez(false), 7000);
-
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-        prompt: "none",
-        hint: currentUser.email,
-        callback: (response) => {
-          clearTimeout(timeoutId);
-          if (!response.error) {
-            Sheets.setToken(response.access_token);
-            localStorage.setItem("gtoken", response.access_token);
-            resolverUnaVez(true);
-          } else {
-            resolverUnaVez(false);
-          }
-        }
-      });
-      client.requestAccessToken();
-    } catch (e) { clearTimeout(timeoutId); resolverUnaVez(false); /* sin conexión — la app sigue con caché */ }
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 7000);
+  try {
+    const res = await fetch(`${CONFIG.WORKER_URL}/token?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.access_token) return false;
+    Sheets.setToken(data.access_token);
+    localStorage.setItem("gtoken", data.access_token);
+    return true;
+  } catch (e) {
+    clearTimeout(timeoutId);
+    return false; // sin conexión, timeout, etc. — la app sigue con caché
+  }
 }
 
-// Callback de One Tap: guarda usuario y obtiene token para Sheets en silencio
+// Nombre histórico usado por cargarTodo() para el reintento tras
+// TOKEN_EXPIRADO — se mantiene como wrapper fino para no tocar esa lógica.
+function renovarTokenSilencioso() {
+  return renovarTokenDesdeWorker(currentUser?.email);
+}
+
+// Callback de One Tap: identifica al usuario que vuelve (nombre/email/foto)
+// y, si ya se conectó antes con Google (hay un sessionToken guardado para
+// ese email), pide un access_token directo al Worker. Si nunca se conectó
+// desde este dispositivo, no hay nada que renovar todavía — mostrarApp()
+// deja la app con la caché, y el flujo normal de "Reconectar" se encarga.
 async function _onOneTapCredential(credentialResponse) {
   try {
     const parts = credentialResponse.credential.split(".");
@@ -322,56 +320,97 @@ async function _onOneTapCredential(credentialResponse) {
     localStorage.setItem("guser", JSON.stringify(currentUser));
   } catch (e) { return; }
 
-  if (typeof google === "undefined") { mostrarApp(); return; }
-  try {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-      prompt: "none",
-      hint: currentUser.email,
-      callback: async (response) => {
-        if (!response.error) {
-          Sheets.setToken(response.access_token);
-          localStorage.setItem("gtoken", response.access_token);
-        }
-        mostrarApp();
-        if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
-      }
-    });
-    client.requestAccessToken();
-  } catch (e) { mostrarApp(); }
+  await renovarTokenDesdeWorker(currentUser.email);
+  mostrarApp();
+  if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
 }
 
 // ---- AUTH ----
 
-document.getElementById("btn-login").addEventListener("click", () => {
-  if (typeof google === "undefined") {
-    alert("Sin conexión a Internet. Conéctate y vuelve a intentarlo.");
-    return;
-  }
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CONFIG.GOOGLE_CLIENT_ID,
-    scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-    callback: async (response) => {
-      if (response.error) { alert("Error de autenticación"); return; }
-      Sheets.setToken(response.access_token);
-      localStorage.setItem("gtoken", response.access_token);
-      const perfil = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-        headers: { Authorization: `Bearer ${response.access_token}` }
-      }).then(r => r.json());
-      currentUser = { name: perfil.name, email: perfil.email, picture: perfil.picture };
-      localStorage.setItem("guser", JSON.stringify(currentUser));
-      mostrarApp();
-      if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
-    }
+// Abre un popup al flujo de autorización de Google con
+// access_type=offline + prompt=consent, y el Worker
+// (worker/src/index.js, endpoint /oauth/callback) captura el refresh_token
+// del lado del servidor. El popup se cierra solo y manda el resultado por
+// postMessage — esta función espera ese mensaje y lo devuelve.
+//
+// Reemplaza el flujo implícito de Google Identity Services para login y
+// reconexión: ese flujo nunca entrega un refresh_token (solo un access_token
+// de 1 hora), así que no había forma de renovar la sesión más adelante sin
+// depender de la cookie de sesión del navegador — que es justo lo que falla
+// en una PWA instalada en iOS.
+function conectarConGooglePopup() {
+  return new Promise((resolve) => {
+    const params = new URLSearchParams({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      redirect_uri: `${CONFIG.WORKER_URL}/oauth/callback`,
+      response_type: "code",
+      access_type: "offline",
+      prompt: "consent",
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email"
+    });
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
+    const popup = window.open(authUrl, "finanzas-google-oauth", "width=480,height=640");
+    if (!popup) { resolve({ error: "popup_bloqueado" }); return; }
+
+    let resuelto = false;
+    const limpiar = () => {
+      window.removeEventListener("message", onMessage);
+      clearInterval(intervalId);
+    };
+    const onMessage = (event) => {
+      if (event.origin !== new URL(CONFIG.WORKER_URL).origin) return;
+      if (!event.data || event.data.type !== "finanzas-oauth") return;
+      if (resuelto) return;
+      resuelto = true;
+      limpiar();
+      resolve(event.data);
+    };
+    window.addEventListener("message", onMessage);
+
+    // Si el usuario cierra el popup sin terminar, no dejar la promesa
+    // esperando para siempre.
+    const intervalId = setInterval(() => {
+      if (popup.closed && !resuelto) {
+        resuelto = true;
+        limpiar();
+        resolve({ error: "popup_cerrado" });
+      }
+    }, 500);
   });
-  client.requestAccessToken();
+}
+
+// Aplica el resultado de conectarConGooglePopup(): guarda el access_token,
+// el sessionToken del Worker y el perfil del usuario. Comparte lógica entre
+// el login inicial y el botón "Reconectar". Devuelve true si quedó todo listo.
+function completarConexionGoogle(resultado) {
+  if (!resultado || resultado.error || !resultado.access_token) {
+    SyncManager.mostrarToast("No se pudo conectar con Google. Intenta de nuevo.", "warn");
+    return false;
+  }
+  Sheets.setToken(resultado.access_token);
+  localStorage.setItem("gtoken", resultado.access_token);
+  localStorage.setItem("worker_session", resultado.sessionToken);
+  currentUser = { name: resultado.name, email: resultado.email, picture: resultado.picture };
+  localStorage.setItem("guser", JSON.stringify(currentUser));
+  return true;
+}
+
+document.getElementById("btn-login").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-login");
+  btn.disabled = true;
+  const resultado = await conectarConGooglePopup();
+  btn.disabled = false;
+  if (!completarConexionGoogle(resultado)) return;
+  mostrarApp();
+  if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
 });
 
 document.getElementById("btn-logout").addEventListener("click", () => {
   // Al cerrar sesión limpiamos auth y el candado de Face ID, NO el caché de datos
   localStorage.removeItem("gtoken");
   localStorage.removeItem("guser");
+  localStorage.removeItem("worker_session");
   FaceAuth.borrarCredencial();
   currentUser = null;
   cajas = [];
@@ -398,42 +437,22 @@ function ocultarReconectar() {
   document.getElementById("reconectar-bar")?.classList.add("hidden");
 }
 
-// Renovación de sesión CON interacción del usuario (sin prompt:"none"): a
-// diferencia de renovarTokenSilencioso(), esta sí puede mostrar el picker de
-// cuenta / consentimiento de Google si hace falta, así que funciona incluso
-// cuando la renovación silenciosa es imposible (ej. WKWebView de una PWA
-// instalada en iOS, que no comparte cookies con Safari). Es el botón de
-// "Reconectar" que aparece cuando todo lo demás falló — un solo toque
-// siempre debe poder devolver la sesión.
+// Reconexión con interacción del usuario: a diferencia de
+// renovarTokenSilencioso()/renovarTokenDesdeWorker(), esta pasa por el popup
+// de Google de verdad (conectarConGooglePopup), así que funciona aunque
+// nunca haya habido un sessionToken guardado en este dispositivo — es el
+// botón de "Reconectar" que aparece cuando todo lo demás falló, y un solo
+// toque siempre debe poder devolver la sesión.
 async function reconectarGoogle() {
-  if (typeof google === "undefined") {
-    SyncManager.mostrarToast("📴 Sin conexión a Internet", "warn");
-    return;
-  }
   const btn = document.querySelector("#reconectar-bar .btn-reconectar");
   if (btn) { btn.textContent = "Conectando..."; btn.disabled = true; }
-  try {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-      hint: currentUser?.email,
-      callback: async (response) => {
-        if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
-        if (response.error) {
-          SyncManager.mostrarToast("No se pudo reconectar. Intenta de nuevo.", "warn");
-          return;
-        }
-        Sheets.setToken(response.access_token);
-        localStorage.setItem("gtoken", response.access_token);
-        ocultarReconectar();
-        await cargarTodo();
-      }
-    });
-    client.requestAccessToken();
-  } catch (e) {
-    if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
-    SyncManager.mostrarToast("No se pudo reconectar. Intenta de nuevo.", "warn");
-  }
+
+  const resultado = await conectarConGooglePopup();
+  if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
+  if (!completarConexionGoogle(resultado)) return;
+
+  ocultarReconectar();
+  await cargarTodo();
 }
 
 // Carga inicial tras abrir la app: muestra "Conectando…" mientras trae los
@@ -884,13 +903,11 @@ async function cargarTodo(reintentando = false) {
         const renovado = await renovarTokenSilencioso();
         if (renovado) { await cargarTodo(true); return; }
       }
-      // La renovación silenciosa (prompt:"none") depende de que Google
-      // tenga una sesión activa dentro del contenedor de la PWA — en una
-      // app instalada en la pantalla de inicio de iOS eso NO siempre está
-      // disponible (el WKWebView aísla sus cookies de Safari), así que
-      // puede fallar de forma consistente, no solo ocasional. En vez de
-      // un toast que desaparece y deja a la app sin forma de recuperarse,
-      // se deja un botón fijo para renovar la sesión con un toque.
+      // La renovación vía Worker puede fallar si este dispositivo nunca se
+      // conectó con Google (sin sessionToken guardado) o si el refresh_token
+      // guardado dejó de servir (contraseña cambiada, acceso revocado). En
+      // vez de un toast que desaparece y deja a la app sin forma de
+      // recuperarse, se deja un botón fijo para reconectar con un toque.
       SyncManager.mostrarToast("📴 No se pudo renovar la sesión — mostrando datos guardados", "warn");
       mostrarReconectar();
       return;

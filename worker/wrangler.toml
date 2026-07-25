@@ -1,0 +1,17 @@
+name = "finanzas-hogar-token"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+preview_urls = false
+
+# El GOOGLE_CLIENT_ID no es secreto (ya es público en config.js del
+# frontend) — los verdaderos secretos (GOOGLE_CLIENT_SECRET,
+# WORKER_SESSION_SECRET) se configuran aparte con `wrangler secret put`,
+# nunca acá en texto plano.
+[vars]
+GOOGLE_CLIENT_ID = "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com"
+ALLOWED_ORIGIN = "https://apssconmiamor-code.github.io"
+
+[[kv_namespaces]]
+binding = "REFRESH_TOKENS"
+id = "9c0034ced7004e4d8831871bcfb1f95d"
