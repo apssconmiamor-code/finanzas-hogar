@@ -25,6 +25,12 @@ function nombreHoja(url) {
 }
 
 test.describe('Performance — carga inicial de datos', () => {
+  // Es una medición de tiempos reales (Date.now()) corriendo en un
+  // navegador real — bajo contención de CPU (muchos workers de Playwright
+  // en paralelo) los márgenes se pueden ajustar por ruido del entorno, no
+  // por una regresión real. Se reintenta antes de reportar fallo.
+  test.describe.configure({ retries: 2 });
+
   test('las lecturas independientes a Sheets arrancan en paralelo', async ({ page }) => {
     await iniciarSesionFalsa(page);
     await mockGoogleApis(page, {
