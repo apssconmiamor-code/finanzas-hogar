@@ -345,6 +345,19 @@ input, select, textarea, table {
 }
 @keyframes conectando-spin { to { transform: rotate(360deg); } }
 
+/* Barra "reconectar" — la renovación silenciosa del token falló y hace
+   falta un toque del usuario para volver a autenticar con Google */
+.reconectar-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--red-soft); border-bottom: 1px solid rgba(255,59,48,.2);
+  padding: 9px 24px; font-size: 13px; color: var(--red); flex-shrink: 0;
+}
+.btn-reconectar {
+  margin-left: auto; background: var(--red); color: #fff; border: none;
+  border-radius: 8px; padding: 5px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
+}
+
 /* ═══════════════ SECTION HEADERS ═══════════════ */
 .section-header {
   display: flex; align-items: flex-start; justify-content: space-between;

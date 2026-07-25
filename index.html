@@ -167,6 +167,14 @@
         <button class="btn-sync-now" onclick="SyncManager.sincronizar()">Sincronizar</button>
       </div>
 
+      <!-- Barra "reconectar" — cuando la renovación silenciosa de Google falla,
+           en vez de un toast que desaparece y deja a la app sin datos, se
+           ofrece un botón fijo para renovar la sesión con un solo toque. -->
+      <div id="reconectar-bar" class="reconectar-bar hidden">
+        <span>🔒 No se pudo renovar la sesión con Google</span>
+        <button class="btn-reconectar" onclick="reconectarGoogle()">Reconectar</button>
+      </div>
+
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
       <section id="tab-cajas" class="tab-section">
         <div class="section-header">

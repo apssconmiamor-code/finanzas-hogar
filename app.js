@@ -389,6 +389,53 @@ function ocultarConectando() {
   document.getElementById("conectando-bar")?.classList.add("hidden");
 }
 
+// ---- BARRA "RECONECTAR" (cuando la renovación silenciosa del token falla) ----
+
+function mostrarReconectar() {
+  document.getElementById("reconectar-bar")?.classList.remove("hidden");
+}
+function ocultarReconectar() {
+  document.getElementById("reconectar-bar")?.classList.add("hidden");
+}
+
+// Renovación de sesión CON interacción del usuario (sin prompt:"none"): a
+// diferencia de renovarTokenSilencioso(), esta sí puede mostrar el picker de
+// cuenta / consentimiento de Google si hace falta, así que funciona incluso
+// cuando la renovación silenciosa es imposible (ej. WKWebView de una PWA
+// instalada en iOS, que no comparte cookies con Safari). Es el botón de
+// "Reconectar" que aparece cuando todo lo demás falló — un solo toque
+// siempre debe poder devolver la sesión.
+async function reconectarGoogle() {
+  if (typeof google === "undefined") {
+    SyncManager.mostrarToast("📴 Sin conexión a Internet", "warn");
+    return;
+  }
+  const btn = document.querySelector("#reconectar-bar .btn-reconectar");
+  if (btn) { btn.textContent = "Conectando..."; btn.disabled = true; }
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+      hint: currentUser?.email,
+      callback: async (response) => {
+        if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
+        if (response.error) {
+          SyncManager.mostrarToast("No se pudo reconectar. Intenta de nuevo.", "warn");
+          return;
+        }
+        Sheets.setToken(response.access_token);
+        localStorage.setItem("gtoken", response.access_token);
+        ocultarReconectar();
+        await cargarTodo();
+      }
+    });
+    client.requestAccessToken();
+  } catch (e) {
+    if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
+    SyncManager.mostrarToast("No se pudo reconectar. Intenta de nuevo.", "warn");
+  }
+}
+
 // Carga inicial tras abrir la app: muestra "Conectando…" mientras trae los
 // datos reales de Google Sheets, para que nunca se quede en silencio con
 // la caché vieja sin que el usuario sepa que algo está pasando.
@@ -825,6 +872,7 @@ async function cargarTodo(reintentando = false) {
     await verificarYGuardarCronologia();
     await cargarYRenderCronologia();
     renderResumen();
+    ocultarReconectar();
 
   } catch (err) {
     if (err.message === "TOKEN_EXPIRADO") {
@@ -836,7 +884,15 @@ async function cargarTodo(reintentando = false) {
         const renovado = await renovarTokenSilencioso();
         if (renovado) { await cargarTodo(true); return; }
       }
+      // La renovación silenciosa (prompt:"none") depende de que Google
+      // tenga una sesión activa dentro del contenedor de la PWA — en una
+      // app instalada en la pantalla de inicio de iOS eso NO siempre está
+      // disponible (el WKWebView aísla sus cookies de Safari), así que
+      // puede fallar de forma consistente, no solo ocasional. En vez de
+      // un toast que desaparece y deja a la app sin forma de recuperarse,
+      // se deja un botón fijo para renovar la sesión con un toque.
       SyncManager.mostrarToast("📴 No se pudo renovar la sesión — mostrando datos guardados", "warn");
+      mostrarReconectar();
       return;
     }
 
