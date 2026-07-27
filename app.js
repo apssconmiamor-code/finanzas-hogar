@@ -657,7 +657,12 @@ document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => 
   });
 
   document.getElementById("filtro-mes").addEventListener("change", renderMovimientos);
-  document.getElementById("filtro-concepto").addEventListener("change", renderMovimientos);
+  document.getElementById("filtro-concepto").addEventListener("change", () => {
+    actualizarFiltroSubcategoria();
+    renderMovimientos();
+  });
+  document.getElementById("filtro-subcategoria")?.addEventListener("change", renderMovimientos);
+  actualizarFiltroSubcategoria();
 
   // Separadores de miles: delegación para inputs de presupuesto/proyección (dinámicos)
   document.addEventListener("input", (e) => {
@@ -781,27 +786,33 @@ function setConceptoActivo(valor) {
   if (cat === "Ingreso")        document.getElementById("mov-concepto-ingreso").value = valor;
 }
 
-// ---- FILTRO CONCEPTO DINÁMICO ----
+// ---- FILTRO SUBCATEGORÍA DINÁMICO (depende de la categoría elegida) ----
 
-function actualizarFiltroConcepto() {
-  const tipo = document.getElementById("filtro-tipo").value;
-  const sel  = document.getElementById("filtro-concepto");
+function actualizarFiltroSubcategoria() {
+  const categoria = document.getElementById("filtro-concepto").value;
+  const sel = document.getElementById("filtro-subcategoria");
+  if (!sel) return;
 
   let lista = [];
-  if (tipo === "Gasto fijo") {
+  if (categoria === "Gasto fijo") {
     lista = GASTOS_FIJOS;
-  } else if (tipo === "Gasto variable") {
+  } else if (categoria === "Gasto variable") {
     lista = GASTOS_VARIABLES;
-  } else if (tipo === "Ingreso" || tipo === "Transferencia") {
+  } else if (categoria === "Ingreso") {
+    lista = FUENTES_INGRESO;
+  } else if (categoria === "Transferencia") {
     lista = [...new Set(
-      movimientos.filter(m => m.categoria === tipo).map(m => m.concepto)
+      movimientos.filter(m => m.categoria === "Transferencia").map(m => m.concepto)
     )].sort();
-  } else if (tipo === "") {
-    lista = [...new Set(movimientos.map(m => m.concepto))].sort();
+  } else {
+    lista = [...new Set([...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO])].sort();
   }
 
-  sel.innerHTML = `<option value="">Todos los conceptos</option>` +
+  const valorAnterior = sel.value;
+  sel.innerHTML = `<option value="">Todas</option>` +
     lista.map(c => `<option value="${c}">${c}</option>`).join("");
+  // Conserva la subcategoría elegida si sigue siendo válida para la nueva categoría
+  if (lista.includes(valorAnterior)) sel.value = valorAnterior;
   sel.disabled = lista.length === 0;
 }
 
@@ -1033,9 +1044,11 @@ function calcularSaldoCaja(nombreCaja) {
 function renderMovimientos() {
   const filtroM = document.getElementById("filtro-mes")?.value || "";
   const filtroK = document.getElementById("filtro-concepto")?.value || "";
+  const filtroS = document.getElementById("filtro-subcategoria")?.value || "";
 
   let filtrados = movimientos.filter(m => {
     if (filtroK && m.categoria !== filtroK) return false;
+    if (filtroS && m.concepto !== filtroS) return false;
     if (filtroM && !m.fecha.startsWith(filtroM)) return false;
     return true;
   });
@@ -1091,7 +1104,7 @@ function renderMovimientos() {
       ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')">📎</span>`
       : "";
 
-    return `<div class="mov-card">
+    return `<div class="mov-card" ondblclick="mostrarResumenMovimiento('${m.id}')">
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
@@ -1107,8 +1120,8 @@ function renderMovimientos() {
         <div class="mov-card-right">
           <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>
           <div class="mov-card-actions">
-            <button class="btn-accion btn-editar" title="Editar" onclick="abrirEditarMovimiento('${m.id}')">✏️</button>
-            <button class="btn-accion btn-borrar" title="Borrar" onclick="borrarMovimiento('${m.id}')">🗑️</button>
+            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')">✏️</button>
+            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')">🗑️</button>
           </div>
         </div>
       </div>
@@ -1116,6 +1129,38 @@ function renderMovimientos() {
   }).join("");
 }
 
+// Resumen de solo lectura de un movimiento (doble clic sobre su tarjeta).
+function mostrarResumenMovimiento(id) {
+  const m = movimientos.find(x => x.id === id);
+  if (!m) return;
+  const caja = cajas.find(c => c.nombre === m.caja);
+  const moneda = caja ? caja.moneda : "COP";
+
+  const esIngreso  = m.categoria === "Ingreso";
+  const esTransfer = m.categoria === "Transferencia";
+  const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
+  const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO",
+    { day: "2-digit", month: "long", year: "numeric" });
+
+  const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
+  const fotoHTML = primeraFoto
+    ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Foto adjunta</span>
+        <button class="btn-accion" onclick="abrirFotoMovimiento('${primeraFoto}')">📎 Ver</button></div>`
+    : "";
+
+  document.getElementById("resumen-mov-titulo").textContent = m.concepto || "Sin concepto";
+  document.getElementById("resumen-mov-body").innerHTML = `
+    <div class="detalle-real-item"><span class="detalle-real-item-caja">Caja</span><span>${escapeHtml(m.caja)}</span></div>
+    <div class="detalle-real-item"><span class="detalle-real-item-caja">Fecha</span><span>${fechaFmt}</span></div>
+    <div class="detalle-real-item"><span class="detalle-real-item-caja">Categoría</span><span>${escapeHtml(m.categoria)}</span></div>
+    <div class="detalle-real-item"><span class="detalle-real-item-caja">Monto</span>
+      <span class="detalle-real-item-monto" style="color:${esEntrada ? "var(--green-dark)" : "var(--text)"}">${esEntrada ? "+" : "-"}${formatMonto(Math.abs(m.monto), moneda)}</span>
+    </div>
+    ${m.descripcion ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Descripción</span><span>${escapeHtml(m.descripcion)}</span></div>` : ""}
+    ${fotoHTML}
+  `;
+  document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
+}
 
 // ---- GUARDAR / ACTUALIZAR MOVIMIENTO ----
 

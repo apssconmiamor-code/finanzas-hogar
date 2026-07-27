@@ -213,7 +213,7 @@ function abrirModalCrearRecordatorio() {
 function resetBotonAudio() {
   const btn = document.getElementById("btn-recordatorio-audio");
   if (!btn) return;
-  btn.textContent = "▶️";
+  btn.textContent = "🎤";
   btn.classList.remove("grabando");
 }
 
@@ -347,7 +347,7 @@ async function toggleGrabacionAudio() {
   } else {
     recMediaRecorder.stop();
     recGrabando = false;
-    btn.textContent = "▶️";
+    btn.textContent = "🎤";
     btn.classList.remove("grabando");
     if (status) status.textContent = "";
   }
@@ -581,6 +581,18 @@ function setupRecordatoriosListeners() {
 
   document.getElementById("btn-cancelar-mov")?.addEventListener("click", _limpiarRecordatorioContexto);
 
+  // Acciones rápidas (menú del botón flotante)
+  document.getElementById("btn-cerrar-menu-acciones")?.addEventListener("click", cerrarMenuAcciones);
+  document.getElementById("modal-menu-acciones")?.addEventListener("click", (e) => {
+    if (e.target === document.getElementById("modal-menu-acciones")) cerrarMenuAcciones();
+  });
+  document.getElementById("config-accion-categoria")?.addEventListener("change", actualizarConceptoAccion);
+  document.getElementById("btn-guardar-config-accion")?.addEventListener("click", guardarConfigAccion);
+  document.getElementById("btn-borrar-accion")?.addEventListener("click", borrarConfigAccion);
+  document.getElementById("btn-cancelar-config-accion")?.addEventListener("click", cerrarConfigAccion);
+  document.getElementById("btn-guardar-usar-accion")?.addEventListener("click", guardarUsarAccion);
+  document.getElementById("btn-cancelar-usar-accion")?.addEventListener("click", cerrarUsarAccion);
+
   // Cerrar el panel de recordatorios al hacer clic afuera
   document.addEventListener("click", (e) => {
     const panel = document.getElementById("recordatorios-panel");
@@ -595,6 +607,201 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", setupRecordatoriosListeners);
 } else {
   setTimeout(setupRecordatoriosListeners, 0);
+}
+
+// =============================================
+// ACCIONES RÁPIDAS — hasta 3 movimientos preconfigurados desde el botón
+// flotante (categoría + concepto + caja), que solo piden el monto al
+// usarse. Se guardan en localStorage (preferencia del dispositivo, igual
+// que la posición del botón flotante), no en Sheets.
+// =============================================
+
+const ACCIONES_RAPIDAS_KEY = "acciones_rapidas";
+
+function obtenerAccionesRapidas() {
+  try {
+    const raw = localStorage.getItem(ACCIONES_RAPIDAS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    while (arr.length < 3) arr.push(null);
+    return arr.slice(0, 3);
+  } catch { return [null, null, null]; }
+}
+
+function guardarAccionesRapidas(acciones) {
+  localStorage.setItem(ACCIONES_RAPIDAS_KEY, JSON.stringify(acciones));
+}
+
+let accionSlotActual = null;
+
+function abrirMenuAcciones() {
+  renderMenuAcciones();
+  document.getElementById("modal-menu-acciones")?.classList.remove("hidden");
+}
+
+function cerrarMenuAcciones() {
+  document.getElementById("modal-menu-acciones")?.classList.add("hidden");
+}
+
+function renderMenuAcciones() {
+  const grid = document.getElementById("acciones-rapidas-grid");
+  if (!grid) return;
+  const acciones = obtenerAccionesRapidas();
+
+  grid.innerHTML = acciones.map((accion, i) => {
+    if (accion) {
+      return `<button class="accion-rapida-card" data-slot="${i}">
+        <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
+        <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
+      </button>`;
+    }
+    return `<button class="accion-rapida-card accion-rapida-vacia" data-slot="${i}">
+      <span class="accion-rapida-icono">➕</span>
+      <span class="accion-rapida-nombre">Configurar</span>
+    </button>`;
+  }).join("") + `
+    <button class="accion-rapida-card" id="accion-recordatorio">
+      <span class="accion-rapida-icono">📝</span>
+      <span class="accion-rapida-nombre">Recordatorio</span>
+    </button>`;
+
+  // Toque corto = usar (o configurar si el slot está vacío);
+  // mantener presionado ~500ms = (re)configurar ese slot.
+  grid.querySelectorAll(".accion-rapida-card[data-slot]").forEach((card) => {
+    const slot = parseInt(card.dataset.slot, 10);
+    let esPressLargo = false;
+    let timeoutId = null;
+
+    const iniciar = () => {
+      esPressLargo = false;
+      timeoutId = setTimeout(() => {
+        esPressLargo = true;
+        abrirConfigAccion(slot);
+      }, 500);
+    };
+    const cancelar = () => clearTimeout(timeoutId);
+
+    card.addEventListener("pointerdown", iniciar);
+    card.addEventListener("pointerup", () => {
+      cancelar();
+      if (esPressLargo) return;
+      const accion = obtenerAccionesRapidas()[slot];
+      if (accion) abrirUsarAccion(slot, accion);
+      else abrirConfigAccion(slot);
+    });
+    card.addEventListener("pointerleave", cancelar);
+    card.addEventListener("pointercancel", cancelar);
+  });
+
+  document.getElementById("accion-recordatorio")?.addEventListener("click", () => {
+    cerrarMenuAcciones();
+    abrirModalCrearRecordatorio();
+  });
+}
+
+// ---- Configurar una acción rápida ----
+
+function actualizarConceptoAccion() {
+  const categoria = document.getElementById("config-accion-categoria").value;
+  const sel = document.getElementById("config-accion-concepto");
+  if (!sel) return;
+  let lista = [];
+  if (categoria === "Gasto fijo") lista = GASTOS_FIJOS;
+  else if (categoria === "Gasto variable") lista = GASTOS_VARIABLES;
+  else if (categoria === "Ingreso") lista = FUENTES_INGRESO;
+  sel.innerHTML = lista.map(c => `<option value="${c}">${c}</option>`).join("");
+}
+
+function abrirConfigAccion(slot) {
+  accionSlotActual = slot;
+  const accion = obtenerAccionesRapidas()[slot];
+
+  document.getElementById("config-accion-nombre").value = accion?.nombre || "";
+  document.getElementById("config-accion-icono").value  = accion?.icono || "";
+  document.getElementById("config-accion-categoria").value = accion?.categoria || "Gasto fijo";
+  actualizarConceptoAccion();
+  if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
+  if (typeof poblarSelectCajas === "function") poblarSelectCajas("config-accion-caja");
+  if (accion?.caja) document.getElementById("config-accion-caja").value = accion.caja;
+
+  const btnBorrar = document.getElementById("btn-borrar-accion");
+  if (btnBorrar) btnBorrar.style.display = accion ? "" : "none";
+
+  cerrarMenuAcciones();
+  document.getElementById("modal-config-accion")?.classList.remove("hidden");
+}
+
+function cerrarConfigAccion() {
+  document.getElementById("modal-config-accion")?.classList.add("hidden");
+  abrirMenuAcciones();
+}
+
+function guardarConfigAccion() {
+  const nombre    = document.getElementById("config-accion-nombre").value.trim();
+  const icono     = document.getElementById("config-accion-icono").value.trim() || "⚡";
+  const categoria = document.getElementById("config-accion-categoria").value;
+  const concepto  = document.getElementById("config-accion-concepto").value;
+  const caja      = document.getElementById("config-accion-caja").value;
+
+  if (!nombre || !categoria || !concepto || !caja) {
+    alert("Completa todos los campos");
+    return;
+  }
+
+  const acciones = obtenerAccionesRapidas();
+  acciones[accionSlotActual] = { nombre, icono, categoria, concepto, caja };
+  guardarAccionesRapidas(acciones);
+  document.getElementById("modal-config-accion")?.classList.add("hidden");
+  abrirMenuAcciones();
+}
+
+function borrarConfigAccion() {
+  const acciones = obtenerAccionesRapidas();
+  acciones[accionSlotActual] = null;
+  guardarAccionesRapidas(acciones);
+  document.getElementById("modal-config-accion")?.classList.add("hidden");
+  abrirMenuAcciones();
+}
+
+// ---- Usar una acción rápida ya configurada ----
+
+function abrirUsarAccion(slot, accion) {
+  accionSlotActual = slot;
+  document.getElementById("usar-accion-titulo").textContent = `${accion.icono || "⚡"} ${accion.nombre}`;
+  document.getElementById("usar-accion-monto").value = "";
+  cerrarMenuAcciones();
+  document.getElementById("modal-usar-accion")?.classList.remove("hidden");
+  setTimeout(() => document.getElementById("usar-accion-monto")?.focus(), 150);
+}
+
+function cerrarUsarAccion() {
+  document.getElementById("modal-usar-accion")?.classList.add("hidden");
+}
+
+async function guardarUsarAccion() {
+  const accion = obtenerAccionesRapidas()[accionSlotActual];
+  if (!accion) { cerrarUsarAccion(); return; }
+
+  const montoInput = document.getElementById("usar-accion-monto");
+  const monto = typeof evaluarMonto === "function" ? evaluarMonto(montoInput.value) : parseFloat(montoInput.value);
+  if (!monto) { alert("Ingresa un monto"); return; }
+
+  const btn = document.getElementById("btn-guardar-usar-accion");
+  btn.textContent = "Guardando..."; btn.disabled = true;
+  try {
+    const hoy = new Date().toISOString().split("T")[0];
+    if (accion.categoria === "Ingreso") {
+      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto);
+    } else {
+      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto);
+    }
+    cerrarUsarAccion();
+    if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ ${accion.nombre} registrado`);
+    if (typeof cargarTodo === "function") await cargarTodo();
+  } catch (err) {
+    alert("Error guardando: " + err.message);
+  } finally {
+    btn.textContent = "Guardar"; btn.disabled = false;
+  }
 }
 
 // =============================================
@@ -677,7 +884,7 @@ function setupFabRecordatorio() {
       const rect = fab.getBoundingClientRect();
       ubicar(rect.left, rect.top, true);
     } else {
-      abrirModalCrearRecordatorio();
+      abrirMenuAcciones();
     }
   }
 

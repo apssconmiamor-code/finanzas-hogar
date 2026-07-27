@@ -363,6 +363,10 @@ input, select, textarea, table {
   display: flex; align-items: flex-start; justify-content: flex-end;
   margin-bottom: 20px; gap: 12px;
 }
+.btn-franja {
+  display: block; width: 100%; text-align: center;
+  margin-bottom: 20px; box-sizing: border-box;
+}
 
 /* Card section wrapper */
 .card-section {
@@ -499,6 +503,27 @@ input, select, textarea, table {
   margin: 0 auto -8px; flex-shrink: 0;
 }
 .modal-card-presupuesto { max-height: 90vh; }
+.modal-card-fullscreen {
+  width: 100%; height: 100%; max-width: 100%; max-height: 100%;
+  border-radius: 0; justify-content: center;
+}
+.modal-card-fullscreen::before { display: none; }
+
+.acciones-rapidas-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  flex: 1; align-content: center;
+}
+.accion-rapida-card {
+  aspect-ratio: 1 / 1; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border-radius: 20px; border: 1.5px solid var(--border-mid);
+  background: var(--surface); cursor: pointer; user-select: none;
+  font-family: var(--font);
+}
+.accion-rapida-card:active { opacity: 0.7; }
+.accion-rapida-vacia { border-style: dashed; color: var(--text-4); }
+.accion-rapida-icono { font-size: 40px; line-height: 1; }
+.accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 4px; }
@@ -605,7 +630,8 @@ input, select, textarea, table {
 .resumen-item.gasto   .resumen-valor { color: var(--red); }
 
 /* ═══════════════ FILTROS ═══════════════ */
-.filtros-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filtros-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.filtros-bar > .input-sm { flex: 1; min-width: 0; }
 
 /* ═══════════════ MOVIMIENTOS ═══════════════ */
 .movimientos-list {
@@ -1142,6 +1168,22 @@ input, select, textarea, table {
 .fotos-preview {
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
 }
+
+/* Adjuntar foto/audio en "Nuevo recordatorio" — dos columnas cuadradas,
+   solo con ícono (distinto de .fotos-btn, que también usa el formulario
+   de movimientos con Galería/Cámara y no debe verse afectado). */
+.recordatorio-adjuntar-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.recordatorio-adjuntar-btn {
+  cursor: pointer; user-select: none;
+  aspect-ratio: 1 / 1; width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; border-radius: 16px;
+  border: 1.5px solid var(--border-mid); background: var(--surface);
+  color: var(--text-2);
+}
+.recordatorio-adjuntar-btn:active { opacity: 0.7; }
 .foto-thumb {
   position: relative; width: 72px; height: 72px;
   border-radius: 10px; overflow: hidden;

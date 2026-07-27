@@ -164,9 +164,7 @@
 
       <!-- ══ TAB: MOVIMIENTOS ══ -->
       <section id="tab-movimientos" class="tab-section hidden">
-        <div class="section-header">
-          <button class="btn-primary" id="btn-nuevo-movimiento">+ Nuevo</button>
-        </div>
+        <button class="btn-primary btn-franja" id="btn-nuevo-movimiento">+ Nuevo</button>
         <div class="filtros-bar">
           <input id="filtro-mes" type="month" class="input-sm"/>
           <select id="filtro-concepto" class="input-sm">
@@ -176,9 +174,11 @@
             <option value="Gasto variable">🔀 Gasto variable</option>
             <option value="Transferencia">🔁 Transferencia</option>
           </select>
+          <select id="filtro-subcategoria" class="input-sm">
+            <option value="">Todas</option>
+          </select>
           <!-- hidden compat -->
           <select id="filtro-caja" class="hidden"></select>
-          <select id="filtro-tipo" class="hidden"></select>
         </div>
         <div id="resumen-bar" class="resumen-bar">
           <div class="resumen-item ingreso">
@@ -403,9 +403,7 @@
       <!-- ══ TAB: PRÉSTAMOS ══ -->
       <section id="tab-prestamos" class="tab-section hidden">
         <div id="planes-panel-prestamos" class="planes-panel">
-          <div class="section-header">
-            <button class="btn-primary" id="btn-nuevo-prestamo">+ Nuevo</button>
-          </div>
+          <button class="btn-primary btn-franja" id="btn-nuevo-prestamo">+ Nuevo</button>
           <div class="prestamos-resumen">
             <div class="resumen-item deuda"><span class="resumen-label">Deuda activa</span><span id="prest-total-deuda" class="resumen-valor">$0</span></div>
             <div class="resumen-item pagado"><span class="resumen-label">Total pagado</span><span id="prest-total-pagado" class="resumen-valor">$0</span></div>
@@ -418,9 +416,7 @@
       <!-- ══ TAB: LISTA DE COMPRAS ══ -->
       <section id="tab-compras" class="tab-section hidden">
         <div id="planes-panel-compras" class="planes-panel">
-          <div class="section-header">
-            <button class="btn-primary" id="btn-nueva-compra">+ Nuevo</button>
-          </div>
+          <button class="btn-primary btn-franja" id="btn-nueva-compra">+ Nuevo</button>
           <div id="compras-list"></div>
         </div>
       </section>
@@ -487,6 +483,17 @@
         </div>
         <div id="detalle-caja-resumen" class="detalle-caja-resumen"></div>
         <div id="detalle-caja-body" style="flex:1;overflow:hidden"></div>
+      </div>
+    </div>
+
+    <!-- Modal resumen de un movimiento (doble clic en su tarjeta) -->
+    <div id="modal-resumen-movimiento" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+      <div class="modal-card" style="max-width:480px">
+        <div class="modal-header">
+          <span id="resumen-mov-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-resumen-movimiento').classList.add('hidden')">✕</button>
+        </div>
+        <div id="resumen-mov-body" class="detalle-real-lista"></div>
       </div>
     </div>
 
@@ -647,23 +654,73 @@
       </div>
     </div>
 
+    <!-- Menú del botón flotante: 3 acciones rápidas + Recordatorio -->
+    <div id="modal-menu-acciones" class="modal hidden">
+      <div class="modal-card modal-card-fullscreen">
+        <div id="acciones-rapidas-grid" class="acciones-rapidas-grid"></div>
+        <button class="btn-secondary" id="btn-cerrar-menu-acciones">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- Usar una acción rápida ya configurada: solo pide el monto -->
+    <div id="modal-usar-accion" class="modal hidden">
+      <div class="modal-card" style="max-width:400px">
+        <h3 class="modal-title" id="usar-accion-titulo"></h3>
+        <div class="form-group">
+          <input id="usar-accion-monto" type="text" inputmode="decimal" placeholder="Monto"
+            class="input" style="font-size:22px;text-align:center"/>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-usar-accion">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-usar-accion">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configurar una acción rápida -->
+    <div id="modal-config-accion" class="modal hidden">
+      <div class="modal-card" style="max-width:420px">
+        <h3 class="modal-title">Configurar acción rápida</h3>
+        <div class="form-group">
+          <input id="config-accion-nombre" type="text" placeholder="Nombre (ej: Mercado)" class="input"/>
+        </div>
+        <div class="form-group">
+          <input id="config-accion-icono" type="text" placeholder="Ícono (ej: 🛒)" class="input" maxlength="4"/>
+        </div>
+        <div class="form-group">
+          <select id="config-accion-categoria" class="input">
+            <option value="Gasto fijo">📌 Gasto fijo</option>
+            <option value="Gasto variable">🔀 Gasto variable</option>
+            <option value="Ingreso">💰 Ingreso</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <select id="config-accion-concepto" class="input"></select>
+        </div>
+        <div class="form-group">
+          <select id="config-accion-caja" class="input"></select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-borrar-accion">Borrar</button>
+          <button class="btn-secondary" id="btn-cancelar-config-accion">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-config-accion">Guardar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: crear recordatorio (texto / imagen / audio) -->
     <div id="modal-recordatorio-crear" class="modal hidden">
       <div class="modal-card">
-        <h3 class="modal-title">Nuevo recordatorio</h3>
-        <p class="modal-subtitle">Deja una nota rápida — la retomas después para registrar el movimiento.</p>
         <div class="form-group">
-          <label>Adjuntar <span class="label-opcional">(opcional)</span></label>
-          <div class="fotos-actions-row">
-            <label class="btn-secondary btn-sm fotos-btn" for="recordatorio-foto-file">📷 Foto</label>
+          <div class="recordatorio-adjuntar-grid">
+            <label class="recordatorio-adjuntar-btn" for="recordatorio-foto-file">📷</label>
             <input id="recordatorio-foto-file" type="file" accept="image/*" style="display:none"/>
-            <button type="button" class="btn-secondary btn-sm fotos-btn" id="btn-recordatorio-audio">▶️</button>
+            <button type="button" class="recordatorio-adjuntar-btn" id="btn-recordatorio-audio">🎤</button>
           </div>
           <div id="recordatorio-media-preview" class="fotos-preview"></div>
           <span id="recordatorio-audio-status" class="recibo-status"></span>
         </div>
         <div class="form-group">
-          <label>Nota <span class="label-opcional">(opcional si adjuntas foto o audio)</span></label>
           <textarea id="recordatorio-texto" rows="3" placeholder="Ej: Pagué el mercado, revisar monto exacto…"
             class="input" style="resize:none;min-height:70px;font-size:15px;line-height:1.4"></textarea>
         </div>
