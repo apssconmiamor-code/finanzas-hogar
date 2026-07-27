@@ -164,7 +164,21 @@
 
       <!-- ══ TAB: MOVIMIENTOS ══ -->
       <section id="tab-movimientos" class="tab-section hidden">
-        <button class="btn-primary btn-franja" id="btn-nuevo-movimiento">+ Nuevo</button>
+        <button class="btn-primary btn-franja btn-franja-grande" id="btn-nuevo-movimiento">Nuevo Movimiento</button>
+        <div id="resumen-bar" class="resumen-bar">
+          <div class="resumen-item ingreso">
+            <span class="resumen-label">Ingresos</span>
+            <span id="total-ingresos" class="resumen-valor">$0</span>
+          </div>
+          <div class="resumen-item gasto">
+            <span class="resumen-label">Gastos</span>
+            <span id="total-gastos" class="resumen-valor">$0</span>
+          </div>
+          <div class="resumen-item balance">
+            <span class="resumen-label">Balance</span>
+            <span id="total-balance" class="resumen-valor">$0</span>
+          </div>
+        </div>
         <div class="filtros-bar">
           <input id="filtro-mes" type="month" class="input-sm"/>
           <select id="filtro-concepto" class="input-sm">
@@ -179,20 +193,6 @@
           </select>
           <!-- hidden compat -->
           <select id="filtro-caja" class="hidden"></select>
-        </div>
-        <div id="resumen-bar" class="resumen-bar">
-          <div class="resumen-item ingreso">
-            <span class="resumen-label">Ingresos</span>
-            <span id="total-ingresos" class="resumen-valor">$0</span>
-          </div>
-          <div class="resumen-item gasto">
-            <span class="resumen-label">Gastos</span>
-            <span id="total-gastos" class="resumen-valor">$0</span>
-          </div>
-          <div class="resumen-item balance">
-            <span class="resumen-label">Balance</span>
-            <span id="total-balance" class="resumen-valor">$0</span>
-          </div>
         </div>
         <div id="movimientos-list" class="movimientos-list">
           <div class="loading-state">Cargando…</div>
@@ -470,7 +470,7 @@
     </nav>
 
     <!-- ══ BOTÓN FLOTANTE: nuevo recordatorio (arrastrable, todas las pestañas) ══ -->
-    <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">📝</button>
+    <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">⚡</button>
 
     <!-- ══ MODALES GLOBALES ══ -->
 

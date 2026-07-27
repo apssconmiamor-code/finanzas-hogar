@@ -367,6 +367,7 @@ input, select, textarea, table {
   display: block; width: 100%; text-align: center;
   margin-bottom: 20px; box-sizing: border-box;
 }
+.btn-franja-grande { padding: 20px 18px; font-size: 17px; }
 
 /* Card section wrapper */
 .card-section {
@@ -511,7 +512,9 @@ input, select, textarea, table {
 
 .acciones-rapidas-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-  flex: 1; align-content: center;
+  flex: 1; align-content: center; justify-content: center;
+  max-width: 420px; width: 100%; margin: 0 auto;
+  max-height: 50vh; overflow-y: auto;
 }
 .accion-rapida-card {
   aspect-ratio: 1 / 1; width: 100%;
@@ -527,6 +530,19 @@ input, select, textarea, table {
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 4px; }
+
+/* En recordatorio y acciones rápidas, Cancelar/Guardar ocupan el 100% del
+   ancho del contenedor entre los dos, en vez de quedar pegados a la derecha. */
+#modal-recordatorio-crear .modal-actions,
+#modal-usar-accion .modal-actions,
+#modal-config-accion .modal-actions {
+  justify-content: stretch;
+}
+#modal-recordatorio-crear .modal-actions > button,
+#modal-usar-accion .modal-actions > button,
+#modal-config-accion .modal-actions > button {
+  flex: 1;
+}
 .modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .modal-close {
   background: var(--bg); border: none; border-radius: 50%;
@@ -629,9 +645,35 @@ input, select, textarea, table {
 .resumen-item.ingreso .resumen-valor { color: var(--green-dark); }
 .resumen-item.gasto   .resumen-valor { color: var(--red); }
 
+/* En Movimientos, Ingresos/Gastos/Balance se ven como un solo bloque (no
+   3 tarjetas separadas) — se agrupan dentro de #resumen-bar con un borde
+   compartido y divisores finos entre secciones. */
+#resumen-bar {
+  display: flex; gap: 0; margin-bottom: 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+#resumen-bar .resumen-item {
+  flex: 1; min-width: 0; background: transparent; border: none;
+  border-radius: 0; box-shadow: none;
+}
+#resumen-bar .resumen-item + .resumen-item { border-left: 1px solid var(--border); }
+#resumen-bar .resumen-item.ingreso { border-top: 3px solid var(--green); }
+#resumen-bar .resumen-item.gasto   { border-top: 3px solid var(--red); }
+#resumen-bar .resumen-item.balance { border-top: 3px solid var(--brand); }
+
 /* ═══════════════ FILTROS ═══════════════ */
-.filtros-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-.filtros-bar > .input-sm { flex: 1; min-width: 0; }
+/* Un solo bloque en vez de 3 controles sueltos — mismo criterio que
+   #resumen-bar arriba. */
+.filtros-bar {
+  display: flex; gap: 0; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--border-mid);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.filtros-bar > .input-sm {
+  flex: 1; min-width: 0; border: none; border-radius: 0; background: transparent;
+}
+.filtros-bar > .input-sm + .input-sm { border-left: 1px solid var(--border-mid); }
 
 /* ═══════════════ MOVIMIENTOS ═══════════════ */
 .movimientos-list {
