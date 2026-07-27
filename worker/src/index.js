@@ -79,9 +79,11 @@ async function handleCallback(url, env) {
     });
     tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
+      console.log("token_exchange_failed", tokenRes.status, JSON.stringify(tokenData));
       return htmlPopupResult({ error: tokenData.error || "token_exchange_failed" }, env);
     }
   } catch (e) {
+    console.log("token_exchange_failed (excepción)", e.message);
     return htmlPopupResult({ error: "token_exchange_failed" }, env);
   }
 
@@ -92,11 +94,15 @@ async function handleCallback(url, env) {
     });
     perfil = await perfilRes.json();
     if (!perfilRes.ok || !perfil.email) {
+      console.log("userinfo_failed", perfilRes.status, JSON.stringify(perfil));
       return htmlPopupResult({ error: "userinfo_failed" }, env);
     }
   } catch (e) {
+    console.log("userinfo_failed (excepción)", e.message);
     return htmlPopupResult({ error: "userinfo_failed" }, env);
   }
+
+  console.log("callback OK para", perfil.email, "trajo refresh_token:", !!tokenData.refresh_token);
 
   if (tokenData.refresh_token) {
     await env.REFRESH_TOKENS.put(perfil.email, tokenData.refresh_token);
@@ -104,6 +110,7 @@ async function handleCallback(url, env) {
     // Google no mandó refresh_token (raro, dado que siempre se pide con
     // prompt=consent+access_type=offline) y tampoco había uno guardado de
     // antes — sin refresh_token no hay forma de renovar luego.
+    console.log("no_refresh_token para", perfil.email);
     return htmlPopupResult({ error: "no_refresh_token" }, env);
   }
 
