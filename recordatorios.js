@@ -581,8 +581,8 @@ function setupRecordatoriosListeners() {
 
   document.getElementById("btn-cancelar-mov")?.addEventListener("click", _limpiarRecordatorioContexto);
 
-  // Acciones rápidas (menú del botón flotante)
-  document.getElementById("btn-cerrar-menu-acciones")?.addEventListener("click", cerrarMenuAcciones);
+  // Acciones rápidas (menú del botón flotante) — se cierra tocando fuera
+  // (backdrop) o con el gesto de deslizar; ya no tiene botón "Cerrar" propio.
   document.getElementById("modal-menu-acciones")?.addEventListener("click", (e) => {
     if (e.target === document.getElementById("modal-menu-acciones")) cerrarMenuAcciones();
   });

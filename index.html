@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <link rel="manifest" href="manifest.json"/>
-  <link rel="apple-touch-icon" href="icon.png"/>
+  <link rel="apple-touch-icon" href="icono.png"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
   <meta name="apple-mobile-web-app-title" content="Finanzas"/>
@@ -658,7 +658,6 @@
     <div id="modal-menu-acciones" class="modal hidden">
       <div class="modal-card modal-card-fullscreen">
         <div id="acciones-rapidas-grid" class="acciones-rapidas-grid"></div>
-        <button class="btn-secondary" id="btn-cerrar-menu-acciones">Cerrar</button>
       </div>
     </div>
 
@@ -714,7 +713,7 @@
         <div class="form-group">
           <div class="recordatorio-adjuntar-grid">
             <label class="recordatorio-adjuntar-btn" for="recordatorio-foto-file">📷</label>
-            <input id="recordatorio-foto-file" type="file" accept="image/*" style="display:none"/>
+            <input id="recordatorio-foto-file" type="file" accept="image/*" capture="environment" style="display:none"/>
             <button type="button" class="recordatorio-adjuntar-btn" id="btn-recordatorio-audio">🎤</button>
           </div>
           <div id="recordatorio-media-preview" class="fotos-preview"></div>

@@ -476,22 +476,43 @@ async function mostrarApp() {
 
 // ---- GESTO DE "VOLVER" ESTILO iPHONE (deslizar de izquierda a derecha desde el borde) ----
 
+// Anima la salida (mismo efecto para los 3 casos que maneja
+// cerrarPantallaActual) y solo después ejecuta el cierre real —
+// así no hay que tocar la lógica propia de cada uno (ej. el modal de
+// recordatorio apagando el micrófono).
+const ANIM_CIERRE_MS = 180;
+function animarYCerrar(el, cerrarDeVerdad) {
+  el.classList.add("cerrando-swipe");
+  setTimeout(() => {
+    el.classList.remove("cerrando-swipe");
+    cerrarDeVerdad();
+  }, ANIM_CIERRE_MS);
+}
+
 function cerrarPantallaActual() {
   const modalAbierto = document.querySelector(".modal:not(.hidden)");
   if (modalAbierto) {
     // El modal de grabar recordatorio necesita apagar el micrófono al cerrarse,
     // no solo ocultarse — usa su propio cierre en vez del genérico.
-    if (modalAbierto.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
-      cerrarModalCrearRecordatorio();
-    } else {
-      modalAbierto.classList.add("hidden");
-    }
+    animarYCerrar(modalAbierto, () => {
+      if (modalAbierto.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
+        cerrarModalCrearRecordatorio();
+      } else {
+        modalAbierto.classList.add("hidden");
+      }
+    });
     return true;
   }
   const dropdown = document.getElementById("dropdown-menu");
-  if (dropdown && !dropdown.classList.contains("hidden")) { dropdown.classList.add("hidden"); return true; }
+  if (dropdown && !dropdown.classList.contains("hidden")) {
+    animarYCerrar(dropdown, () => dropdown.classList.add("hidden"));
+    return true;
+  }
   const recPanel = document.getElementById("recordatorios-panel");
-  if (recPanel && !recPanel.classList.contains("hidden")) { recPanel.classList.add("hidden"); return true; }
+  if (recPanel && !recPanel.classList.contains("hidden")) {
+    animarYCerrar(recPanel, () => recPanel.classList.add("hidden"));
+    return true;
+  }
   return false;
 }
 
@@ -1144,8 +1165,9 @@ function mostrarResumenMovimiento(id) {
 
   const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
   const fotoHTML = primeraFoto
-    ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Foto adjunta</span>
-        <button class="btn-accion" onclick="abrirFotoMovimiento('${primeraFoto}')">📎 Ver</button></div>`
+    ? `<a class="foto-thumb resumen-mov-foto" href="#" title="Cargando…">
+        <img class="foto-thumb-img" alt="foto del movimiento"/>
+      </a>`
     : "";
 
   document.getElementById("resumen-mov-titulo").textContent = m.concepto || "Sin concepto";
@@ -1160,6 +1182,18 @@ function mostrarResumenMovimiento(id) {
     ${fotoHTML}
   `;
   document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
+
+  if (primeraFoto) {
+    const link = document.querySelector(".resumen-mov-foto");
+    Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(primeraFoto)).then((blobUrl) => {
+      if (!link) return;
+      link.href = blobUrl; link.target = "_blank"; link.rel = "noopener";
+      link.title = "Ver foto completa";
+      link.querySelector("img").src = blobUrl;
+    }).catch((err) => {
+      if (link) link.title = "No se pudo cargar la foto: " + err.message;
+    });
+  }
 }
 
 // ---- GUARDAR / ACTUALIZAR MOVIMIENTO ----
