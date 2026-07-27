@@ -72,7 +72,6 @@ function activarCalculoMonto(inputId, hintId) {
 let currentUser = null;
 let cajas = [];
 let movimientos = [];
-let faceidDisponible = false; // se calcula una vez en window.onload
 let actualizacionDisponible = false; // true cuando el service worker ya descargó una versión nueva
 
 // Cambia "Finanzas Hogar vX.Y.Z" por "Sincronizar" (y viceversa) en el
@@ -196,21 +195,10 @@ window.onload = async () => {
     try { usuarioValido = JSON.parse(userRaw); } catch (e) { usuarioValido = null; }
   }
 
-  faceidDisponible = await FaceAuth.disponiblePlataforma();
-
   if (usuarioValido) {
     currentUser = usuarioValido;
     if (token) Sheets.setToken(token);
-
-    if (FaceAuth.tieneCredencial() && faceidDisponible) {
-      // Ya está enrolado → entrada rápida solo con Face ID, sin ninguna pantalla de Google
-      iniciarConFaceID();
-    } else {
-      // Usuario ya logueado pero sin Face ID activado aún → entra directo.
-      // iOS exige un toque real del usuario para poder crear la credencial,
-      // así que se activa desde el menú (⋯ → Activar Face ID), no aquí solo.
-      mostrarApp();
-    }
+    mostrarApp();
   } else {
     // Sin usuario → intentar One Tap (auto-selecciona sin popup si hay sesión activa)
     try {
@@ -226,43 +214,6 @@ window.onload = async () => {
 
   setupEventListeners();
 };
-
-// Pantalla de Face ID: dispara la verificación biométrica de inmediato
-// (rápido, sin toques extra) y solo muestra un botón si el navegador
-// bloqueó la llamada automática por falta de gesto del usuario.
-async function iniciarConFaceID(esIntentoAutomatico = true) {
-  document.getElementById("login-screen").classList.add("hidden");
-  const pantalla  = document.getElementById("faceid-screen");
-  const status    = document.getElementById("faceid-status");
-  const btnRetry  = document.getElementById("btn-faceid-retry");
-  const btnGoogle = document.getElementById("btn-faceid-google");
-  pantalla.classList.remove("hidden");
-  btnRetry.classList.add("hidden");
-  btnGoogle.classList.add("hidden");
-  status.textContent = "Verificando con Face ID…";
-
-  const ok = await FaceAuth.verificar();
-  if (ok) {
-    pantalla.classList.add("hidden");
-    mostrarApp();
-  } else if (esIntentoAutomatico) {
-    // El primer intento es automático (sin toque previo del usuario): en iOS eso
-    // suele bloquear WebAuthn por falta de "gesto", no porque el rostro haya fallado.
-    status.textContent = "Toca para entrar con Face ID";
-    btnRetry.classList.remove("hidden");
-    btnGoogle.classList.remove("hidden");
-  } else {
-    status.textContent = "No se pudo verificar. Intenta de nuevo.";
-    btnRetry.classList.remove("hidden");
-    btnGoogle.classList.remove("hidden");
-  }
-}
-
-document.getElementById("btn-faceid-retry").addEventListener("click", () => iniciarConFaceID(false));
-document.getElementById("btn-faceid-google").addEventListener("click", () => {
-  document.getElementById("faceid-screen").classList.add("hidden");
-  document.getElementById("login-screen").classList.remove("hidden");
-});
 
 // Pide al Worker (finanzas-hogar-token) un access_token fresco usando el
 // sessionToken guardado (emitido la última vez que se conectó con Google
@@ -322,7 +273,6 @@ async function _onOneTapCredential(credentialResponse) {
 
   await renovarTokenDesdeWorker(currentUser.email);
   mostrarApp();
-  if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
 }
 
 // ---- AUTH ----
@@ -403,15 +353,13 @@ document.getElementById("btn-login").addEventListener("click", async () => {
   btn.disabled = false;
   if (!completarConexionGoogle(resultado)) return;
   mostrarApp();
-  if (await FaceAuth.disponiblePlataforma()) FaceAuth.registrar(currentUser.email);
 });
 
 document.getElementById("btn-logout").addEventListener("click", () => {
-  // Al cerrar sesión limpiamos auth y el candado de Face ID, NO el caché de datos
+  // Al cerrar sesión limpiamos auth, NO el caché de datos
   localStorage.removeItem("gtoken");
   localStorage.removeItem("guser");
   localStorage.removeItem("worker_session");
-  FaceAuth.borrarCredencial();
   currentUser = null;
   cajas = [];
   movimientos = [];
@@ -493,9 +441,6 @@ async function mostrarApp() {
   // topbar avatar
   const ta = document.getElementById("topbar-avatar");
   if (ta && currentUser?.picture) ta.src = currentUser.picture;
-  // saludo
-  const sal = document.getElementById("cajas-saludo");
-  if (sal && currentUser?.name) sal.textContent = `Hola, ${currentUser.name.split(" ")[0]} 👋`;
 
   // Cargar caché SIEMPRE antes de tocar la red
   const cacheC    = localStorage.getItem("cache_cajas");
@@ -583,7 +528,8 @@ function navegarATab(tab) {
     document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
     const sec = document.getElementById(`tab-${tab}`);
     if (sec) sec.classList.remove("hidden");
-    if (tab === "compromisos") { cargarPrestamos(); cargarCompras(); }
+    if (tab === "prestamos") cargarPrestamos();
+    if (tab === "compras") cargarCompras();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
     // update topbar avatar
@@ -617,15 +563,6 @@ document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
     if (btn) btn.setAttribute("aria-expanded", String(!abierto));
     if (typeof actualizarDropdownUsuario === "function") actualizarDropdownUsuario();
   });
-
-  // Cajas
-  document.getElementById("btn-nueva-caja").addEventListener("click", () =>
-    document.getElementById("modal-caja").classList.remove("hidden"));
-  document.getElementById("btn-cancelar-caja").addEventListener("click", () => {
-    document.getElementById("modal-caja").classList.add("hidden");
-    limpiarFormCaja();
-  });
-  document.getElementById("btn-guardar-caja").addEventListener("click", guardarCaja);
 
   // Movimientos
 
@@ -1032,14 +969,53 @@ function abrirDetalleCaja(nombre) {
     ? `<div class="detalle-real-vacio">Sin movimientos registrados</div>`
     : `${aviso}<div class="detalle-caja-scroll"><div class="detalle-real-lista">${filas}</div></div>`;
 
+  const nombreEscapado = nombre.replace(/'/g, "\\'");
+  const botonAjustar = totalEntradas < totalSalidas
+    ? `<button class="btn-ajustar" onclick="ajustarCaja('${nombreEscapado}')">Ajustar</button>`
+    : "";
+
   document.getElementById("detalle-caja-titulo").textContent = nombre;
   document.getElementById("detalle-caja-resumen").innerHTML = `
     <span style="color:var(--green)">▲ Entradas: ${formatMonto(totalEntradas, moneda)}</span>
     <span style="color:var(--red)">▼ Salidas: ${formatMonto(totalSalidas, moneda)}</span>
     <span style="font-weight:700">Saldo: ${formatMonto(totalEntradas - totalSalidas, moneda)}</span>
+    ${botonAjustar}
   `;
   document.getElementById("detalle-caja-body").innerHTML = cuerpo;
   document.getElementById("modal-detalle-caja").classList.remove("hidden");
+}
+
+// Nivela una caja con saldo negativo: agrega UN movimiento de Ingreso por la
+// diferencia exacta entre entradas y salidas, para que el saldo quede en 0
+// en vez de tener que armar el ajuste a mano.
+async function ajustarCaja(nombre) {
+  const movs = movimientos.filter(m => m.caja === nombre);
+  const totalEntradas = movs.filter(m =>
+    m.categoria === "Ingreso" || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"))
+  ).reduce((s, m) => s + m.monto, 0);
+  const totalSalidas = movs.filter(m =>
+    m.categoria !== "Ingreso" && !(m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"))
+  ).reduce((s, m) => s + Math.abs(m.monto), 0);
+
+  const diferencia = totalSalidas - totalEntradas;
+  if (diferencia <= 0) return;
+
+  const btn = document.querySelector(`#detalle-caja-resumen .btn-ajustar`);
+  if (btn) { btn.textContent = "Ajustando..."; btn.disabled = true; }
+
+  try {
+    const hoy = new Date();
+    const fechaISO = hoy.toISOString().split("T")[0];
+    const fechaFmt = hoy.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+    await Sheets.agregarMovimientoIngreso(
+      currentUser.email, fechaISO, "Ajuste", "Ingreso", nombre, diferencia, `Ajuste ${fechaFmt}`
+    );
+    document.getElementById("modal-detalle-caja").classList.add("hidden");
+    await cargarTodo();
+  } catch (err) {
+    alert("Error ajustando la caja: " + err.message);
+    if (btn) { btn.textContent = "Ajustar"; btn.disabled = false; }
+  }
 }
 
 function calcularSaldoCaja(nombreCaja) {
@@ -1140,37 +1116,6 @@ function renderMovimientos() {
   }).join("");
 }
 
-// ---- GUARDAR CAJA ----
-
-async function guardarCaja() {
-  const nombre = document.getElementById("caja-nombre").value.trim();
-  const moneda = document.getElementById("caja-moneda").value;
-  if (!nombre) { alert("Escribe el nombre de la caja"); return; }
-  if (cajas.some(c => c.nombre.toLowerCase() === nombre.toLowerCase())) {
-    alert(`Ya existe una caja llamada "${nombre}". Usa un nombre diferente, por ejemplo "${nombre} USD" o "${nombre} EUR".`);
-    return;  }
-  const btn = document.getElementById("btn-guardar-caja");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-  try {
-    await Sheets.agregarCaja(currentUser.email, nombre, moneda);
-    document.getElementById("modal-caja").classList.add("hidden");
-    limpiarFormCaja();
-
-    if (!navigator.onLine) {
-      const nuevaCaja = { id: "C_local_" + Date.now(), usuario: currentUser.email, nombre, moneda };
-      cajas.push(nuevaCaja);
-      localStorage.setItem("cache_cajas", JSON.stringify(cajas));
-      renderCajas();
-      poblarFiltrosCajas();
-    } else {
-      await cargarTodo();
-    }
-  } catch (err) {
-    alert("Error guardando la caja: " + err.message);
-  } finally {
-    btn.textContent = "Guardar"; btn.disabled = false;
-  }
-}
 
 // ---- GUARDAR / ACTUALIZAR MOVIMIENTO ----
 
@@ -1681,11 +1626,6 @@ function escapeHtml(texto) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function limpiarFormCaja() {
-  document.getElementById("caja-nombre").value = "";
-  document.getElementById("caja-moneda").value = "COP";
 }
 
 function limpiarFormMov() {
@@ -2959,29 +2899,12 @@ function setupTopbarMenu() {
     dropdown.classList.add("hidden");
     document.getElementById("btn-login").click();
   });
-
-  const ddFaceid = document.getElementById("dd-faceid");
-  ddFaceid.addEventListener("click", async () => {
-    dropdown.classList.add("hidden");
-    // Este clic SÍ cuenta como gesto real del usuario, así que aquí
-    // iOS deja crear la credencial de Face ID sin bloquearla.
-    const ok = await FaceAuth.registrar(currentUser?.email);
-    if (typeof SyncManager !== "undefined") {
-      SyncManager.mostrarToast(ok ? "✅ Face ID activado" : "No se pudo activar Face ID");
-    }
-    actualizarDropdownUsuario();
-  });
 }
 
 function actualizarDropdownUsuario() {
   const info     = document.getElementById("dropdown-user-info");
   const ddLogout = document.getElementById("dd-logout");
   const ddLogin  = document.getElementById("dd-login");
-  const ddFaceid = document.getElementById("dd-faceid");
-
-  if (ddFaceid) {
-    ddFaceid.style.display = (currentUser && faceidDisponible && !FaceAuth.tieneCredencial()) ? "" : "none";
-  }
 
   if (currentUser) {
     const initials = currentUser.name
@@ -3348,7 +3271,7 @@ function renderResumen(mesSeleccionado = null) {
 // =============================================
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
-  compromisos: "Compromisos", resumen: "Análisis"
+  prestamos: "Préstamos", compras: "Lista de compras", resumen: "Análisis"
 };
 
 function actualizarTopbarTitulo(tab) {

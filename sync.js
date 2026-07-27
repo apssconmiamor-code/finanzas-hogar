@@ -152,8 +152,6 @@ const SyncManager = (() => {
           op.autor, op.fecha, op.concepto,
           op.categoria, op.caja, op.monto, op.descripcion
         );
-      case "AGREGAR_CAJA":
-        return Sheets.agregarCaja(op.usuario, op.nombre, op.moneda);
       case "EDITAR_MOVIMIENTO":
         return Sheets.editarMovimiento(
           op.remoteId, op.fecha, op.concepto,

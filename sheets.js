@@ -41,7 +41,6 @@ const Sheets = {
     const raw = localStorage.getItem("guser");
     if (!raw) {
       document.getElementById("app")?.classList.add("hidden");
-      document.getElementById("faceid-screen")?.classList.add("hidden");
       document.getElementById("login-screen")?.classList.remove("hidden");
       return;
     }
@@ -89,12 +88,6 @@ const Sheets = {
     return rows.filter(r => r && r[0]).map(r => ({
       id: r[0] || "", usuario: r[1] || "", nombre: r[2] || "", moneda: r[3] || "COP"
     }));
-  },
-
-  async agregarCaja(usuario, nombre, moneda) {
-    const id = "C" + Date.now();
-    await this.agregar(CONFIG.SHEETS.CAJAS, [id, usuario, nombre, moneda]);
-    return id;
   },
 
   // ---- MOVIMIENTOS ----

@@ -126,15 +126,6 @@
     );
   };
 
-  // ---- PARCHE agregarCaja ----
-  const _agregarCaja = Sheets.agregarCaja.bind(Sheets);
-  Sheets.agregarCaja = async function (usuario, nombre, moneda) {
-    return intentarOEncolar(
-      () => _agregarCaja(usuario, nombre, moneda),
-      { tipo: "AGREGAR_CAJA", usuario, nombre, moneda }
-    );
-  };
-
   // ---- PARCHE editarMovimiento ----
   const _editarMovimiento = Sheets.editarMovimiento.bind(Sheets);
   Sheets.editarMovimiento = async function (id, fecha, concepto, categoria, caja, monto, descripcion = "") {

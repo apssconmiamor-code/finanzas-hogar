@@ -49,26 +49,6 @@
     </div>
   </div>
 
-  <!-- ═══════════════ FACE ID ═══════════════ -->
-  <div id="faceid-screen" class="login-screen hidden">
-    <div class="login-card">
-      <div class="faceid-icon-wrap" id="faceid-icon-wrap">
-        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 16V8a4 4 0 0 1 4-4h8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M60 16V8a4 4 0 0 0-4-4h-8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M4 48v8a4 4 0 0 0 4 4h8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M60 48v8a4 4 0 0 1-4 4h-8" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M24 26v4M40 26v4" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M32 26v10h-3" stroke="#2f6b4f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M24 42c2.5 2 5 3 8 3s5.5-1 8-3" stroke="#2f6b4f" stroke-width="3.5" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <h1 class="login-title">Finanzas Hogar</h1>
-      <p class="faceid-status" id="faceid-status">Verificando con Face ID…</p>
-      <button id="btn-faceid-retry" class="btn-faceid hidden">Entrar con Face ID</button>
-      <button id="btn-faceid-google" class="btn-google hidden" style="margin-top:12px">Usar Google en su lugar</button>
-    </div>
-  </div>
 
   <!-- ═══════════════ APP ═══════════════ -->
   <div id="app" class="app hidden">
@@ -93,9 +73,6 @@
         </button>
         <button class="nav-item" data-tab="proyeccion">
           <span class="nav-icon">📊</span><span>Proyección</span>
-        </button>
-        <button class="nav-item" data-tab="compromisos">
-          <span class="nav-icon">🤝</span><span>Compromisos</span>
         </button>
         <div class="sidebar-divider"></div>
         <button class="nav-item" data-tab="resumen">
@@ -138,10 +115,13 @@
             <button class="dropdown-item" data-tab-nav="resumen">
               <span class="dd-icon">📈</span> Resumen
             </button>
-            <div class="dropdown-divider"></div>
-            <button class="dropdown-item" id="dd-faceid" style="display:none">
-              <span class="dd-icon">🆔</span> Activar Face ID
+            <button class="dropdown-item" data-tab-nav="prestamos">
+              <span class="dd-icon">🤝</span> Préstamos
             </button>
+            <button class="dropdown-item" data-tab-nav="compras">
+              <span class="dd-icon">🛒</span> Lista de compras
+            </button>
+            <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="dd-logout">
               <span class="dd-icon">🚪</span> Cerrar sesión
             </button>
@@ -177,47 +157,14 @@
 
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
       <section id="tab-cajas" class="tab-section">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Cuentas</h2>
-            <p class="section-sub" id="cajas-saludo">Tus cuentas y billeteras</p>
-          </div>
-          <button class="btn-primary" id="btn-nueva-caja">+ Caja</button>
-        </div>
         <div id="cajas-grid" class="cajas-grid">
           <div class="loading-state">Cargando…</div>
-        </div>
-        <!-- Modal nueva caja -->
-        <div id="modal-caja" class="modal hidden">
-          <div class="modal-card">
-            <h3 class="modal-title">Nueva caja</h3>
-            <div class="form-group">
-              <label>Nombre</label>
-              <input id="caja-nombre" type="text" placeholder="Efectivo, Bancolombia, Ahorro Viaje…" class="input"/>
-            </div>
-            <div class="form-group">
-              <label>Moneda</label>
-              <select id="caja-moneda" class="input">
-                <option value="COP">COP — Peso colombiano</option>
-                <option value="USD">USD — Dólar</option>
-                <option value="EUR">EUR — Euro</option>
-              </select>
-            </div>
-            <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cancelar-caja">Cancelar</button>
-              <button class="btn-primary" id="btn-guardar-caja">Guardar</button>
-            </div>
-          </div>
         </div>
       </section>
 
       <!-- ══ TAB: MOVIMIENTOS ══ -->
       <section id="tab-movimientos" class="tab-section hidden">
         <div class="section-header">
-          <div>
-            <h2 class="section-title">Movimientos</h2>
-            <p class="section-sub" id="mov-section-sub"></p>
-          </div>
           <button class="btn-primary" id="btn-nuevo-movimiento">+ Nuevo</button>
         </div>
         <div class="filtros-bar">
@@ -364,12 +311,6 @@
 
       <!-- ══ TAB: PROYECCIÓN ══ -->
       <section id="tab-proyeccion" class="tab-section hidden">
-        <div class="section-header">
-          <div>
-            <h2 class="section-title">Proyección</h2>
-            <p class="section-sub">4 meses · presupuesto vs realidad</p>
-          </div>
-        </div>
         <!-- Grid meses dinámico -->
         <div class="card-section" id="proy-4meses-wrap">
           <div class="card-section-header">
@@ -459,16 +400,10 @@
         </div>
       </section>
 
-      <!-- ══ TAB: COMPROMISOS (Préstamos + Compras) ══ -->
-      <section id="tab-compromisos" class="tab-section hidden">
-
-        <!-- Préstamos -->
+      <!-- ══ TAB: PRÉSTAMOS ══ -->
+      <section id="tab-prestamos" class="tab-section hidden">
         <div id="planes-panel-prestamos" class="planes-panel">
           <div class="section-header">
-            <div>
-              <h2 class="section-title">Préstamos</h2>
-              <p class="section-sub">Seguimiento de deudas y pagos</p>
-            </div>
             <button class="btn-primary" id="btn-nuevo-prestamo">+ Nuevo</button>
           </div>
           <div class="prestamos-resumen">
@@ -478,14 +413,12 @@
           </div>
           <div id="prestamos-grid" class="prestamos-grid"><div class="loading-state">Cargando…</div></div>
         </div>
+      </section>
 
-        <!-- Compras -->
+      <!-- ══ TAB: LISTA DE COMPRAS ══ -->
+      <section id="tab-compras" class="tab-section hidden">
         <div id="planes-panel-compras" class="planes-panel">
           <div class="section-header">
-            <div>
-              <h2 class="section-title">Lista de compras</h2>
-              <p class="section-sub"><span id="compras-count">0</span> items · Destinado: <span id="compras-total-destinado">$0</span></p>
-            </div>
             <button class="btn-primary" id="btn-nueva-compra">+ Nuevo</button>
           </div>
           <div id="compras-list"></div>
@@ -495,10 +428,6 @@
       <!-- ══ TAB: RESUMEN ══ -->
       <section id="tab-resumen" class="tab-section hidden">
         <div class="section-header">
-          <div>
-            <h2 class="section-title">Análisis</h2>
-            <p class="section-sub" id="resumen-mes-label">Cargando…</p>
-          </div>
           <div id="resumen-mes-selector"></div>
         </div>
         <div class="resumen-bloque-titulo">💚 Salud del mes</div>
@@ -531,7 +460,7 @@
 
     </main>
 
-    <!-- ══ BOTTOM NAV móvil (solo 4 items) ══ -->
+    <!-- ══ BOTTOM NAV móvil ══ -->
     <nav class="bottom-nav">
       <button class="nav-item active" data-tab="cajas">
         <span class="nav-icon">🏦</span><span>Cuentas</span>
@@ -541,9 +470,6 @@
       </button>
       <button class="nav-item" data-tab="proyeccion">
         <span class="nav-icon">📊</span><span>Proyección</span>
-      </button>
-      <button class="nav-item" data-tab="compromisos">
-        <span class="nav-icon">🤝</span><span>Compromisos</span>
       </button>
     </nav>
 
@@ -752,7 +678,6 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
-  <script src="faceid.js"></script>
   <script src="sheets.js"></script>
   <script src="sync.js"></script>
   <script src="sheets-offline.js"></script>

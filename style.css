@@ -360,14 +360,9 @@ input, select, textarea, table {
 
 /* ═══════════════ SECTION HEADERS ═══════════════ */
 .section-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
+  display: flex; align-items: flex-start; justify-content: flex-end;
   margin-bottom: 20px; gap: 12px;
 }
-.section-title {
-  font-family: var(--font-display); font-size: 26px;
-  font-weight: 700; letter-spacing: -0.6px; color: var(--text);
-}
-.section-sub { color: var(--text-3); font-size: 13px; margin-top: 3px; }
 
 /* Card section wrapper */
 .card-section {
@@ -886,8 +881,6 @@ input, select, textarea, table {
 .compra-acciones { display: flex; gap: 8px; }
 .btn-comprar { font-size: 13px; padding: 7px 14px; }
 
-#planes-panel-compras { margin-top: 28px; }
-
 /* ═══════════════ PRÉSTAMOS ═══════════════ */
 .prestamos-resumen { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
 .prestamos-grid { display: flex; flex-direction: column; gap: 12px; }
@@ -1123,6 +1116,11 @@ input, select, textarea, table {
   padding: 10px 16px 8px;
   font-size: 0.83rem; border-bottom: 1px solid var(--border);
   background: var(--bg);
+}
+.btn-ajustar {
+  margin-left: auto; background: var(--amber); color: #fff; border: none;
+  border-radius: 8px; padding: 5px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
 }
 .detalle-caja-scroll {
   overflow-y: auto; overflow-x: hidden; max-height: 52vh; padding: 4px 4px 12px;
