@@ -105,7 +105,7 @@ input, select, textarea, table {
   box-shadow: var(--shadow-lg);
 }
 .login-logo-wrap { margin-bottom: 20px; }
-.login-logo { font-size: 64px; display: block; filter: grayscale(.85); }
+.login-logo { font-size: 64px; display: block; filter: grayscale(.35); }
 .login-title {
   font-family: var(--font-display);
   font-size: 30px; font-weight: 700;
@@ -179,7 +179,7 @@ input, select, textarea, table {
   padding: 0 18px 18px; border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
 }
-.brand-icon { font-size: 24px; filter: grayscale(.85); }
+.brand-icon { font-size: 24px; filter: grayscale(.35); }
 .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -0.4px; }
 .sidebar-nav { flex: 1; padding: 4px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 6px; }
@@ -193,7 +193,7 @@ input, select, textarea, table {
 }
 .nav-item:hover { background: var(--bg); color: var(--text-2); }
 .nav-item.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
-.nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; filter: grayscale(.85); }
+.nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; filter: grayscale(.35); }
 
 .sidebar-footer {
   display: flex; align-items: center; gap: 8px;
@@ -308,7 +308,7 @@ input, select, textarea, table {
 }
 .dropdown-item:hover { background: var(--bg); }
 .dropdown-item-danger { color: var(--red) !important; }
-.dd-icon { width: 20px; text-align: center; filter: grayscale(.85); }
+.dd-icon { width: 20px; text-align: center; filter: grayscale(.35); }
 
 /* Sync bar */
 .sync-bar {
@@ -524,7 +524,7 @@ input, select, textarea, table {
 }
 .accion-rapida-card:active { opacity: 0.7; }
 .accion-rapida-vacia { border-style: dashed; color: var(--text-4); }
-.accion-rapida-icono { font-size: 40px; line-height: 1; filter: grayscale(.85); }
+.accion-rapida-icono { font-size: 40px; line-height: 1; filter: grayscale(.35); }
 .accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
@@ -722,7 +722,7 @@ input, select, textarea, table {
   font-size: 14px; font-weight: 600; color: var(--text);
   letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mov-card-foto-icono { font-size: 12px; margin-left: 4px; cursor: pointer; filter: grayscale(.85); }
+.mov-card-foto-icono { font-size: 12px; margin-left: 4px; cursor: pointer; filter: grayscale(.35); }
 .mov-desc-inline {
   font-size: 11px; color: var(--text-4); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
@@ -743,7 +743,7 @@ input, select, textarea, table {
   border-radius: 4px; padding: 3px 5px; font-size: 8px;
   cursor: pointer; transition: all 0.12s; line-height: 1;
   display: flex; align-items: center; justify-content: center;
-  filter: grayscale(.85);
+  filter: grayscale(.35);
 }
 .btn-accion:hover { background: var(--border); }
 .btn-borrar:hover { background: var(--red-soft); border-color: var(--red); filter: none; }
@@ -778,7 +778,7 @@ input, select, textarea, table {
 /* ═══════════════ LOADING / EMPTY ═══════════════ */
 .loading-state { text-align: center; padding: 40px 20px; color: var(--text-4); font-size: 14px; }
 .empty-state { text-align: center; padding: 48px 24px; }
-.empty-state-icon { font-size: 40px; margin-bottom: 12px; filter: grayscale(.85); }
+.empty-state-icon { font-size: 40px; margin-bottom: 12px; filter: grayscale(.35); }
 .empty-state-text { font-size: 14px; color: var(--text-3); line-height: 1.5; }
 
 /* ═══════════════ PROYECCIÓN ═══════════════ */
@@ -993,7 +993,7 @@ input, select, textarea, table {
   display: flex; align-items: flex-start; gap: 12px;
   box-shadow: var(--shadow-sm);
 }
-.kpi-icon { font-size: 22px; flex-shrink: 0; filter: grayscale(.85); }
+.kpi-icon { font-size: 22px; flex-shrink: 0; filter: grayscale(.35); }
 .kpi-body { flex: 1; min-width: 0; }
 .kpi-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
 .kpi-valor { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; color: var(--text); }
