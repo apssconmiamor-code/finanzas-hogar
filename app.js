@@ -228,10 +228,15 @@ window.onload = async () => {
 // que funciona igual de bien recién abierta la app que después de semanas.
 // Tiene su propio timeout (AbortController, 7s) para nunca dejar a quien la
 // llama esperando para siempre.
-async function renovarTokenDesdeWorker(email) {
-  const sessionToken = localStorage.getItem("worker_session");
-  if (!email || !sessionToken) return false;
-
+//
+// Un solo intento devuelve `reintentable: true` cuando el fetch nunca llegó
+// a completarse (sin conexión, timeout) — a diferencia de un 401/404 real
+// del Worker, que no vale la pena reintentar. Confirmado con logs reales del
+// Worker (Observability): un corte de red del lado del teléfono (cambio de
+// wifi a datos, etc.) hace que el pedido nunca llegue al servidor, así que
+// un solo reintento tras una pausa corta evita mostrar "Reconectar" por un
+// corte de un par de segundos.
+async function _pedirTokenAlWorker(email, sessionToken) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 7000);
   try {
@@ -240,16 +245,30 @@ async function renovarTokenDesdeWorker(email) {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
-    if (!res.ok) return false;
+    if (!res.ok) return { ok: false, reintentable: false };
     const data = await res.json();
-    if (!data.access_token) return false;
-    Sheets.setToken(data.access_token);
-    localStorage.setItem("gtoken", data.access_token);
-    return true;
+    if (!data.access_token) return { ok: false, reintentable: false };
+    return { ok: true, data };
   } catch (e) {
     clearTimeout(timeoutId);
-    return false; // sin conexión, timeout, etc. — la app sigue con caché
+    return { ok: false, reintentable: true };
   }
+}
+
+async function renovarTokenDesdeWorker(email) {
+  const sessionToken = localStorage.getItem("worker_session");
+  if (!email || !sessionToken) return false;
+
+  let resultado = await _pedirTokenAlWorker(email, sessionToken);
+  if (!resultado.ok && resultado.reintentable) {
+    await new Promise((r) => setTimeout(r, 1500));
+    resultado = await _pedirTokenAlWorker(email, sessionToken);
+  }
+  if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
+
+  Sheets.setToken(resultado.data.access_token);
+  localStorage.setItem("gtoken", resultado.data.access_token);
+  return true;
 }
 
 // Nombre histórico usado por cargarTodo() para el reintento tras

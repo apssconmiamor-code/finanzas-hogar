@@ -139,11 +139,13 @@ async function handleToken(request, url, env) {
 
   const payload = await verificarSessionToken(sessionToken, env.WORKER_SESSION_SECRET);
   if (!payload || payload.email !== email) {
+    console.log("session_invalida para", email, "— payload:", payload ? JSON.stringify(payload) : "null (firma/formato inválido o expirado)");
     return jsonResponse({ error: "session_invalida" }, 401);
   }
 
   const refreshToken = await env.REFRESH_TOKENS.get(email);
   if (!refreshToken) {
+    console.log("sin_refresh_token para", email);
     return jsonResponse({ error: "sin_refresh_token" }, 404);
   }
 
@@ -162,13 +164,16 @@ async function handleToken(request, url, env) {
     tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
       // El refresh token dejó de servir (revocado, contraseña cambiada, etc.)
+      console.log("refresh_token_invalido para", email, "— Google respondió", tokenRes.status, JSON.stringify(tokenData));
       await env.REFRESH_TOKENS.delete(email);
       return jsonResponse({ error: "refresh_token_invalido" }, 401);
     }
   } catch (e) {
+    console.log("fetch_failed para", email, "— excepción:", e.message);
     return jsonResponse({ error: "fetch_failed" }, 502);
   }
 
+  console.log("token renovado OK para", email);
   return jsonResponse({
     access_token: tokenData.access_token,
     expires_in: tokenData.expires_in
