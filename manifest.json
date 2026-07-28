@@ -5,7 +5,7 @@
   "start_url": "/finanzas-hogar/index.html",
   "scope": "/finanzas-hogar/",
   "display": "standalone",
-  "background_color": "#f6f5f3",
+  "background_color": "#f5f6f8",
   "theme_color": "#4F7DFF",
   "icons": [
     {

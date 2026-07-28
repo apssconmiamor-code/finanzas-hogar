@@ -4,10 +4,11 @@
    ═══════════════════════════════════════ */
 
 :root {
-  /* Colors — paleta principal: navy + azul */
-  --bg:          #f6f5f3;
+  /* Colors — paleta principal: navy + azul (neutros fríos, no crema, para
+     hilar con el acento azul en vez de competir con él) */
+  --bg:          #f5f6f8;
   --surface:     #ffffff;
-  --surface-2:   #f6f5f3;
+  --surface-2:   #f5f6f8;
   --border:      rgba(2,32,48,0.08);
   --border-mid:  rgba(2,32,48,0.14);
 
@@ -23,15 +24,19 @@
   --red:         #ff3b30;
   --red-soft:    #fff0ef;
 
+  /* Ámbar: reservado solo para advertencias (pendiente, requiere ajuste,
+     sync) — ya no se usa como color de categoría, para que su significado
+     sea siempre el mismo. */
   --amber:       #ff9f0a;
   --amber-soft:  #fff8ec;
   --amber-dark:  #a86200;
 
-  --purple:      #5856d6;
-  --purple-soft: #f0effe;
-
+  /* Gris azulado neutro: categorías "administrativas" (Gasto fijo, Gasto
+     variable, Transferencia) que no son ni positivas ni negativas — se
+     distinguen entre sí por intensidad, no por un color nuevo. */
   --slate:       #52606d;
   --slate-soft:  #eef1f4;
+  --slate-mid:   rgba(82,96,109,.16);
 
   --text:        #1c1c1e;
   --text-2:      #3a3a3c;
@@ -87,7 +92,7 @@ input, select, textarea, table {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #eef3ff 0%, #f6f5f3 50%, #eaf0ff 100%);
+  background: linear-gradient(160deg, #eef3ff 0%, #f5f6f8 50%, #eaf0ff 100%);
   padding: 20px;
 }
 .login-card {
@@ -100,7 +105,7 @@ input, select, textarea, table {
   box-shadow: var(--shadow-lg);
 }
 .login-logo-wrap { margin-bottom: 20px; }
-.login-logo { font-size: 64px; display: block; }
+.login-logo { font-size: 64px; display: block; filter: grayscale(.85); }
 .login-title {
   font-family: var(--font-display);
   font-size: 30px; font-weight: 700;
@@ -119,20 +124,6 @@ input, select, textarea, table {
 .btn-google:hover { background: #ebebed; transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .btn-google:active { transform: scale(0.98); }
 
-.faceid-icon-wrap { margin-bottom: 20px; display: flex; justify-content: center; animation: faceid-pulse 1.4s ease-in-out infinite; }
-@keyframes faceid-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.94); } }
-.faceid-status { color: var(--text-3); margin-bottom: 24px; font-size: 16px; }
-.btn-faceid {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; padding: 15px 20px;
-  background: var(--brand); color: #fff;
-  border: none; border-radius: 4px;
-  font-size: 16px; font-weight: 600; cursor: pointer;
-  transition: all 0.15s; font-family: var(--font);
-}
-.btn-faceid:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.btn-faceid:active { transform: scale(0.98); }
-
 /* ═══════════════ LAYOUT ═══════════════ */
 .app { display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
 
@@ -140,7 +131,7 @@ input, select, textarea, table {
    redondeadas y sombra — solo tiene sentido en pantallas grandes, donde
    además aparece el sidebar (en el teléfono no hay concepto de "ventana"). */
 @media (min-width: 769px) {
-  html, body { background: linear-gradient(160deg, #dfe7ea 0%, #cfd9dd 45%, #e2ded4 100%); }
+  html, body { background: linear-gradient(160deg, #dfe7ea 0%, #cfd9dd 50%, #c7d2d8 100%); }
   .app {
     max-width: 1440px; height: calc(100vh - 32px);
     margin: 16px auto; border-radius: 4px;
@@ -188,7 +179,7 @@ input, select, textarea, table {
   padding: 0 18px 18px; border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
 }
-.brand-icon { font-size: 24px; }
+.brand-icon { font-size: 24px; filter: grayscale(.85); }
 .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -0.4px; }
 .sidebar-nav { flex: 1; padding: 4px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 8px 6px; }
@@ -202,7 +193,7 @@ input, select, textarea, table {
 }
 .nav-item:hover { background: var(--bg); color: var(--text-2); }
 .nav-item.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
-.nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
+.nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; filter: grayscale(.85); }
 
 .sidebar-footer {
   display: flex; align-items: center; gap: 8px;
@@ -317,7 +308,7 @@ input, select, textarea, table {
 }
 .dropdown-item:hover { background: var(--bg); }
 .dropdown-item-danger { color: var(--red) !important; }
-.dd-icon { width: 20px; text-align: center; }
+.dd-icon { width: 20px; text-align: center; filter: grayscale(.85); }
 
 /* Sync bar */
 .sync-bar {
@@ -334,13 +325,13 @@ input, select, textarea, table {
 /* Barra "conectando" — mientras cargan los datos reales tras abrir la app */
 .conectando-bar {
   display: flex; align-items: center; justify-content: center; gap: 9px;
-  background: var(--purple-soft); border-bottom: 1px solid rgba(88,86,214,.18);
-  padding: 9px 24px; font-size: 13px; font-weight: 600; color: var(--purple);
+  background: var(--brand-soft); border-bottom: 1px solid rgba(79,125,255,.18);
+  padding: 9px 24px; font-size: 13px; font-weight: 600; color: var(--brand);
   flex-shrink: 0;
 }
 .conectando-spinner {
   width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
-  border: 2px solid rgba(88,86,214,.25); border-top-color: var(--purple);
+  border: 2px solid rgba(79,125,255,.25); border-top-color: var(--brand);
   animation: conectando-spin 0.7s linear infinite;
 }
 @keyframes conectando-spin { to { transform: rotate(360deg); } }
@@ -533,7 +524,7 @@ input, select, textarea, table {
 }
 .accion-rapida-card:active { opacity: 0.7; }
 .accion-rapida-vacia { border-style: dashed; color: var(--text-4); }
-.accion-rapida-icono { font-size: 40px; line-height: 1; }
+.accion-rapida-icono { font-size: 40px; line-height: 1; filter: grayscale(.85); }
 .accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
@@ -600,28 +591,30 @@ input, select, textarea, table {
 .caja-moneda-badge {
   font-size: 9px; font-weight: 700; border-radius: 4px;
   padding: 2px 7px; letter-spacing: 0.5px; text-transform: uppercase;
-  /* default (otro) */
-  color: #6b7280; background: #f3f4f6;
+  /* fallback — en la práctica cajaBadgeClass() siempre asigna una de las
+     clases de abajo, pero se deja un valor neutro por si acaso */
+  color: var(--text-3); background: var(--border);
 }
-/* Luni · Bonita · Yei — lavanda */
+/* Luni · Bonita · Yei — azul de marca */
 .caja-moneda-badge.badge-persona-luni {
-  color: #7c3aed; background: #ede9fe;
+  color: var(--brand-hover); background: var(--brand-soft);
 }
-/* Ahorro · Meta · Objetivo — verde menta */
+/* Ahorro · Meta · Objetivo — verde (mismo verde que el resto de la app) */
 .caja-moneda-badge.badge-ahorro {
-  color: #065f46; background: #d1fae5;
+  color: var(--green-dark); background: var(--green-soft);
 }
-/* Choco · Roy · Royer — azul acero */
+/* Choco · Roy · Royer — gris azulado, distinto en tono de Luni pero de la
+   misma familia fría */
 .caja-moneda-badge.badge-persona-roy {
-  color: #1e40af; background: #dbeafe;
+  color: var(--slate); background: var(--slate-soft);
 }
-/* Emergencia · Imprevisto — durazno */
+/* Emergencia · Imprevisto — ámbar (coherente con su rol de "atención") */
 .caja-moneda-badge.badge-emergencia {
-  color: #92400e; background: #fde68a;
+  color: var(--amber-dark); background: var(--amber-soft);
 }
-/* Otro nombre — gris */
+/* Otro nombre — gris neutro, sin tinte de color */
 .caja-moneda-badge.badge-otro {
-  color: #374151; background: #e5e7eb;
+  color: var(--text-3); background: var(--border);
 }
 .caja-nombre { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -0.2px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .caja-usuario { font-size: 10px; color: var(--text-4); }
@@ -718,8 +711,8 @@ input, select, textarea, table {
 }
 .mov-cat-ingreso       { background: var(--green-soft); }
 .mov-cat-gastofijo     { background: var(--slate-soft); }
-.mov-cat-gastovariable { background: var(--amber-soft); }
-.mov-cat-transferencia { background: var(--purple-soft); }
+.mov-cat-gastovariable { background: var(--slate-mid); }
+.mov-cat-transferencia { background: var(--slate-soft); }
 .mov-cat-sincategoria  { background: var(--bg); }
 
 .mov-card-texto {
@@ -729,7 +722,7 @@ input, select, textarea, table {
   font-size: 14px; font-weight: 600; color: var(--text);
   letter-spacing: -0.1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mov-card-foto-icono { font-size: 12px; margin-left: 4px; cursor: pointer; }
+.mov-card-foto-icono { font-size: 12px; margin-left: 4px; cursor: pointer; filter: grayscale(.85); }
 .mov-desc-inline {
   font-size: 11px; color: var(--text-4); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
@@ -750,18 +743,19 @@ input, select, textarea, table {
   border-radius: 4px; padding: 3px 5px; font-size: 8px;
   cursor: pointer; transition: all 0.12s; line-height: 1;
   display: flex; align-items: center; justify-content: center;
+  filter: grayscale(.85);
 }
 .btn-accion:hover { background: var(--border); }
-.btn-borrar:hover { background: var(--red-soft); border-color: var(--red); }
+.btn-borrar:hover { background: var(--red-soft); border-color: var(--red); filter: none; }
 
 .cat-badge {
   display: inline-block; font-size: 10px; font-weight: 700;
   padding: 2px 7px; border-radius: 4px; letter-spacing: 0.3px; text-transform: uppercase;
 }
 .cat-badge.cat-gastofijo     { background: var(--slate-soft); color: var(--slate); }
-.cat-badge.cat-gastovariable { background: var(--amber-soft); color: var(--amber-dark); }
+.cat-badge.cat-gastovariable { background: var(--slate-mid); color: var(--slate); }
 .cat-badge.cat-ingreso       { background: var(--green-soft); color: var(--green-dark); }
-.cat-badge.cat-transferencia { background: var(--purple-soft); color: var(--purple); }
+.cat-badge.cat-transferencia { background: var(--slate-soft); color: var(--slate); }
 
 /* Hints en modal */
 .mov-saldo-hint {
@@ -784,7 +778,7 @@ input, select, textarea, table {
 /* ═══════════════ LOADING / EMPTY ═══════════════ */
 .loading-state { text-align: center; padding: 40px 20px; color: var(--text-4); font-size: 14px; }
 .empty-state { text-align: center; padding: 48px 24px; }
-.empty-state-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state-icon { font-size: 40px; margin-bottom: 12px; filter: grayscale(.85); }
 .empty-state-text { font-size: 14px; color: var(--text-3); line-height: 1.5; }
 
 /* ═══════════════ PROYECCIÓN ═══════════════ */
@@ -999,7 +993,7 @@ input, select, textarea, table {
   display: flex; align-items: flex-start; gap: 12px;
   box-shadow: var(--shadow-sm);
 }
-.kpi-icon { font-size: 22px; flex-shrink: 0; }
+.kpi-icon { font-size: 22px; flex-shrink: 0; filter: grayscale(.85); }
 .kpi-body { flex: 1; min-width: 0; }
 .kpi-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
 .kpi-valor { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; color: var(--text); }

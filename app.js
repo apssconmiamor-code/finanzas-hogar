@@ -1122,10 +1122,10 @@ function renderMovimientos() {
       ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
     const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
     const fotoHTML = primeraFoto
-      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')">📎</span>`
+      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
       : "";
 
-    return `<div class="mov-card" ondblclick="mostrarResumenMovimiento('${m.id}')">
+    return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
@@ -1141,13 +1141,28 @@ function renderMovimientos() {
         <div class="mov-card-right">
           <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>
           <div class="mov-card-actions">
-            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')">✏️</button>
-            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')">🗑️</button>
+            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">✏️</button>
+            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">🗑️</button>
           </div>
         </div>
       </div>
     </div>`;
   }).join("");
+}
+
+// Doble tap/clic manual sobre una tarjeta de movimiento: no se puede usar
+// ondblclick porque el bloqueo de zoom (touchend -> preventDefault en index.html)
+// suprime la síntesis nativa de click/dblclick en Safari iOS real, aunque
+// funcione con .dblclick() de Playwright (que no pasa por ese camino táctil).
+let ultimoTapMov = { id: null, tiempo: 0 };
+function tapMovimiento(id) {
+  const ahora = Date.now();
+  if (ultimoTapMov.id === id && ahora - ultimoTapMov.tiempo < 400) {
+    ultimoTapMov = { id: null, tiempo: 0 };
+    mostrarResumenMovimiento(id);
+  } else {
+    ultimoTapMov = { id, tiempo: ahora };
+  }
 }
 
 // Resumen de solo lectura de un movimiento (doble clic sobre su tarjeta).
