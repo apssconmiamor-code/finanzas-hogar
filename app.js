@@ -255,14 +255,29 @@ async function _pedirTokenAlWorker(email, sessionToken) {
   }
 }
 
+// Breadcrumb sin autenticar al Worker (ver /diag ahí) — solo para los casos
+// donde ni siquiera se intenta el fetch a /token o donde los dos intentos
+// se pierden en el camino, que de otra forma no dejan ningún rastro en el
+// servidor (se ven idénticos a "todo bien, nadie llamó").
+function _diagBeacon(reason, email) {
+  try {
+    const params = new URLSearchParams({ reason, email: email || "" });
+    fetch(`${CONFIG.WORKER_URL}/diag?${params.toString()}`).catch(() => {});
+  } catch (e) {}
+}
+
 async function renovarTokenDesdeWorker(email) {
   const sessionToken = localStorage.getItem("worker_session");
-  if (!email || !sessionToken) return false;
+  if (!email || !sessionToken) {
+    _diagBeacon(!email ? "sin_email" : "sin_session", email);
+    return false;
+  }
 
   let resultado = await _pedirTokenAlWorker(email, sessionToken);
   if (!resultado.ok && resultado.reintentable) {
     await new Promise((r) => setTimeout(r, 1500));
     resultado = await _pedirTokenAlWorker(email, sessionToken);
+    if (!resultado.ok && resultado.reintentable) _diagBeacon("red_dos_intentos", email);
   }
   if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
 

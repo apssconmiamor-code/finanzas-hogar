@@ -35,6 +35,10 @@ export default {
       return withCors(await handleToken(request, url, env), env);
     }
 
+    if (url.pathname === "/diag") {
+      return withCors(handleDiag(url), env);
+    }
+
     return withCors(new Response("Not found", { status: 404 }), env);
   }
 };
@@ -178,6 +182,18 @@ async function handleToken(request, url, env) {
     access_token: tokenData.access_token,
     expires_in: tokenData.expires_in
   });
+}
+
+// ---- /diag: breadcrumb sin autenticar desde el frontend cuando la renovación
+// silenciosa ni siquiera llega a intentar el fetch a /token (falta el email
+// o el sessionToken guardado en el dispositivo) — sin esto, ese caso se ve
+// idéntico en los logs a un corte de red (cero rastro en el servidor). ----
+
+function handleDiag(url) {
+  const reason = url.searchParams.get("reason") || "desconocido";
+  const email = url.searchParams.get("email") || "(sin email)";
+  console.log("diag_cliente:", reason, "para", email);
+  return new Response(null, { status: 204 });
 }
 
 // ---- Página HTML mínima para el popup: entrega el resultado por postMessage ----
