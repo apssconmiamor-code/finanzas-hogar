@@ -26,6 +26,17 @@ async function mockGoogleApis(page, seed = {}) {
   const estado = {};
   for (const nombre of SHEET_NAMES) estado[nombre] = (seed[nombre] || []).map(f => [...f]);
 
+  // El beacon de diagnóstico (_diagBeacon en app.js, endpoint /diag del
+  // Worker) no lo mockea ningún helper específico — sin esto, cualquier test
+  // que dispare una renovación de token fallida manda tráfico real al Worker
+  // en producción (pasó de verdad: contaminó los logs de Observability con
+  // "sin_session"/"red_dos_intentos" para prueba@example.com). Se intercepta
+  // acá porque es la función que llaman casi todos los tests, sin pisar los
+  // mocks específicos de /token u /oauth/callback (rutas distintas).
+  await page.route('**://finanzas-hogar-token.byco85.workers.dev/diag**', route =>
+    route.fulfill({ status: 204 })
+  );
+
   await page.route('**://accounts.google.com/**', route =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: '/* google identity services mock: no-op */' })
   );
