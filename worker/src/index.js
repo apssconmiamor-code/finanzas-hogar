@@ -58,6 +58,20 @@ function jsonResponse(obj, status = 200) {
   });
 }
 
+// Envuelve fetch() con un timeout propio del Worker — sin esto, si Google
+// tarda en responder, el Worker se queda esperando indefinidamente y quien
+// llama (el celular) se rinde por su cuenta antes, sin saber que el
+// verdadero cuello de botella estaba acá y no en su propia red.
+async function fetchConTimeout(url, options, ms = 5000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // ---- /oauth/callback: intercambia el code por tokens y registra al usuario ----
 
 async function handleCallback(url, env) {
@@ -70,7 +84,7 @@ async function handleCallback(url, env) {
 
   let tokenData;
   try {
-    const tokenRes = await fetch(TOKEN_ENDPOINT, {
+    const tokenRes = await fetchConTimeout(TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -87,13 +101,13 @@ async function handleCallback(url, env) {
       return htmlPopupResult({ error: tokenData.error || "token_exchange_failed" }, env);
     }
   } catch (e) {
-    console.log("token_exchange_failed (excepción)", e.message);
+    console.log("token_exchange_failed (excepción)", e.name === "AbortError" ? "timeout_google" : e.message);
     return htmlPopupResult({ error: "token_exchange_failed" }, env);
   }
 
   let perfil;
   try {
-    const perfilRes = await fetch(USERINFO_ENDPOINT, {
+    const perfilRes = await fetchConTimeout(USERINFO_ENDPOINT, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
     });
     perfil = await perfilRes.json();
@@ -102,7 +116,7 @@ async function handleCallback(url, env) {
       return htmlPopupResult({ error: "userinfo_failed" }, env);
     }
   } catch (e) {
-    console.log("userinfo_failed (excepción)", e.message);
+    console.log("userinfo_failed (excepción)", e.name === "AbortError" ? "timeout_google" : e.message);
     return htmlPopupResult({ error: "userinfo_failed" }, env);
   }
 
@@ -153,9 +167,10 @@ async function handleToken(request, url, env) {
     return jsonResponse({ error: "sin_refresh_token" }, 404);
   }
 
+  const t0 = Date.now();
   let tokenData;
   try {
-    const tokenRes = await fetch(TOKEN_ENDPOINT, {
+    const tokenRes = await fetchConTimeout(TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -168,16 +183,17 @@ async function handleToken(request, url, env) {
     tokenData = await tokenRes.json();
     if (!tokenRes.ok || !tokenData.access_token) {
       // El refresh token dejó de servir (revocado, contraseña cambiada, etc.)
-      console.log("refresh_token_invalido para", email, "— Google respondió", tokenRes.status, JSON.stringify(tokenData));
+      console.log("refresh_token_invalido para", email, "— Google respondió", tokenRes.status, JSON.stringify(tokenData), `(${Date.now() - t0}ms)`);
       await env.REFRESH_TOKENS.delete(email);
       return jsonResponse({ error: "refresh_token_invalido" }, 401);
     }
   } catch (e) {
-    console.log("fetch_failed para", email, "— excepción:", e.message);
-    return jsonResponse({ error: "fetch_failed" }, 502);
+    const motivo = e.name === "AbortError" ? "timeout_google" : "fetch_failed";
+    console.log(motivo, "para", email, "— excepción:", e.message, `(${Date.now() - t0}ms)`);
+    return jsonResponse({ error: motivo }, 502);
   }
 
-  console.log("token renovado OK para", email);
+  console.log("token renovado OK para", email, `(${Date.now() - t0}ms)`);
   return jsonResponse({
     access_token: tokenData.access_token,
     expires_in: tokenData.expires_in
