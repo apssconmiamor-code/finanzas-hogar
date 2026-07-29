@@ -55,12 +55,12 @@ test.describe('Renovación de token vía Worker', () => {
   });
 
   test('token vencido + Worker no responde (timeout) → la app se recupera igual, mostrando Reconectar', async ({ page }) => {
-    // El presupuesto real de reintento (7s + 1.5s de pausa + 7s del segundo
-    // intento = 15.5s, ver renovarTokenDesdeWorker en app.js) más el arranque
-    // normal de la página puede acercarse al timeout por defecto de 30s bajo
-    // carga (varios tests en paralelo) — se le da más margen a la prueba en
-    // vez de acortar la tolerancia real de la app a cortes de red.
-    test.setTimeout(60000);
+    // El presupuesto real de reintento (5 intentos de 7s con pausas de 3/8/15/20s
+    // entre cada uno ≈ 81s, ver ESPERAS_REINTENTO_MS en app.js — a propósito
+    // generoso: corre en el fondo mientras la app ya muestra datos en caché,
+    // así que ser paciente acá no cuesta nada en percepción de velocidad, solo
+    // evita mostrar "Reconectar" por cortes de red que se resuelven solos).
+    test.setTimeout(120000);
 
     await iniciarSesionFalsa(page);
     await conSessionTokenGuardado(page);
@@ -78,14 +78,17 @@ test.describe('Renovación de token vía Worker', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
-    // Debe recuperarse dentro del tiempo del test — la barra "Conectando…"
-    // no debe quedarse pegada para siempre.
+    // La barra "Conectando…" no debe quedarse pegada para siempre — se oculta
+    // sola a los 15s (carrera contra timeout en cargarInicial), sin esperar
+    // a que termine toda la tanda de reintentos de renovación en el fondo.
     await page.waitForFunction(() => {
       const el = document.getElementById('conectando-bar');
       return el && el.classList.contains('hidden');
-    }, { timeout: 45000 });
+    }, { timeout: 30000 });
 
     await expect(page.locator('#app')).not.toHaveClass(/hidden/);
-    await expect(page.locator('#reconectar-bar')).toBeVisible();
+    // "Reconectar" solo aparece después de agotar TODA la tanda de reintentos
+    // (~81s) — se espera ese presupuesto completo, con margen.
+    await expect(page.locator('#reconectar-bar')).toBeVisible({ timeout: 100000 });
   });
 });

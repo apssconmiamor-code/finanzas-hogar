@@ -54,7 +54,7 @@ const Sheets = {
       } else {
         if (typeof SyncManager !== "undefined")
           SyncManager.mostrarToast("📴 Sin conexión con Google — mostrando datos guardados", "warn");
-        if (typeof mostrarReconectar === "function") mostrarReconectar();
+        if (typeof mostrarReconectar === "function") mostrarReconectar("Sheets._renovarToken");
       }
     });
   },

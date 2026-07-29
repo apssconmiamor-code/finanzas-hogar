@@ -279,6 +279,16 @@ function _diagBeacon(reason, email) {
 // solo resultado, todos los llamadores de acuerdo.
 let _renovacionEnCurso = null;
 
+// Pausas entre reintentos cuando el fallo es de red (nunca cuando el Worker
+// respondió con un error real — ahí reintentar no cambia nada). Antes solo
+// había UN reintento tras 1.5s (~15.5s de presupuesto total); reportado que
+// el botón "Reconectar" seguía saliendo varias veces al día — un corte de
+// red real (el teléfono reconectándose a wifi/datos) puede durar más que
+// eso. Como esto corre en el fondo mientras la app ya muestra datos en
+// caché (cargarInicial no espera más de 15s por esto), ser más paciente acá
+// no cuesta nada en percepción de velocidad, solo reduce falsos positivos.
+const ESPERAS_REINTENTO_MS = [3000, 8000, 15000, 20000];
+
 async function renovarTokenDesdeWorker(email) {
   if (_renovacionEnCurso) return _renovacionEnCurso;
 
@@ -290,15 +300,16 @@ async function renovarTokenDesdeWorker(email) {
     }
 
     let resultado = await _pedirTokenAlWorker(email, sessionToken);
-    if (!resultado.ok && resultado.reintentable) {
-      await new Promise((r) => setTimeout(r, 1500));
+    for (let i = 0; i < ESPERAS_REINTENTO_MS.length && !resultado.ok && resultado.reintentable; i++) {
+      await new Promise((r) => setTimeout(r, ESPERAS_REINTENTO_MS[i]));
       resultado = await _pedirTokenAlWorker(email, sessionToken);
-      if (!resultado.ok && resultado.reintentable) _diagBeacon("red_dos_intentos", email);
     }
+    if (!resultado.ok && resultado.reintentable) _diagBeacon("red_reintentos_agotados", email);
     if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
 
     Sheets.setToken(resultado.data.access_token);
     localStorage.setItem("gtoken", resultado.data.access_token);
+    marcarTokenValidoAhora();
     return true;
   })();
 
@@ -400,6 +411,7 @@ function completarConexionGoogle(resultado) {
   localStorage.setItem("worker_session", resultado.sessionToken);
   currentUser = { name: resultado.name, email: resultado.email, picture: resultado.picture };
   localStorage.setItem("guser", JSON.stringify(currentUser));
+  marcarTokenValidoAhora();
   return true;
 }
 
@@ -435,7 +447,26 @@ function ocultarConectando() {
 
 // ---- BARRA "RECONECTAR" (cuando la renovación silenciosa del token falla) ----
 
-function mostrarReconectar() {
+// Se actualiza cada vez que se confirma un token válido (reconexión manual
+// o renovación silenciosa exitosa) — ver marcarTokenValidoAhora().
+let _ultimoTokenOkTs = 0;
+function marcarTokenValidoAhora() {
+  _ultimoTokenOkTs = Date.now();
+}
+
+// `origen` viaja al Worker como breadcrumb (ver /diag) — permite ver en los
+// logs persistentes CUÁNDO y DESDE DÓNDE se pidió mostrar el botón. Si un
+// token se confirmó válido hace pocos segundos, un aviso de fallo que llega
+// después casi seguro viene de un intento de fondo que ya quedó superado
+// (patrón reportado: primer toque en "Reconectar" no basta, el segundo sí,
+// porque ese intento viejo "pisaba" la reconexión manual recién hecha) — se
+// ignora visualmente pero se deja registrado igual para confirmarlo.
+function mostrarReconectar(origen) {
+  const superado = Date.now() - _ultimoTokenOkTs < 5000;
+  if (origen && typeof _diagBeacon === "function") {
+    _diagBeacon("mostrar_reconectar:" + origen + (superado ? ":superado" : ""), currentUser?.email);
+  }
+  if (superado) return;
   document.getElementById("reconectar-bar")?.classList.remove("hidden");
 }
 function ocultarReconectar() {
@@ -935,7 +966,7 @@ async function cargarTodo(reintentando = false) {
       // vez de un toast que desaparece y deja a la app sin forma de
       // recuperarse, se deja un botón fijo para reconectar con un toque.
       SyncManager.mostrarToast("📴 No se pudo renovar la sesión — mostrando datos guardados", "warn");
-      mostrarReconectar();
+      mostrarReconectar("cargarTodo");
       return;
     }
 
