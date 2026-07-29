@@ -927,7 +927,30 @@ function actualizarFiltroSubcategoria() {
 
 // ---- CARGA DE DATOS ----
 
+// Varios caminos disparan cargarTodo() por su cuenta cuando el token se
+// renueva (el retry de este mismo catch, más el .then() de
+// Sheets._renovarToken() por cada lectura suelta que haya recibido un 401 —
+// confirmado con logs reales: getCajas Y getMovimientos pueden 401 en el
+// mismo Promise.all, cada uno disparando su propio "cargarTodo() de nuevo").
+// Sin este guard, eso son 2-3 recargas completas concurrentes innecesarias
+// por cada renovación — y si una de esas recargas redundantes tropieza con
+// algo (rate limit de Sheets por el burst de pedidos, etc.), puede terminar
+// mostrando "Reconectar" pese a que los datos ya estaban al día. El guard
+// hace que toda llamada que llegue mientras ya hay una carga en curso
+// comparta ESA MISMA promesa en vez de disparar la suya.
+let _cargaEnCurso = null;
+
 async function cargarTodo(reintentando = false) {
+  if (_cargaEnCurso) return _cargaEnCurso;
+  _cargaEnCurso = _cargarTodoInterno(reintentando);
+  try {
+    return await _cargaEnCurso;
+  } finally {
+    _cargaEnCurso = null;
+  }
+}
+
+async function _cargarTodoInterno(reintentando) {
   try {
     // Cajas y movimientos son lecturas independientes → en paralelo (antes
     // eran 2 round-trips secuenciales a la API de Sheets).
@@ -958,7 +981,7 @@ async function cargarTodo(reintentando = false) {
       // que por casualidad navegue a otra pestaña.
       if (!reintentando) {
         const renovado = await renovarTokenSilencioso();
-        if (renovado) { await cargarTodo(true); return; }
+        if (renovado) { await _cargarTodoInterno(true); return; }
       }
       // La renovación vía Worker puede fallar si este dispositivo nunca se
       // conectó con Google (sin sessionToken guardado) o si el refresh_token
