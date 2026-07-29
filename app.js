@@ -266,24 +266,47 @@ function _diagBeacon(reason, email) {
   } catch (e) {}
 }
 
+// Cuando el token vence, Cajas y Movimientos (Promise.all en cargarTodo) más
+// el catch de cargarTodo() más cualquier otra lectura suelta (préstamos,
+// compras, recordatorios) pueden disparar esta función CASI AL MISMO TIEMPO,
+// cada una por su cuenta. Confirmado con logs reales del Worker: dos pedidos
+// a /token en el mismo milisegundo, ambos exitosos — pero como cada llamador
+// procesaba "su" resultado por separado (sin coordinarse), uno terminaba
+// pisando al otro y el usuario se quedaba viendo "Reconectar" pese a que el
+// token sí se había renovado bien. Este guard hace que todas las llamadas
+// que lleguen mientras ya hay una renovación en curso esperen ESA MISMA
+// promesa en vez de cada una ir por la suya — un solo pedido a /token, un
+// solo resultado, todos los llamadores de acuerdo.
+let _renovacionEnCurso = null;
+
 async function renovarTokenDesdeWorker(email) {
-  const sessionToken = localStorage.getItem("worker_session");
-  if (!email || !sessionToken) {
-    _diagBeacon(!email ? "sin_email" : "sin_session", email);
-    return false;
-  }
+  if (_renovacionEnCurso) return _renovacionEnCurso;
 
-  let resultado = await _pedirTokenAlWorker(email, sessionToken);
-  if (!resultado.ok && resultado.reintentable) {
-    await new Promise((r) => setTimeout(r, 1500));
-    resultado = await _pedirTokenAlWorker(email, sessionToken);
-    if (!resultado.ok && resultado.reintentable) _diagBeacon("red_dos_intentos", email);
-  }
-  if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
+  _renovacionEnCurso = (async () => {
+    const sessionToken = localStorage.getItem("worker_session");
+    if (!email || !sessionToken) {
+      _diagBeacon(!email ? "sin_email" : "sin_session", email);
+      return false;
+    }
 
-  Sheets.setToken(resultado.data.access_token);
-  localStorage.setItem("gtoken", resultado.data.access_token);
-  return true;
+    let resultado = await _pedirTokenAlWorker(email, sessionToken);
+    if (!resultado.ok && resultado.reintentable) {
+      await new Promise((r) => setTimeout(r, 1500));
+      resultado = await _pedirTokenAlWorker(email, sessionToken);
+      if (!resultado.ok && resultado.reintentable) _diagBeacon("red_dos_intentos", email);
+    }
+    if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
+
+    Sheets.setToken(resultado.data.access_token);
+    localStorage.setItem("gtoken", resultado.data.access_token);
+    return true;
+  })();
+
+  try {
+    return await _renovacionEnCurso;
+  } finally {
+    _renovacionEnCurso = null;
+  }
 }
 
 // Nombre histórico usado por cargarTodo() para el reintento tras

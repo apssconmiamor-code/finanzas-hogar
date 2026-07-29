@@ -55,6 +55,13 @@ test.describe('Renovación de token vía Worker', () => {
   });
 
   test('token vencido + Worker no responde (timeout) → la app se recupera igual, mostrando Reconectar', async ({ page }) => {
+    // El presupuesto real de reintento (7s + 1.5s de pausa + 7s del segundo
+    // intento = 15.5s, ver renovarTokenDesdeWorker en app.js) más el arranque
+    // normal de la página puede acercarse al timeout por defecto de 30s bajo
+    // carga (varios tests en paralelo) — se le da más margen a la prueba en
+    // vez de acortar la tolerancia real de la app a cortes de red.
+    test.setTimeout(60000);
+
     await iniciarSesionFalsa(page);
     await conSessionTokenGuardado(page);
     // El Worker nunca responde (simula timeout/caída) — la app no debe
@@ -71,13 +78,12 @@ test.describe('Renovación de token vía Worker', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
-    // Debe recuperarse dentro del tiempo del test (bien por debajo de los
-    // 30s de timeout de Playwright) — la barra "Conectando…" no debe
-    // quedarse pegada para siempre.
+    // Debe recuperarse dentro del tiempo del test — la barra "Conectando…"
+    // no debe quedarse pegada para siempre.
     await page.waitForFunction(() => {
       const el = document.getElementById('conectando-bar');
       return el && el.classList.contains('hidden');
-    }, { timeout: 20000 });
+    }, { timeout: 45000 });
 
     await expect(page.locator('#app')).not.toHaveClass(/hidden/);
     await expect(page.locator('#reconectar-bar')).toBeVisible();
