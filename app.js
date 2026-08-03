@@ -184,9 +184,60 @@ const ICONOS = {
   "Otros": "📌"
 };
 
+// ---- PERSISTENCIA DE SESIÓN (localStorage + respaldo en cookie) ----
+//
+// Reportado: en iPhone, la app pide iniciar sesión con Google de nuevo cada
+// vez que se abre — no solo "Reconectar", el login completo. Eso solo pasa
+// si localStorage.guser desapareció por completo entre aperturas. Es un
+// problema documentado de iOS/Safari: el almacenamiento de una PWA instalada
+// en pantalla de inicio puede vaciarse solo (limpieza de almacenamiento del
+// sistema, ITP, etc.), sin que la propia app haga nada raro (confirmado:
+// guser/gtoken/worker_session solo se borran en el logout explícito, en
+// ningún otro lado del código).
+//
+// Las cookies de primera parte normales sobreviven mejor que localStorage a
+// ese tipo de limpieza en iOS (ITP apunta principalmente al almacenamiento
+// "script-writable" de rastreo entre sitios, no a cookies simples de sesión
+// del propio sitio). Estas 3 claves (identidad, token, sesión del Worker)
+// se guardan en AMBOS lugares; si al abrir la app localStorage aparece vacío
+// pero la cookie sigue teniendo el dato, se restaura localStorage antes de
+// decidir si hay que mostrar login — así una limpieza de localStorage deja
+// de significar "pedir todo de nuevo".
+const _CLAVES_SESION = ["guser", "gtoken", "worker_session"];
+const _SESION_MAX_AGE_SEGUNDOS = 60 * 60 * 24 * 180; // ~180 días, igual que el Worker
+
+function _guardarSesion(clave, valor) {
+  localStorage.setItem(clave, valor);
+  try {
+    document.cookie = `${clave}=${encodeURIComponent(valor)}; max-age=${_SESION_MAX_AGE_SEGUNDOS}; path=/; SameSite=Lax`;
+  } catch (e) { /* cookies deshabilitadas — sin respaldo, pero no rompe nada */ }
+}
+
+function _borrarSesionGuardada(clave) {
+  localStorage.removeItem(clave);
+  try {
+    document.cookie = `${clave}=; max-age=0; path=/; SameSite=Lax`;
+  } catch (e) {}
+}
+
+function _leerCookie(clave) {
+  const m = document.cookie.match(new RegExp("(?:^|; )" + clave + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function _restaurarSesionDesdeCookieSiHaceFalta() {
+  for (const clave of _CLAVES_SESION) {
+    if (!localStorage.getItem(clave)) {
+      const backup = _leerCookie(clave);
+      if (backup) localStorage.setItem(clave, backup);
+    }
+  }
+}
+
 // ---- INIT ----
 
 window.onload = async () => {
+  _restaurarSesionDesdeCookieSiHaceFalta();
   const userRaw = localStorage.getItem("guser");
   const token   = localStorage.getItem("gtoken");
 
@@ -308,7 +359,7 @@ async function renovarTokenDesdeWorker(email) {
     if (!resultado.ok) return false; // sin conexión persistente, sesión inválida, etc.
 
     Sheets.setToken(resultado.data.access_token);
-    localStorage.setItem("gtoken", resultado.data.access_token);
+    _guardarSesion("gtoken", resultado.data.access_token);
     marcarTokenValidoAhora();
     return true;
   })();
@@ -336,7 +387,7 @@ async function _onOneTapCredential(credentialResponse) {
     const parts = credentialResponse.credential.split(".");
     const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
     currentUser = { name: payload.name, email: payload.email, picture: payload.picture };
-    localStorage.setItem("guser", JSON.stringify(currentUser));
+    _guardarSesion("guser", JSON.stringify(currentUser));
   } catch (e) { return; }
 
   await renovarTokenDesdeWorker(currentUser.email);
@@ -407,10 +458,10 @@ function completarConexionGoogle(resultado) {
     return false;
   }
   Sheets.setToken(resultado.access_token);
-  localStorage.setItem("gtoken", resultado.access_token);
-  localStorage.setItem("worker_session", resultado.sessionToken);
+  _guardarSesion("gtoken", resultado.access_token);
+  _guardarSesion("worker_session", resultado.sessionToken);
   currentUser = { name: resultado.name, email: resultado.email, picture: resultado.picture };
-  localStorage.setItem("guser", JSON.stringify(currentUser));
+  _guardarSesion("guser", JSON.stringify(currentUser));
   marcarTokenValidoAhora();
   return true;
 }
@@ -426,9 +477,9 @@ document.getElementById("btn-login").addEventListener("click", async () => {
 
 document.getElementById("btn-logout").addEventListener("click", () => {
   // Al cerrar sesión limpiamos auth, NO el caché de datos
-  localStorage.removeItem("gtoken");
-  localStorage.removeItem("guser");
-  localStorage.removeItem("worker_session");
+  _borrarSesionGuardada("gtoken");
+  _borrarSesionGuardada("guser");
+  _borrarSesionGuardada("worker_session");
   currentUser = null;
   cajas = [];
   movimientos = [];
