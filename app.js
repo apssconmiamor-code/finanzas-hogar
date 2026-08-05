@@ -1006,6 +1006,10 @@ else if (cat === "Gasto variable") {
   
   else if (cat === "Ingreso") {
       ingreso.classList.remove("hidden");
+      // Poblar datalist con FUENTES_INGRESO (incluye las agregadas desde
+      // el presupuesto vía "Nuevo concepto", no solo las fijas de fábrica)
+      const dlIngreso = document.getElementById("lista-ingresos");
+      dlIngreso.innerHTML = FUENTES_INGRESO.map(f => `<option value="${f}"/>`).join("");
       ingreso.focus();
     } else {
       placeholder.classList.remove("hidden");
@@ -2315,6 +2319,8 @@ function sincronizarListasConceptos() {
       GASTOS_FIJOS.push(p.concepto);
     } else if (p.categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(p.concepto)) {
       GASTOS_VARIABLES.push(p.concepto);
+    } else if (p.categoria === "Ingreso" && !FUENTES_INGRESO.includes(p.concepto)) {
+      FUENTES_INGRESO.push(p.concepto);
     }
     if (p.icono) ICONOS[p.concepto] = p.icono;
   });
@@ -2692,7 +2698,7 @@ function renderTablaComparacion(movsDelMes) {
       <td>
         <div class="proy-cell-acciones">
           ${f.esOtros ? "" : `<button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>`}
-          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable") ? `<button type="button" class="btn-icono-fila btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
+          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable" || f.categoria === "Ingreso") ? `<button type="button" class="btn-icono-fila btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
         </div>
       </td>
     </tr>`;
@@ -3093,8 +3099,10 @@ function abrirModalNuevoConcepto() {
   document.getElementById("nuevo-concepto-duplicado").classList.add("hidden");
   document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
 
+  document.getElementById("nuevo-concepto-monto-label").textContent = "Monto estimado";
+
   const dl = document.getElementById("lista-conceptos-existentes");
-  dl.innerHTML = [...GASTOS_FIJOS, ...GASTOS_VARIABLES].map(c => `<option value="${c}"/>`).join("");
+  dl.innerHTML = [...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO].map(c => `<option value="${c}"/>`).join("");
 
   modal.classList.remove("hidden");
   setTimeout(() => document.getElementById("nuevo-concepto-nombre").focus(), 60);
@@ -3119,14 +3127,19 @@ async function guardarNuevoConcepto() {
 
   if (!nombre) { alert("Escribe el nombre del concepto"); return; }
   if (validarNombreNuevoConcepto()) return;
-  if (!categoria) { alert("Selecciona si es gasto fijo o gasto variable"); return; }
-  if (!monto || monto <= 0) { alert("Escribe el monto estimado"); return; }
+  if (!categoria) { alert("Selecciona una categoría"); return; }
+  if (!monto || monto <= 0) { alert(categoria === "Ingreso" ? "Escribe el ingreso estimado" : "Escribe el monto estimado"); return; }
 
   const btn = document.getElementById("btn-guardar-nuevo-concepto");
   btn.textContent = "Guardando..."; btn.disabled = true;
 
   try {
-    const nuevaLista = [...presupuesto, { categoria, concepto: nombre, montoEstimado: monto, ingresoEstimado: 0, icono }];
+    const esIngreso = categoria === "Ingreso";
+    const nuevaLista = [...presupuesto, {
+      categoria, concepto: nombre, icono,
+      montoEstimado:   esIngreso ? 0 : monto,
+      ingresoEstimado: esIngreso ? monto : 0
+    }];
     await Sheets.guardarPresupuesto(nuevaLista);
     presupuesto = nuevaLista;
     sincronizarListasConceptos();
@@ -3157,6 +3170,9 @@ async function eliminarConceptoPresupuesto(concepto, categoria) {
     } else if (categoria === "Gasto variable") {
       const i = GASTOS_VARIABLES.indexOf(concepto);
       if (i !== -1) GASTOS_VARIABLES.splice(i, 1);
+    } else if (categoria === "Ingreso") {
+      const i = FUENTES_INGRESO.indexOf(concepto);
+      if (i !== -1) FUENTES_INGRESO.splice(i, 1);
     }
     renderProyeccion();
     SyncManager.mostrarToast(`🗑️ "${concepto}" eliminado del presupuesto`);
@@ -3192,6 +3208,8 @@ function setupProyeccionListeners() {
     document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
+    document.getElementById("nuevo-concepto-monto-label").textContent =
+      btn.dataset.value === "Ingreso" ? "Ingreso estimado" : "Monto estimado";
   });
 
   // Toque/clic en una fila de "Detalle por concepto" → ver los movimientos
