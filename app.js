@@ -586,16 +586,30 @@ function ocultarReconectar() {
   document.getElementById("reconectar-bar")?.classList.add("hidden");
 }
 
-// Reconexión con interacción del usuario: a diferencia de
-// renovarTokenSilencioso()/renovarTokenDesdeWorker(), esta pasa por el popup
-// de Google de verdad (conectarConGooglePopup), así que funciona aunque
-// nunca haya habido un sessionToken guardado en este dispositivo — es el
-// botón de "Reconectar" que aparece cuando todo lo demás falló, y un solo
-// toque siempre debe poder devolver la sesión.
+// Reconexión con interacción del usuario. Reportado (y confirmado con logs
+// reales): la mayoría de las veces que aparece este botón, la sesión guardada
+// sigue siendo válida — lo que falló fue un intento puntual de red — y un
+// simple reintento con el sessionToken que ya existe (lo mismo que pasa
+// solo al recargar tras "Sincronizar") alcanza para resolverlo SIN pedir
+// cuenta de Google. Por eso el primer intento es liviano
+// (renovarTokenSilencioso + cargarTodo, sin popup); solo si eso de verdad
+// no alcanza (sessionToken perdido, refresh_token revocado, etc.) se
+// escala al popup real de Google (conectarConGooglePopup), que es el único
+// camino que funciona si nunca hubo sesión guardada en este dispositivo.
 async function reconectarGoogle() {
   const btn = document.querySelector("#reconectar-bar .btn-reconectar");
-  if (btn) { btn.textContent = "Conectando..."; btn.disabled = true; }
+  if (btn) { btn.textContent = "Reintentando..."; btn.disabled = true; }
 
+  const renovadoSilencioso = await renovarTokenSilencioso();
+  if (renovadoSilencioso) {
+    await cargarTodo();
+    if (document.getElementById("reconectar-bar")?.classList.contains("hidden")) {
+      if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
+      return; // resuelto sin popup
+    }
+  }
+
+  if (btn) { btn.textContent = "Conectando..."; }
   const resultado = await conectarConGooglePopup();
   if (btn) { btn.textContent = "Reconectar"; btn.disabled = false; }
   if (!completarConexionGoogle(resultado)) return;
