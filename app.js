@@ -1065,6 +1065,12 @@ async function _cargarTodoInterno(reintentando) {
     } else {
       SyncManager.mostrarToast("📴 Sin conexión — mostrando datos guardados", "warn");
     }
+    // Cualquier mensaje de "toca Reconectar" que se muestre en la UI (ej. el
+    // empty-state de renderCajas cuando no hay caché) debe tener SIEMPRE un
+    // botón real detrás — antes solo aparecía para TOKEN_EXPIRADO, dejando al
+    // usuario viendo un aviso que invita a tocar un botón inexistente cuando
+    // el fallo era timeout o error de red genérico.
+    mostrarReconectar("cargarTodo:" + (err.message || "desconocido"));
 
     // Cargar desde caché localStorage (persiste entre sesiones)
     try {
