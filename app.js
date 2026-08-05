@@ -236,6 +236,14 @@ function _restaurarSesionDesdeCookieSiHaceFalta() {
 
 // ---- INIT ----
 
+// Pide al navegador que NO trate el almacenamiento de este sitio como
+// descartable bajo presión de espacio — mitigación estándar para el vaciado
+// de localStorage/cookies documentado arriba en PWAs instaladas en iOS.
+// Best-effort: iOS puede ignorar el pedido, pero no cuesta nada intentarlo.
+if (navigator.storage?.persist) {
+  navigator.storage.persist().catch(() => {});
+}
+
 window.onload = async () => {
   _restaurarSesionDesdeCookieSiHaceFalta();
   const userRaw = localStorage.getItem("guser");
@@ -991,6 +999,13 @@ function actualizarFiltroSubcategoria() {
 // comparta ESA MISMA promesa en vez de disparar la suya.
 let _cargaEnCurso = null;
 
+// Distingue "confirmado que no hay cajas" (mostrar el onboarding "crea una
+// para empezar") de "todavía no se pudo confirmar nada por red" (mostrar un
+// aviso de carga/conexión en vez de invitar a crear cajas que en realidad ya
+// existen en la hoja pero no cargaron — típico tras el vaciado de
+// localStorage de iOS, ver _restaurarSesionDesdeCookieSiHaceFalta arriba).
+let _cajasVerificadasEnRed = false;
+
 async function cargarTodo(reintentando = false) {
   if (_cargaEnCurso) return _cargaEnCurso;
   _cargaEnCurso = _cargarTodoInterno(reintentando);
@@ -1006,6 +1021,7 @@ async function _cargarTodoInterno(reintentando) {
     // Cajas y movimientos son lecturas independientes → en paralelo (antes
     // eran 2 round-trips secuenciales a la API de Sheets).
     [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos()]);
+    _cajasVerificadasEnRed = true;
     renderCajas();
     renderMovimientos();
     poblarFiltrosCajas();
@@ -1095,9 +1111,16 @@ function cajaColorFondo(nombre) {
 function renderCajas() {
   const grid = document.getElementById("cajas-grid");
   if (cajas.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="empty-state-icon">🏦</div>
-      <div class="empty-state-text">No tienes cajas aún. Crea una para empezar.</div></div>`;
+    // Sin confirmación por red todavía (recién abierta, caché vacía, o la
+    // carga falló) → no invitar a "crear una" cuando en realidad puede que
+    // ya existan y solo no hayan cargado, para no sugerir que se perdieron.
+    grid.innerHTML = _cajasVerificadasEnRed
+      ? `<div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">🏦</div>
+          <div class="empty-state-text">No tienes cajas aún. Crea una para empezar.</div></div>`
+      : `<div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state-icon">📡</div>
+          <div class="empty-state-text">No se pudieron cargar tus cajas — revisa tu conexión o toca Reconectar.</div></div>`;
     return;
   }
   grid.innerHTML = cajas.map(c => {
