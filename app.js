@@ -368,6 +368,7 @@ async function renovarTokenDesdeWorker(email) {
 
     Sheets.setToken(resultado.data.access_token);
     _guardarSesion("gtoken", resultado.data.access_token);
+    localStorage.setItem("gtoken_ts", String(Date.now()));
     marcarTokenValidoAhora();
     return true;
   })();
@@ -383,6 +384,52 @@ async function renovarTokenDesdeWorker(email) {
 // TOKEN_EXPIRADO — se mantiene como wrapper fino para no tocar esa lógica.
 function renovarTokenSilencioso() {
   return renovarTokenDesdeWorker(currentUser?.email);
+}
+
+// ---- RENOVACIÓN PROACTIVA (adelantarse al 401 en vez de reaccionar a él) ----
+//
+// El access_token de Google dura ~1h. Hasta ahora la única renovación era
+// REACTIVA: esperar a que un pedido a Sheets devuelva 401 y ahí recién
+// intentar renovar — con presupuesto de reintentos (~46s, ver
+// ESPERAS_REINTENTO_MS) para cubrir cortes de red cortos. Problema
+// confirmado con logs reales del Worker: un corte de señal del celular que
+// dure MÁS que ese presupuesto (típico con poca cobertura) hace que los
+// reintentos se agoten sin que ni uno solo llegue al Worker — ningún error
+// real, solo silencio — y el usuario se queda viendo "Reconectar" aunque el
+// refresh_token esté perfectamente sano.
+//
+// Renovar por adelantado (bastante antes de que el token expire) no elimina
+// los cortes de red, pero cambia el momento en que se intenta: en vez de
+// que la ÚNICA oportunidad de renovar sea el instante justo en que el token
+// ya expiró (y el usuario está esperando ver sus datos), se reintenta cada
+// vez que se abre la app y cada rato mientras sigue abierta — así un corte
+// puntual en un intento no dejar sin margen: el token viejo todavía sirve
+// varios minutos más y hay más intentos en camino antes de que eso se acabe.
+const TOKEN_RENOVACION_PROACTIVA_MS = 45 * 60 * 1000; // 45 min (el token dura ~60)
+
+function _tokenNecesitaRenovacionProactiva() {
+  const ts = parseInt(localStorage.getItem("gtoken_ts") || "0", 10);
+  return (Date.now() - ts) > TOKEN_RENOVACION_PROACTIVA_MS;
+}
+
+async function renovarTokenProactivoSiHaceFalta() {
+  if (!currentUser || !_tokenNecesitaRenovacionProactiva()) return;
+  await renovarTokenSilencioso();
+}
+
+// Arranca el chequeo periódico + el chequeo al volver del segundo plano.
+// Se llama una sola vez (guard) porque mostrarApp() puede correr más de
+// una vez en la misma sesión (ej. tras reconectarGoogle()).
+let _renovacionProactivaActiva = false;
+function iniciarRenovacionProactiva() {
+  if (_renovacionProactivaActiva) return;
+  _renovacionProactivaActiva = true;
+
+  setInterval(renovarTokenProactivoSiHaceFalta, 10 * 60 * 1000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") renovarTokenProactivoSiHaceFalta();
+  });
 }
 
 // Callback de One Tap: identifica al usuario que vuelve (nombre/email/foto)
@@ -468,6 +515,7 @@ function completarConexionGoogle(resultado) {
   Sheets.setToken(resultado.access_token);
   _guardarSesion("gtoken", resultado.access_token);
   _guardarSesion("worker_session", resultado.sessionToken);
+  localStorage.setItem("gtoken_ts", String(Date.now()));
   currentUser = { name: resultado.name, email: resultado.email, picture: resultado.picture };
   _guardarSesion("guser", JSON.stringify(currentUser));
   marcarTokenValidoAhora();
@@ -605,6 +653,12 @@ async function mostrarApp() {
   poblarFiltrosCajas();
   if (presupuesto && presupuesto.length > 0) renderProyeccion();
   if (cacheCron) { try { renderCronologia(JSON.parse(cacheCron)); } catch {} }
+
+  // Renovación proactiva: adelantarse al 401 en vez de esperarlo (ver
+  // comentario en iniciarRenovacionProactiva). No bloquea — corre en
+  // paralelo con cargarInicial().
+  renovarTokenProactivoSiHaceFalta();
+  iniciarRenovacionProactiva();
 
   // Intentar sincronizar con la red SIN bloquear la UI (la caché ya está
   // en pantalla) — pero SÍ mostrar "Conectando…" mientras tanto, para que
