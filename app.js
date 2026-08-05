@@ -562,18 +562,24 @@ function marcarTokenValidoAhora() {
 }
 
 // `origen` viaja al Worker como breadcrumb (ver /diag) — permite ver en los
-// logs persistentes CUÁNDO y DESDE DÓNDE se pidió mostrar el botón. Si un
-// token se confirmó válido hace pocos segundos, un aviso de fallo que llega
-// después casi seguro viene de un intento de fondo que ya quedó superado
-// (patrón reportado: primer toque en "Reconectar" no basta, el segundo sí,
-// porque ese intento viejo "pisaba" la reconexión manual recién hecha) — se
-// ignora visualmente pero se deja registrado igual para confirmarlo.
+// logs persistentes CUÁNDO y DESDE DÓNDE se pidió mostrar el botón.
+//
+// Antes esta función se AUTO-SUPRIMÍA si un token se había confirmado válido
+// en los últimos 5s, asumiendo que un aviso de fallo tan cercano a un éxito
+// tenía que ser ruido de un intento de fondo ya superado. Confirmado con
+// logs reales del Worker que esa suposición es falsa: un renovador paralelo
+// (ej. el 401 de getMovimientos disparando su propio Sheets._renovarToken())
+// puede tener éxito y marcar el token como válido justo antes de que OTRO
+// intento — el que de verdad importa, el que el usuario está mirando —
+// falle y quiera mostrar el botón. Resultado real: pantalla de "no se
+// pudieron cargar tus cajas" sin ningún botón para salir de ahí. Mejor
+// mostrar el botón siempre (ocultarReconectar() ya lo esconde en cuanto una
+// carga completa con éxito) que arriesgarse a dejar al usuario sin salida.
 function mostrarReconectar(origen) {
-  const superado = Date.now() - _ultimoTokenOkTs < 5000;
   if (origen && typeof _diagBeacon === "function") {
+    const superado = Date.now() - _ultimoTokenOkTs < 5000;
     _diagBeacon("mostrar_reconectar:" + origen + (superado ? ":superado" : ""), currentUser?.email);
   }
-  if (superado) return;
   document.getElementById("reconectar-bar")?.classList.remove("hidden");
 }
 function ocultarReconectar() {
