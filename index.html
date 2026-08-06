@@ -15,6 +15,14 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+  <!-- Aviso: en iPhone, un ícono anclado desde Chrome (no Safari) no recibe la
+       exención de iOS contra el borrado automático de almacenamiento, así que
+       la sesión se pierde mucho más seguido — ver detección más abajo. -->
+  <div id="chrome-ios-warning" class="chrome-ios-warning hidden">
+    <span>⚠️ Esta app está anclada desde Chrome. En iPhone eso hace que la sesión se cierre sola muy seguido. Borra este ícono y créalo de nuevo desde <strong>Safari</strong> (Compartir → Añadir a pantalla de inicio).</span>
+    <button id="btn-cerrar-aviso-chrome" aria-label="Cerrar aviso">✕</button>
+  </div>
+
   <script>
     // Bloqueo de zoom (pinch + doble-tap) para uso como PWA en pantalla de inicio
     document.addEventListener("gesturestart", (e) => e.preventDefault());
@@ -27,6 +35,25 @@
       if (now - __lastTouchEnd <= 300) e.preventDefault();
       __lastTouchEnd = now;
     }, { passive: false });
+
+    // Detecta Chrome en iOS (CriOS) — ese ícono anclado NO es una PWA real
+    // reconocida por iOS (solo Safari lo es), así que no recibe la exención
+    // contra el borrado automático de localStorage/cookies, y la sesión
+    // guardada (guser/gtoken/worker_session) desaparece mucho más seguido.
+    // Confirmado como causa real: el Worker no registraba NINGÚN intento de
+    // renovación cuando el problema ocurría — la app ni llegaba a llamarlo,
+    // porque creía que nunca se había iniciado sesión.
+    try {
+      const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const esChromeIOS = /CriOS/.test(navigator.userAgent);
+      if (esIOS && esChromeIOS && localStorage.getItem("chrome_ios_warning_dismissed") !== "1") {
+        document.getElementById("chrome-ios-warning")?.classList.remove("hidden");
+      }
+    } catch (e) {}
+    document.getElementById("btn-cerrar-aviso-chrome")?.addEventListener("click", () => {
+      document.getElementById("chrome-ios-warning")?.classList.add("hidden");
+      try { localStorage.setItem("chrome_ios_warning_dismissed", "1"); } catch (e) {}
+    });
   </script>
 
   <!-- ═══════════════ LOGIN ═══════════════ -->

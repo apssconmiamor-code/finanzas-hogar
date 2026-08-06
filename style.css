@@ -86,6 +86,22 @@ input, select, textarea, table {
 
 .hidden { display: none !important; }
 
+/* Aviso fijo: ícono anclado desde Chrome en iOS (no es una PWA real ahí,
+   pierde la sesión guardada mucho más seguido que si se ancla desde Safari) */
+.chrome-ios-warning {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--amber-soft); border-bottom: 1px solid rgba(255,159,10,.3);
+  padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top));
+  font-size: 12.5px; line-height: 1.4; color: var(--amber-dark);
+}
+.chrome-ios-warning span { flex: 1; }
+.chrome-ios-warning button {
+  flex-shrink: 0; background: none; border: none; color: var(--amber-dark);
+  font-size: 15px; font-weight: 700; cursor: pointer; padding: 4px 6px;
+  font-family: var(--font);
+}
+
 /* ═══════════════ LOGIN ═══════════════ */
 .login-screen {
   min-height: 100vh;
