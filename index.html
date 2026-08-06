@@ -23,6 +23,19 @@
     <button id="btn-cerrar-aviso-chrome" aria-label="Cerrar aviso">✕</button>
   </div>
 
+  <!-- Aviso: aparece justo después de conectar con Google (en Safari, fuera
+       del ícono ya instalado). iOS puede vaciar localStorage y hasta la
+       cookie de respaldo aunque el ícono esté bien anclado desde Safari —
+       confirmado con un caso real. La única forma de sobrevivir a eso es un
+       dato que NO viva en el almacenamiento del sitio: el propio start_url
+       que iOS guarda al crear el ícono. app.js ya reescribió la URL con la
+       sesión adentro antes de mostrar este aviso — anclar DESDE ACÁ blinda
+       el ícono para que cada apertura repueble la sesión sola. -->
+  <div id="instalar-blindado-bar" class="instalar-blindado-bar hidden">
+    <span>🛡️ Sesión conectada. Para que no se pierda si iOS limpia el almacenamiento: toca <strong>Compartir → Añadir a pantalla de inicio</strong> ahora mismo, sin cambiar nada de esta pantalla, y reemplaza el ícono anterior.</span>
+    <button id="btn-cerrar-aviso-blindado" aria-label="Cerrar aviso">✕</button>
+  </div>
+
   <script>
     // Bloqueo de zoom (pinch + doble-tap) para uso como PWA en pantalla de inicio
     document.addEventListener("gesturestart", (e) => e.preventDefault());
@@ -53,6 +66,9 @@
     document.getElementById("btn-cerrar-aviso-chrome")?.addEventListener("click", () => {
       document.getElementById("chrome-ios-warning")?.classList.add("hidden");
       try { localStorage.setItem("chrome_ios_warning_dismissed", "1"); } catch (e) {}
+    });
+    document.getElementById("btn-cerrar-aviso-blindado")?.addEventListener("click", () => {
+      document.getElementById("instalar-blindado-bar")?.classList.add("hidden");
     });
   </script>
 

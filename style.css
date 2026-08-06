@@ -102,6 +102,22 @@ input, select, textarea, table {
   font-family: var(--font);
 }
 
+/* Aviso: crear el ícono ahora mismo (con la sesión ya metida en la URL)
+   para que sobreviva a un vaciado de almacenamiento de iOS */
+.instalar-blindado-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--green-soft); border-bottom: 1px solid rgba(52,199,89,.3);
+  padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top));
+  font-size: 12.5px; line-height: 1.4; color: var(--green-dark);
+}
+.instalar-blindado-bar span { flex: 1; }
+.instalar-blindado-bar button {
+  flex-shrink: 0; background: none; border: none; color: var(--green-dark);
+  font-size: 15px; font-weight: 700; cursor: pointer; padding: 4px 6px;
+  font-family: var(--font);
+}
+
 /* ═══════════════ LOGIN ═══════════════ */
 .login-screen {
   min-height: 100vh;

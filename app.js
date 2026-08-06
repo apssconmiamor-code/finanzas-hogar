@@ -234,6 +234,65 @@ function _restaurarSesionDesdeCookieSiHaceFalta() {
   }
 }
 
+// ---- PERSISTENCIA DE SESIÓN — nivel 2: dato metido en el propio start_url ----
+//
+// Caso real confirmado (agosto 2026): a alguien le volvió a pasar el login
+// completo AUN con el ícono bien anclado desde Safari — o sea, localStorage
+// Y la cookie de respaldo de arriba pueden desaparecer juntos igual. Ningún
+// truco de almacenamiento del sitio (localStorage, cookie, IndexedDB, Cache
+// API — todos viven en el mismo contenedor de WebKit) puede blindarse contra
+// eso del todo.
+//
+// El único dato que sobrevive de verdad es el propio start_url que iOS
+// guarda al crear el ícono de pantalla de inicio: vive en la configuración
+// del ícono (SpringBoard), FUERA del almacenamiento del sitio, así que no lo
+// toca ninguna limpieza de WebKit. _ofrecerInstalacionBlindada() (más abajo)
+// mete el sessionToken y el perfil ahí cuando la persona conecta con Google
+// y le pide crear el ícono desde esa URL exacta — así CADA apertura del
+// ícono trae la sesión adentro de la propia URL de arranque y puede
+// repoblar localStorage sola, pase lo que pase con el almacenamiento.
+function _base64urlEncode(str) {
+  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function _base64urlDecode(str) {
+  const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  return decodeURIComponent(escape(atob(b64)));
+}
+
+function _restaurarSesionDesdeURLSiHaceFalta() {
+  const params = new URLSearchParams(location.search);
+  const u = params.get("u");
+  if (!u) return;
+
+  _guardarSesion("worker_session", u);
+  localStorage.setItem("gtoken_ts", "0"); // access_token no viaja en la URL: pide uno fresco ya mismo
+
+  const g = params.get("g");
+  if (g) {
+    try {
+      const guser = JSON.parse(_base64urlDecode(g));
+      if (guser && guser.email) _guardarSesion("guser", JSON.stringify(guser));
+    } catch (e) { /* perfil corrupto — sigue con lo que haya en storage */ }
+  } else if (!localStorage.getItem("guser")) {
+    // Sin perfil en la URL: el email viaja en texto plano en el propio JWT
+    // (sin verificar firma acá, solo para tener a quién mostrarle la app;
+    // el Worker sí la valida de verdad al pedir el access_token).
+    try {
+      const payload = JSON.parse(_base64urlDecode(u.split(".")[1]));
+      if (payload?.email) {
+        _guardarSesion("guser", JSON.stringify({ name: payload.email, email: payload.email, picture: "" }));
+      }
+    } catch (e) {}
+  }
+
+  // Dentro del ícono instalado no hay barra de direcciones que preservar —
+  // limpia la URL visible por prolijidad (no afecta el start_url que iOS ya
+  // tiene guardado para el ícono, eso no cambia por esto).
+  if (window.navigator.standalone) {
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  }
+}
+
 // ---- INIT ----
 
 // Pide al navegador que NO trate el almacenamiento de este sitio como
@@ -245,6 +304,7 @@ if (navigator.storage?.persist) {
 }
 
 window.onload = async () => {
+  _restaurarSesionDesdeURLSiHaceFalta();
   _restaurarSesionDesdeCookieSiHaceFalta();
   const userRaw = localStorage.getItem("guser");
   const token   = localStorage.getItem("gtoken");
@@ -519,7 +579,41 @@ function completarConexionGoogle(resultado) {
   currentUser = { name: resultado.name, email: resultado.email, picture: resultado.picture };
   _guardarSesion("guser", JSON.stringify(currentUser));
   marcarTokenValidoAhora();
+  _ofrecerInstalacionBlindadaSiHaceFalta();
   return true;
+}
+
+// Solo tiene sentido en Safari de iOS/iPadOS, y solo fuera del ícono ya
+// instalado (adentro no hay Compartir → Añadir a pantalla de inicio que
+// ofrecer, y ya se instaló como sea que se llegó hasta ahí).
+function _debeOfrecerInstalacionBlindada() {
+  const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const esChromeIOS = /CriOS/.test(navigator.userAgent);
+  return esIOS && !esChromeIOS && !window.navigator.standalone;
+}
+
+// URL de arranque personalizada: lleva el sessionToken y el perfil metidos
+// en la propia dirección, para que quien la use en "Añadir a pantalla de
+// inicio" deje esos datos guardados en la config del ícono (ver
+// _restaurarSesionDesdeURLSiHaceFalta más arriba para el porqué).
+function _linkInstalacionBlindado() {
+  const sessionToken = localStorage.getItem("worker_session");
+  if (!currentUser || !sessionToken) return null;
+  const url = new URL(location.href);
+  url.search = "";
+  url.searchParams.set("u", sessionToken);
+  url.searchParams.set("g", _base64urlEncode(JSON.stringify(currentUser)));
+  return url.toString();
+}
+
+function _ofrecerInstalacionBlindadaSiHaceFalta() {
+  if (!_debeOfrecerInstalacionBlindada()) return;
+  const link = _linkInstalacionBlindado();
+  if (!link) return;
+  // Reescribe la barra de direcciones actual (sin recargar) para que el
+  // gesto de "Añadir a pantalla de inicio" tome esta URL, no la original.
+  try { history.replaceState(null, "", link); } catch (e) {}
+  document.getElementById("instalar-blindado-bar")?.classList.remove("hidden");
 }
 
 document.getElementById("btn-login").addEventListener("click", async () => {
@@ -541,6 +635,16 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   movimientos = [];
   document.getElementById("app").classList.add("hidden");
   document.getElementById("login-screen").classList.remove("hidden");
+  // Si esta pestaña llegó con la sesión metida en la URL (ver
+  // _restaurarSesionDesdeURLSiHaceFalta), quitarla de la barra de
+  // direcciones — OJO: esto NO borra lo que iOS ya guardó como start_url
+  // del ícono anclado; si ese ícono se creó con "Añadir a pantalla de
+  // inicio" mientras tenía la sesión en la URL, seguirá reconectando solo
+  // la próxima vez que se abra. Para negarle acceso de verdad a ese
+  // dispositivo hay que borrar y recrear el ícono, no solo cerrar sesión acá.
+  if (location.search) {
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  }
 });
 
 // ---- BARRA "CONECTANDO…" (mientras se cargan los datos reales tras abrir la app) ----
