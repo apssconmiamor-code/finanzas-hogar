@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finanzas Hogar — Política de privacidad</title>
+  <link rel="apple-touch-icon" href="icono.png" />
+  <style>
+    :root {
+      --bg:          #f5f6f8;
+      --surface:     #ffffff;
+      --border:      rgba(2,32,48,0.08);
+      --border-mid:  rgba(2,32,48,0.14);
+      --brand:       #4F7DFF;
+      --brand-soft:  #eaf0ff;
+      --text:        #0b1a2b;
+      --text-soft:   #5b6b7c;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--font); line-height: 1.6;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .brand-icon { font-size: 28px; }
+    .brand-name { font-weight: 800; font-size: 18px; }
+    h1 { font-size: 26px; font-weight: 800; margin: 24px 0 4px; }
+    .fecha { color: var(--text-soft); font-size: 13px; margin-bottom: 32px; }
+    h2 {
+      font-size: 16px; font-weight: 700; margin: 32px 0 10px;
+      color: var(--brand);
+    }
+    p, li { font-size: 14.5px; color: var(--text); }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { margin-bottom: 6px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 24px; margin-top: 8px;
+    }
+    .scopes {
+      background: var(--brand-soft); border-radius: 10px; padding: 14px 18px;
+      font-size: 13.5px; margin: 10px 0;
+    }
+    .scopes code {
+      display: block; margin: 4px 0; font-size: 12.5px;
+      color: var(--brand); word-break: break-all;
+    }
+    a { color: var(--brand); }
+    .volver { display: inline-block; margin-top: 40px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <span class="brand-icon">💰</span>
+      <span class="brand-name">Finanzas Hogar</span>
+    </div>
+    <h1>Política de privacidad</h1>
+    <p class="fecha">Última actualización: 8 de agosto de 2026</p>
+
+    <div class="card">
+      <h2>Qué es Finanzas Hogar</h2>
+      <p>
+        Finanzas Hogar es una aplicación web de uso personal/familiar para
+        organizar ingresos, gastos, presupuesto y préstamos. No es un
+        producto comercial ni está dirigida al público general: la usan
+        los integrantes de una misma familia para llevar sus propias
+        finanzas en una hoja de Google Sheets de su propiedad.
+      </p>
+
+      <h2>Qué datos accede la app y para qué</h2>
+      <p>Al iniciar sesión con Google, la app solicita estos permisos:</p>
+      <div class="scopes">
+        <code>.../auth/spreadsheets</code>
+        Leer y escribir en la hoja de cálculo de Google Sheets que la
+        propia familia configuró como su base de datos (cajas,
+        movimientos, presupuesto, préstamos, metas, etc.).
+        <code>.../auth/drive.file</code>
+        Subir y leer únicamente los archivos que la propia app crea
+        (fotos de recibos, audios de recordatorios) — sin acceso a
+        ningún otro archivo del Google Drive del usuario.
+        <code>.../auth/userinfo.profile</code> y
+        <code>.../auth/userinfo.email</code>
+        Nombre, foto y correo básicos, solo para identificar qué
+        persona de la familia registró cada movimiento.
+      </div>
+      <p>
+        La app no accede a Gmail, contactos, calendario, ni a ningún otro
+        dato o archivo de la cuenta de Google fuera de lo anterior.
+      </p>
+
+      <h2>Dónde viven los datos</h2>
+      <p>
+        Los datos financieros (cajas, movimientos, presupuesto, etc.)
+        viven únicamente en la hoja de Google Sheets y el Google Drive de
+        la propia familia — Finanzas Hogar no tiene base de datos propia
+        ni copia esos datos en ningún otro lugar.
+      </p>
+      <p>
+        Para poder mantener la sesión activa sin pedir iniciar sesión
+        constantemente, un componente de backend mínimo (un Cloudflare
+        Worker) guarda, por cada persona que se conecta, el
+        <em>refresh token</em> que Google entrega para renovar el acceso
+        sin intervención del usuario. Ese token se guarda cifrado en
+        Cloudflare KV, no se comparte con nadie, y solo se usa para pedirle
+        a Google un nuevo token de acceso a nombre de esa misma persona.
+      </p>
+
+      <h2>Con quién se comparten los datos</h2>
+      <p>
+        Con nadie. Finanzas Hogar no vende, alquila ni comparte datos con
+        terceros, no muestra publicidad y no usa los datos con fines
+        distintos a mostrarle a cada persona su propia información
+        financiera familiar. El único tercero involucrado es la propia
+        infraestructura de Google (Sheets/Drive/OAuth) y Cloudflare
+        (hosting del backend mínimo descrito arriba).
+      </p>
+
+      <h2>Cómo revocar el acceso o borrar tus datos</h2>
+      <ul>
+        <li>
+          Puedes revocar el acceso de Finanzas Hogar a tu cuenta de Google
+          en cualquier momento desde
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">
+            myaccount.google.com/permissions
+          </a>.
+        </li>
+        <li>
+          Cerrar sesión dentro de la app borra las credenciales guardadas
+          en tu dispositivo. Para pedir que se borre también el refresh
+          token guardado en el backend, escribe al correo de contacto de
+          abajo.
+        </li>
+        <li>
+          Como los datos financieros viven en tu propia hoja de Google
+          Sheets, seguís teniendo control total sobre ellos
+          independientemente de esta app (podés editarlos, exportarlos o
+          borrarlos vos mismo en cualquier momento).
+        </li>
+      </ul>
+
+      <h2>Uso conforme a las políticas de Google</h2>
+      <p>
+        El uso que Finanzas Hogar hace de la información recibida de las
+        APIs de Google cumple con la
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">
+          Política de Datos de Usuario de los Servicios de API de Google
+        </a>, incluidos los requisitos de Uso Limitado.
+      </p>
+
+      <h2>Contacto</h2>
+      <p>
+        Preguntas sobre esta política o pedidos de borrado de datos:
+        <a href="mailto:byco85@gmail.com">byco85@gmail.com</a>.
+      </p>
+    </div>
+
+    <a class="volver" href="./index.html">← Volver a Finanzas Hogar</a>
+  </div>
+</body>
+</html>
