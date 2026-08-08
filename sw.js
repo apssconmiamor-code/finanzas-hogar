@@ -1,8 +1,8 @@
 // =============================================
-// SERVICE WORKER — Finanzas Hogar
+// SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v87";
+const CACHE_NAME = "finanzas-v88";
 const STATIC_ASSETS = [
   "./",
   "./index.html",

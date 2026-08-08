@@ -74,7 +74,7 @@ let cajas = [];
 let movimientos = [];
 let actualizacionDisponible = false; // true cuando el service worker ya descargó una versión nueva
 
-// Cambia "Finanzas Hogar vX.Y.Z" por "Sincronizar" (y viceversa) en el
+// Cambia "Finanzas Luni-Chuni vX.Y.Z" por "Sincronizar" (y viceversa) en el
 // menú ⋯ — es lo único que se toca, sin tocar el resto de la UI.
 function actualizarTextoVersion() {
   const ddVersion = document.getElementById("dropdown-version");
@@ -83,7 +83,7 @@ function actualizarTextoVersion() {
     ddVersion.textContent = "🔄 Sincronizar";
     ddVersion.classList.add("dropdown-version-sync");
   } else {
-    ddVersion.textContent = `Finanzas Hogar v${CONFIG.VERSION}`;
+    ddVersion.textContent = `Finanzas Luni-Chuni v${CONFIG.VERSION}`;
     ddVersion.classList.remove("dropdown-version-sync");
   }
 }
