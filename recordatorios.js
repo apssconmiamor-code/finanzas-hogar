@@ -57,10 +57,28 @@ Sheets.getRecordatorios = async function () {
   }));
 };
 
-Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "") {
+// Bug real reportado: crear un recordatorio sin conexión tiraba un error
+// 503 sin manejar — a diferencia de movimientos/presupuesto (ver
+// sheets-offline.js), agregarRecordatorio nunca estaba conectado al
+// sistema de cola offline. Se corrige acá (no en sheets-offline.js) porque
+// ese archivo carga ANTES que este en index.html — Sheets.agregarRecordatorio
+// todavía no existiría para parchear en ese momento.
+Sheets._agregarRecordatorioDirecto = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "") {
   await this._asegurarHojaRecordatorios();
   await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, texto, imageUrl, audioUrl]);
   return id;
+};
+
+// mediaPendiente (opcional): { foto: {data,type}|null, audio: {data,type}|null } —
+// foto/audio que no se pudieron subir a Drive por falta de conexión. Igual
+// que con movimientos, se guardan en la cola de IndexedDB tal cual
+// (dataURL) y sync.js las sube de verdad cuando vuelve la conexión, antes
+// de escribir la fila (ver ejecutarOperacion en sync.js).
+Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "", mediaPendiente = null) {
+  return Sheets._intentarOEncolar(
+    () => Sheets._agregarRecordatorioDirecto(id, autor, fecha, texto, imageUrl, audioUrl),
+    { tipo: "AGREGAR_RECORDATORIO", id, autor, fecha, texto, imageUrl, audioUrl, mediaPendiente }
+  );
 };
 
 Sheets.borrarRecordatorio = async function (id) {
@@ -403,10 +421,20 @@ async function guardarRecordatorio() {
   const fecha = new Date().toISOString().split("T")[0];
   let imageUrl = "";
   let audioUrl = "";
+  let mediaPendiente = null;
 
   try {
     if ((recordatorioFotoData || recordatorioAudioData) && !navigator.onLine) {
-      alert("Sin conexión — no se puede subir la foto/audio a Drive. Se guardará solo la nota de texto.");
+      // Sin conexión: la foto/audio se guardan tal cual (dataURL) en la cola
+      // de sincronización — sync.js las sube de verdad a Drive apenas
+      // vuelve la conexión, antes de escribir la fila (ver ejecutarOperacion
+      // en sync.js). Antes esto tiraba un error 503 sin manejar porque
+      // agregarRecordatorio nunca estaba conectado a esa cola.
+      mediaPendiente = {
+        foto: recordatorioFotoData ? { data: recordatorioFotoData.data, type: recordatorioFotoData.type } : null,
+        audio: recordatorioAudioData ? { data: recordatorioAudioData.data, type: recordatorioAudioData.type } : null
+      };
+      SyncManager.mostrarToast("💾 Sin conexión — la foto/audio se guardaron localmente y se subirán al reconectar", "warn");
     } else {
       if (recordatorioFotoData) {
         const ext = recordatorioFotoData.type.includes("png") ? "png" : "jpg";
@@ -418,7 +446,7 @@ async function guardarRecordatorio() {
         audioUrl = url;
       }
     }
-    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl);
+    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl, mediaPendiente);
 
     recordatorios.unshift({ id, fecha, autor: currentUser.email, texto, imageUrl, audioUrl });
     localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));

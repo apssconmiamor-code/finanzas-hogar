@@ -139,28 +139,79 @@ const SyncManager = (() => {
     }
   }
 
+  // ---- Sube las fotos/audio que quedaron pendientes por falta de conexión
+  // (guardadas tal cual en la operación encolada) y arma el valor final del
+  // campo recibo. Se ejecuta acá, no en el momento de guardar, porque recién
+  // acá hay conexión real para subir algo a Drive. ----
+  async function subirMediaPendienteYArmarRecibo(mediaPendiente, reciboBase = "") {
+    if (!mediaPendiente || !mediaPendiente.fotos || mediaPendiente.fotos.length === 0) {
+      return reciboBase;
+    }
+    const urls = [];
+    for (let i = 0; i < mediaPendiente.fotos.length; i++) {
+      const foto = mediaPendiente.fotos[i];
+      const ext = foto.type.includes("png") ? "png" : "jpg";
+      const { url } = await Sheets.subirArchivoDrive(foto.data, `${mediaPendiente.slug}-${i + 1}.${ext}`, foto.type);
+      urls.push(url);
+    }
+    const nuevos = urls.join(",");
+    return reciboBase ? `${reciboBase},${nuevos}` : nuevos;
+  }
+
+  // Mismo criterio para recordatorios: foto y/o audio pendientes (a
+  // diferencia de movimientos, acá son como mucho un archivo de cada tipo).
+  async function subirMediaPendienteRecordatorio(mediaPendiente, id) {
+    let imageUrl = "";
+    let audioUrl = "";
+    if (mediaPendiente?.foto) {
+      const ext = mediaPendiente.foto.type.includes("png") ? "png" : "jpg";
+      const { url } = await Sheets.subirArchivoDrive(mediaPendiente.foto.data, `recordatorio-${id}-foto.${ext}`, mediaPendiente.foto.type);
+      imageUrl = url;
+    }
+    if (mediaPendiente?.audio) {
+      const { url } = await Sheets.subirArchivoDrive(mediaPendiente.audio.data, `recordatorio-${id}-audio.webm`, mediaPendiente.audio.type);
+      audioUrl = url;
+    }
+    return { imageUrl, audioUrl };
+  }
+
   // ---- EJECUTAR operación según tipo ----
   async function ejecutarOperacion(op) {
     switch (op.tipo) {
-      case "AGREGAR_MOVIMIENTO":
+      case "AGREGAR_MOVIMIENTO": {
+        const recibo = await subirMediaPendienteYArmarRecibo(op.mediaPendiente, op.recibo || "");
         return Sheets.agregarMovimiento(
           op.autor, op.fecha, op.concepto,
-          op.categoria, op.caja, op.monto, op.descripcion
+          op.categoria, op.caja, op.monto, op.descripcion, recibo
         );
+      }
       case "AGREGAR_MOVIMIENTO_INGRESO":
         return Sheets.agregarMovimientoIngreso(
           op.autor, op.fecha, op.concepto,
-          op.categoria, op.caja, op.monto, op.descripcion
+          op.categoria, op.caja, op.monto, op.descripcion, op.recibo || ""
         );
-      case "EDITAR_MOVIMIENTO":
+      case "EDITAR_MOVIMIENTO": {
+        // Sin foto nueva pendiente, recibo debe quedar en null (= "no
+        // tocar el recibo existente" para Sheets.editarMovimiento) — pasar
+        // "" en vez de null lo borraría sin querer.
+        const recibo = op.mediaPendiente
+          ? await subirMediaPendienteYArmarRecibo(op.mediaPendiente, op.recibo || "")
+          : (op.recibo ?? null);
         return Sheets.editarMovimiento(
           op.remoteId, op.fecha, op.concepto,
-          op.categoria, op.caja, op.monto, op.descripcion
+          op.categoria, op.caja, op.monto, op.descripcion, recibo
         );
+      }
       case "BORRAR_MOVIMIENTO":
         return Sheets.borrarMovimiento(op.remoteId);
       case "GUARDAR_PRESUPUESTO":
         return Sheets.guardarPresupuesto(op.filas);
+      case "AGREGAR_RECORDATORIO": {
+        const { imageUrl, audioUrl } = op.mediaPendiente
+          ? await subirMediaPendienteRecordatorio(op.mediaPendiente, op.id)
+          : { imageUrl: op.imageUrl || "", audioUrl: op.audioUrl || "" };
+        return Sheets.agregarRecordatorio(op.id, op.autor, op.fecha, op.texto, imageUrl, audioUrl);
+      }
       default:
         throw new Error("Tipo de operación desconocido: " + op.tipo);
     }

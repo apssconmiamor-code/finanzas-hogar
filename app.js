@@ -1663,16 +1663,28 @@ function setupTipoCambioListeners() {
 
 // Sube fotos pendientes a Drive (si hay conexión) y arma el valor final del campo "recibo".
 // reciboExistente: lo que ya tenía el movimiento (para conservarlo al editar).
-// Devuelve null si no hay que tocar el recibo (sin fotos nuevas, sin conexión, o falló la subida).
+// Devuelve { recibo, mediaPendiente }:
+//   - recibo: string con los links nuevos (+ existentes) si se subieron ya, o null si no hay que tocar el recibo todavía.
+//   - mediaPendiente: si no hay conexión, las fotos quedan acá (dataURL tal cual, sin perderlas) para que
+//     sync.js las suba de verdad y complete el recibo apenas vuelva la conexión (ver ejecutarOperacion en sync.js).
 async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExistente = "") {
-  if (pendingFotos.length === 0) return null;
+  if (pendingFotos.length === 0) return { recibo: null, mediaPendiente: null };
+
   if (!navigator.onLine) {
-    SyncManager.mostrarToast("📴 Sin conexión — se guarda sin la foto nueva");
-    return null;
+    const slug = `${fecha}-${String(concepto).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}-${String(caja).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}`;
+    const mediaPendiente = {
+      fotos: pendingFotos.map(f => ({ data: f.data, type: f.type })),
+      slug
+    };
+    SyncManager.mostrarToast("💾 Sin conexión — la foto se guardó localmente y se subirá al reconectar", "warn");
+    pendingFotos = [];
+    renderFotosPreview();
+    return { recibo: reciboExistente || null, mediaPendiente };
   }
+
   try {
     const nuevos = await subirFotosPendientesADrive(fecha, concepto, caja);
-    return reciboExistente ? `${reciboExistente},${nuevos}` : nuevos;
+    return { recibo: reciboExistente ? `${reciboExistente},${nuevos}` : nuevos, mediaPendiente: null };
   } catch (err) {
     if (err.message === "DRIVE_SIN_PERMISO") {
       alert("Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo — el movimiento se guardará sin la foto por ahora.");
@@ -1681,7 +1693,7 @@ async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExisten
     } else {
       alert("No se pudo subir la foto a Drive — el movimiento se guardará sin la foto nueva.");
     }
-    return null;
+    return { recibo: null, mediaPendiente: null };
   }
 }
 
@@ -1708,8 +1720,8 @@ btn.textContent = "Guardando..."; btn.disabled = true;
 
     try {
       const movActual = movimientos.find(x => x.id === editId);
-      const recibo = await resolverReciboConNuevasFotos(fecha, concepto, caja, movActual?.recibo || "");
-      await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion, recibo);
+      const { recibo, mediaPendiente } = await resolverReciboConNuevasFotos(fecha, concepto, caja, movActual?.recibo || "");
+      await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
       delete document.getElementById("modal-movimiento").dataset.editId;
       document.getElementById("modal-movimiento").classList.add("hidden");
       limpiarFormMov();
@@ -1748,6 +1760,7 @@ btn.textContent = "Guardando..."; btn.disabled = true;
   try {
 
     let recibo = "";
+    let mediaPendiente = null;
     if (pendingFotos.length > 0) {
       const fotoConc = categoria === "Transferencia"
         ? `Transferencia-${document.getElementById("mov-caja-origen").value}`
@@ -1755,7 +1768,9 @@ btn.textContent = "Guardando..."; btn.disabled = true;
       const fotoCaja = categoria === "Transferencia"
         ? document.getElementById("mov-caja-origen").value
         : document.getElementById("mov-caja").value;
-      recibo = (await resolverReciboConNuevasFotos(fecha, fotoConc, fotoCaja)) || "";
+      const resultado = await resolverReciboConNuevasFotos(fecha, fotoConc, fotoCaja);
+      recibo = resultado.recibo || "";
+      mediaPendiente = resultado.mediaPendiente;
     }
 
     if (categoria === "Transferencia") {
@@ -1790,7 +1805,7 @@ btn.textContent = "Guardando..."; btn.disabled = true;
   await Sheets.agregarMovimiento(
     currentUser.email, fecha,
     `Transferencia → ${destino}`,
-    "Transferencia", origen, monto, descOrigen, recibo
+    "Transferencia", origen, monto, descOrigen, recibo, mediaPendiente
   );
   await Sheets.agregarMovimientoIngreso(
     currentUser.email, fecha,
@@ -1823,9 +1838,9 @@ if (categoria !== "Ingreso") {
 // Si es gasto variable y el concepto no está en la lista, guardar "Otros" y mover a descripción
 if (categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(concepto)) {
   const descripcionFinal = descripcion ? concepto + " — " + descripcion : concepto;
-  await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal, recibo);
+  await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal, recibo, mediaPendiente);
 } else {
-  await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion, recibo);
+  await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
 }
 
 

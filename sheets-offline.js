@@ -91,6 +91,9 @@
   };
 
   // ---- HELPER: intenta online, si falla encola ----
+  // Expuesta en Sheets._intentarOEncolar para que módulos que cargan
+  // DESPUÉS de este archivo (recordatorios.js, etc. — ver orden de <script>
+  // en index.html) puedan usar el mismo mecanismo de cola sin duplicarlo.
   async function intentarOEncolar(operacionOnline, operacionCola) {
     if (!navigator.onLine) {
       await SyncManager.encolar(operacionCola);
@@ -109,11 +112,15 @@
   }
 
   // ---- PARCHE agregarMovimiento ----
+  // mediaPendiente (opcional): { fotos: [{data,type}], slug } — fotos que no
+  // se pudieron subir a Drive por falta de conexión. Se guardan tal cual
+  // (dataURL) en la cola de IndexedDB y sync.js las sube de verdad recién
+  // cuando vuelve la conexión, antes de escribir la fila (ver ejecutarOperacion).
   const _agregarMovimiento = Sheets.agregarMovimiento.bind(Sheets);
-  Sheets.agregarMovimiento = async function (autor, fecha, concepto, categoria, caja, monto, descripcion = "", recibo = "") {
+  Sheets.agregarMovimiento = async function (autor, fecha, concepto, categoria, caja, monto, descripcion = "", recibo = "", mediaPendiente = null) {
     return intentarOEncolar(
       () => _agregarMovimiento(autor, fecha, concepto, categoria, caja, monto, descripcion, recibo),
-      { tipo: "AGREGAR_MOVIMIENTO", autor, fecha, concepto, categoria, caja, monto, descripcion }
+      { tipo: "AGREGAR_MOVIMIENTO", autor, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente }
     );
   };
 
@@ -128,10 +135,10 @@
 
   // ---- PARCHE editarMovimiento ----
   const _editarMovimiento = Sheets.editarMovimiento.bind(Sheets);
-  Sheets.editarMovimiento = async function (id, fecha, concepto, categoria, caja, monto, descripcion = "") {
+  Sheets.editarMovimiento = async function (id, fecha, concepto, categoria, caja, monto, descripcion = "", recibo = null, mediaPendiente = null) {
     return intentarOEncolar(
-      () => _editarMovimiento(id, fecha, concepto, categoria, caja, monto, descripcion),
-      { tipo: "EDITAR_MOVIMIENTO", remoteId: id, fecha, concepto, categoria, caja, monto, descripcion }
+      () => _editarMovimiento(id, fecha, concepto, categoria, caja, monto, descripcion, recibo),
+      { tipo: "EDITAR_MOVIMIENTO", remoteId: id, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente }
     );
   };
 
@@ -152,6 +159,8 @@
       { tipo: "GUARDAR_PRESUPUESTO", filas }
     );
   };
+
+  Sheets._intentarOEncolar = intentarOEncolar;
 
   console.info("✅ Sheets offline patch aplicado");
 })();
