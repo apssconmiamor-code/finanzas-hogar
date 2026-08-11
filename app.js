@@ -494,9 +494,19 @@ function iniciarRenovacionProactiva() {
 
 // Callback de One Tap: identifica al usuario que vuelve (nombre/email/foto)
 // y, si ya se conectó antes con Google (hay un sessionToken guardado para
-// ese email), pide un access_token directo al Worker. Si nunca se conectó
-// desde este dispositivo, no hay nada que renovar todavía — mostrarApp()
-// deja la app con la caché, y el flujo normal de "Reconectar" se encarga.
+// ese email), pide un access_token directo al Worker.
+//
+// Bug real confirmado con logs (agosto 2026): antes, esta función llamaba a
+// mostrarApp() SIN IMPORTAR si la renovación funcionó — así que cuando el
+// dispositivo había perdido su worker_session (el mismo vaciado de
+// almacenamiento de iOS de siempre) pero Google seguía recordando la sesión
+// del navegador, One Tap se disparaba SOLO, en silencio, sin que el usuario
+// tocara nada, rellenaba currentUser/guser, la renovación fallaba
+// ("sin_session" en los logs del Worker) y aun así se mostraba la app —
+// dejando a la persona viendo un banner de error de la nada, en vez de la
+// pantalla de login normal donde un solo toque resuelve todo. Ahora, si la
+// renovación no funciona, se deshace el guser que puso One Tap y se deja la
+// pantalla de login visible (el estado por defecto de window.onload).
 async function _onOneTapCredential(credentialResponse) {
   try {
     const parts = credentialResponse.credential.split(".");
@@ -505,8 +515,13 @@ async function _onOneTapCredential(credentialResponse) {
     _guardarSesion("guser", JSON.stringify(currentUser));
   } catch (e) { return; }
 
-  await renovarTokenDesdeWorker(currentUser.email);
-  mostrarApp();
+  const renovado = await renovarTokenDesdeWorker(currentUser.email);
+  if (renovado) {
+    mostrarApp();
+  } else {
+    currentUser = null;
+    _borrarSesionGuardada("guser");
+  }
 }
 
 // ---- AUTH ----
