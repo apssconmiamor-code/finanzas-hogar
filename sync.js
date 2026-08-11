@@ -184,7 +184,20 @@ const SyncManager = (() => {
   function setup() {
     window.addEventListener("online",  () => {
       mostrarToast("🌐 Conexión restaurada — sincronizando...");
-      setTimeout(sincronizar, 1000); // pequeño delay para que la red estabilice
+      // Pequeño delay para que la red estabilice antes de reintentar nada.
+      setTimeout(() => {
+        sincronizar();
+        // Si se cayó la red mientras la app mostraba "Reconectar" (sesión sin
+        // renovar), no hacía falta que la persona tocara el botón ella misma
+        // al volver la conexión — sincronizar() solo atiende cambios
+        // offline pendientes, no la sesión. Si el aviso sigue visible,
+        // reintenta la reconexión sola apenas vuelve internet.
+        const reconectarBar = document.getElementById("reconectar-bar");
+        if (reconectarBar && !reconectarBar.classList.contains("hidden") &&
+            typeof reconectarGoogle === "function") {
+          reconectarGoogle();
+        }
+      }, 1000);
     });
 
     window.addEventListener("offline", () => {
