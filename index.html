@@ -174,6 +174,9 @@
             <button class="dropdown-item" data-tab-nav="prestamos">
               <span class="dd-icon">🤝</span> Préstamos
             </button>
+            <button class="dropdown-item" data-tab-nav="suscripciones">
+              <span class="dd-icon">🔁</span> Suscripciones
+            </button>
             <button class="dropdown-item" data-tab-nav="compras">
               <span class="dd-icon">🛒</span> Lista de compras
             </button>
@@ -209,6 +212,18 @@
       <div id="reconectar-bar" class="reconectar-bar hidden">
         <span>🔒 No se pudo renovar la sesión con Google</span>
         <button class="btn-reconectar" onclick="reconectarGoogle()">Reconectar</button>
+      </div>
+
+      <!-- Barra de alertas de suscripciones — 1 mes antes (una vez) y a
+           diario desde los 15 días antes de la renovación, hasta que se
+           decida Renovar o Cancelar. Se puede cerrar por hoy; vuelve a
+           aparecer al día siguiente si sigue sin decidirse. -->
+      <div id="suscripciones-alerta-bar" class="suscripciones-alerta-bar hidden">
+        <div class="susc-alerta-header">
+          <span>🔔 Suscripciones por decidir</span>
+          <button id="btn-cerrar-alerta-susc" aria-label="Cerrar por hoy">✕</button>
+        </div>
+        <div id="suscripciones-alerta-lista"></div>
       </div>
 
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
@@ -470,6 +485,14 @@
         </div>
       </section>
 
+      <!-- ══ TAB: SUSCRIPCIONES Y RENOVACIONES ══ -->
+      <section id="tab-suscripciones" class="tab-section hidden">
+        <div class="planes-panel">
+          <button class="btn-primary btn-franja" id="btn-nueva-suscripcion">+ Nueva</button>
+          <div id="suscripciones-list"><div class="loading-state">Cargando…</div></div>
+        </div>
+      </section>
+
       <!-- ══ TAB: LISTA DE COMPRAS ══ -->
       <section id="tab-compras" class="tab-section hidden">
         <div id="planes-panel-compras" class="planes-panel">
@@ -642,6 +665,47 @@
       </div>
     </div>
 
+    <!-- Modal suscripción (crear/editar) -->
+    <div id="modal-suscripcion" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title">Nueva suscripción</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input id="susc-nombre" type="text" placeholder="Netflix, seguro, gimnasio…" class="input"/>
+          </div>
+          <div class="form-group">
+            <label>Frecuencia</label>
+            <select id="susc-frecuencia" class="input">
+              <option value="Mensual">Mensual</option>
+              <option value="Trimestral">Trimestral</option>
+              <option value="Semestral">Semestral</option>
+              <option value="Anual">Anual</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fecha de inicio</label>
+            <input id="susc-fecha-inicio" type="date" class="input"/>
+          </div>
+          <div class="form-group">
+            <label>Fin de contrato <span class="label-opcional">(opcional)</span></label>
+            <input id="susc-fecha-fin" type="date" class="input"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Renovación automática</label>
+          <input id="susc-fecha-renovacion" type="date" class="input"/>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-suscripcion">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-suscripcion">Guardar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal pago rápido -->
     <div id="modal-pago-rapido" class="modal hidden">
       <div class="modal-card">
@@ -797,6 +861,7 @@
   <script src="prestamo.js"></script>
   <script src="compras.js"></script>
   <script src="recordatorios.js"></script>
+  <script src="suscripciones.js"></script>
   <script src="app.js"></script>
   <script src="sw-register.js"></script>
 </body>

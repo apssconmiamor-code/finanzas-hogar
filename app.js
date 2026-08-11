@@ -890,6 +890,7 @@ function navegarATab(tab) {
     const sec = document.getElementById(`tab-${tab}`);
     if (sec) sec.classList.remove("hidden");
     if (tab === "prestamos") cargarPrestamos();
+    if (tab === "suscripciones") cargarSuscripciones();
     if (tab === "compras") cargarCompras();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
@@ -1230,7 +1231,8 @@ async function _cargarTodoInterno(reintentando) {
     await Promise.all([
       cargarPresupuesto(),
       cargarProyeccion(),
-      cargarPrestamos()
+      cargarPrestamos(),
+      cargarSuscripciones()
     ]);
     await verificarYGuardarCronologia();
     await cargarYRenderCronologia();
@@ -3767,7 +3769,7 @@ function renderResumen(mesSeleccionado = null) {
 // =============================================
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
-  prestamos: "Préstamos", compras: "Lista de compras", resumen: "Análisis"
+  prestamos: "Préstamos", suscripciones: "Suscripciones", compras: "Lista de compras", resumen: "Análisis"
 };
 
 function actualizarTopbarTitulo(tab) {

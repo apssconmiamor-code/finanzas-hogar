@@ -5,7 +5,7 @@
 
 const SHEET_NAMES = [
   'Cajas', 'Movimiento de Caja', 'Presupuesto', 'Cronologia',
-  'Prestamo', 'Compras', 'Proyeccion', 'Recordatorios', 'Metas',
+  'Prestamo', 'Compras', 'Proyeccion', 'Recordatorios', 'Metas', 'Suscripciones',
 ];
 
 function nombreHojaDesdeUrl(url) {
@@ -86,8 +86,25 @@ async function mockGoogleApis(page, seed = {}) {
     }
 
     if (method === 'POST' && url.includes(':batchUpdate')) {
-      // Crear hoja nueva / borrar filas por índice — no crítico para los
-      // tests actuales, se responde OK para no bloquear el flujo.
+      // deleteDimension (borrar fila por índice) sí se aplica de verdad al
+      // estado en memoria — necesario para probar "borrar X" de cualquier
+      // módulo. La URL de :batchUpdate no trae el nombre de la hoja (no pasa
+      // por /values/), así que se identifica por sheetId usando el mismo
+      // índice que la metadata de arriba (sheetId = índice en SHEET_NAMES + 1).
+      // Crear hoja nueva sigue sin ser crítico para los tests: se responde OK.
+      const body = JSON.parse(req.postData() || '{}');
+      for (const r of (body.requests || [])) {
+        if (r.deleteDimension?.range?.dimension === 'ROWS') {
+          const { sheetId, startIndex, endIndex } = r.deleteDimension.range;
+          const nombreHoja = SHEET_NAMES[sheetId - 1];
+          // startIndex/endIndex son índices de grilla (0 = fila de encabezado);
+          // estado[hoja] solo tiene las filas de datos (sin encabezado), así
+          // que hay que restar 1 para que coincida con la fila real a borrar.
+          if (nombreHoja && estado[nombreHoja]) {
+            estado[nombreHoja].splice(startIndex - 1, endIndex - startIndex);
+          }
+        }
+      }
       return route.fulfill({ json: {} });
     }
 
