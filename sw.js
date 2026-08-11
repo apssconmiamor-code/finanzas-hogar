@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v90";
+const CACHE_NAME = "finanzas-v91";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -71,6 +71,20 @@ self.addEventListener("fetch", (event) => {
         );
       })
     );
+    return;
+  }
+
+  // Worker de sesión (finanzas-hogar-token) → SIEMPRE red, nunca caché.
+  // Bug real confirmado (agosto 2026): al no estar excluido acá, /token y
+  // /diag caían en la regla "assets estáticos → cache-first" de más abajo.
+  // Como /token?email=... siempre es la misma URL para la misma persona, el
+  // Service Worker guardaba la PRIMERA respuesta buena y la repetía para
+  // siempre — incluso después de que el access_token real ya había vencido
+  // (dura ~1h) — sin volver a tocar la red. Por eso "Reconectar" podía
+  // fallar una y otra vez sin que apareciera NADA nuevo en los logs del
+  // Worker: la app nunca llegaba a preguntarle de verdad.
+  if (url.hostname === "finanzas-hogar-token.byco85.workers.dev") {
+    event.respondWith(fetch(event.request));
     return;
   }
 
