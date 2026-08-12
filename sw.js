@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v97";
+const CACHE_NAME = "finanzas-v98";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -157,7 +157,7 @@ self.addEventListener("push", (event) => {
       icon: "./icono.png",
       badge: "./icono.png",
       tag: datos.tag || undefined
-    })
+    }).then(_actualizarBadgeDesdeNotificaciones)
   );
 });
 
@@ -165,10 +165,33 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
-      const existente = clientsArr.find((c) => c.url.includes(self.registration.scope));
-      if (existente) return existente.focus();
-      return self.clients.openWindow("./index.html");
-    })
+    Promise.all([
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+        const existente = clientsArr.find((c) => c.url.includes(self.registration.scope));
+        if (existente) return existente.focus();
+        return self.clients.openWindow("./index.html");
+      }),
+      _actualizarBadgeDesdeNotificaciones()
+    ])
   );
 });
+
+// ---- BADGE DEL ÍCONO mientras la app está cerrada ----
+// badge.js (ver index.html) recalcula el número sumando 4 módulos, pero
+// solo corre cuando la app está ABIERTA — con la app cerrada nadie llama a
+// esa función. Acá, en cambio, usamos la cantidad de notificaciones que
+// ya están mostrándose en el centro de notificaciones del sistema como
+// proxy en tiempo real: cada push nuevo sube el número, y al tocar/cerrar
+// una notificación (arriba) baja solo. Confirmado por WebKit que
+// self.registration.setAppBadge() funciona desde el Service Worker en
+// segundo plano, no solo con la app en primer plano. Cuando la app se
+// vuelva a abrir, actualizarBadgeApp() en badge.js pisa este número con el
+// total real (los otros 3 módulos que el Service Worker no puede ver).
+function _actualizarBadgeDesdeNotificaciones() {
+  if (!("setAppBadge" in self.registration)) return Promise.resolve();
+  return self.registration.getNotifications().then((lista) => {
+    return lista.length > 0
+      ? self.registration.setAppBadge(lista.length)
+      : self.registration.clearAppBadge();
+  }).catch(() => {});
+}
