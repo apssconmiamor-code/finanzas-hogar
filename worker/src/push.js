@@ -248,7 +248,8 @@ async function enviarPushATodos(env, emails, payloadJson) {
         } else if (res.status !== 404 && res.status !== 410) {
           // Error temporal (5xx, etc.) — no la borramos, puede servir la próxima vez.
           vivas.push(sub);
-          console.log("push_fallo_temporal", email, res.status);
+          const cuerpo = await res.text().catch(() => "");
+          console.log("push_fallo_temporal", email, res.status, cuerpo.slice(0, 300));
         } else {
           console.log("push_suscripcion_vencida_borrada", email);
         }
