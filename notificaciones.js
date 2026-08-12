@@ -155,6 +155,12 @@ function _base64urlToUint8Array(base64url) {
   return bytes;
 }
 
+function _uint8ArrayToBase64url(bytes) {
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 function notificacionesSoportadas() {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
@@ -184,6 +190,22 @@ async function activarNotificacionesPush() {
   try {
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
+
+    // Si ya había una suscripción pero quedó atada a una clave VAPID vieja
+    // (ej. se rotaron las claves en el servidor porque la privada estaba
+    // desincronizada — bug real, agosto 2026), el navegador la sigue
+    // devolviendo tal cual sin importar cuántas veces se toque "Activar":
+    // hay que darla de baja explícitamente antes de pedir una nueva.
+    if (sub) {
+      const claveActual = sub.options?.applicationServerKey
+        ? _uint8ArrayToBase64url(new Uint8Array(sub.options.applicationServerKey))
+        : null;
+      if (claveActual && claveActual !== CONFIG.VAPID_PUBLIC_KEY) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+    }
+
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -231,6 +253,7 @@ async function cargarNotificaciones() {
     if (cache) { try { notificaciones = JSON.parse(cache); } catch {} }
   }
   renderNotificaciones();
+  if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
 }
 
 function _formatoFechaHoraLocal(iso) {

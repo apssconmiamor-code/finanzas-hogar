@@ -176,6 +176,7 @@ async function cargarSuscripciones() {
   }
   renderSuscripciones();
   renderAlertasSuscripciones();
+  if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
 }
 
 // ---- RENDER LISTA ----

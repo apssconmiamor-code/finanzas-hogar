@@ -130,6 +130,7 @@ async function cargarRecordatorios() {
     if (cache) { try { recordatorios = JSON.parse(cache); } catch {} }
   }
   renderRecordatorioBadge();
+  if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
 }
 
 // =============================================

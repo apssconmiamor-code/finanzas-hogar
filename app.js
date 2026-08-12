@@ -645,6 +645,7 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   _borrarSesionGuardada("gtoken");
   _borrarSesionGuardada("guser");
   _borrarSesionGuardada("worker_session");
+  if (typeof limpiarBadgeApp === "function") limpiarBadgeApp();
   currentUser = null;
   cajas = [];
   movimientos = [];
