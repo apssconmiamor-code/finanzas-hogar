@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v93";
+const CACHE_NAME = "finanzas-v94";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const STATIC_ASSETS = [
   "./compras.js",
   "./recordatorios.js",
   "./suscripciones.js",
+  "./notificaciones.js",
   "./config.js",
   "./manifest.json",
   "./icono.png",
@@ -137,4 +138,36 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+// ---- PUSH: notificaciones del bloque "Notificaciones" ----
+// El Cron Trigger del Worker (worker/src/push.js) manda el payload como
+// JSON: { title, body }. Si por lo que sea no viene JSON válido, se
+// muestra igual con un texto genérico en vez de fallar en silencio.
+self.addEventListener("push", (event) => {
+  let datos = { title: "Finanzas Luni-Chuni", body: "Tienes una notificación nueva" };
+  try {
+    if (event.data) datos = Object.assign(datos, event.data.json());
+  } catch (e) { /* payload no era JSON — se usa el texto genérico de arriba */ }
+
+  event.waitUntil(
+    self.registration.showNotification(datos.title, {
+      body: datos.body,
+      icon: "./icono.png",
+      badge: "./icono.png",
+      tag: datos.tag || undefined
+    })
+  );
+});
+
+// Al tocar la notificación, enfoca una pestaña ya abierta de la app o abre una nueva.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      const existente = clientsArr.find((c) => c.url.includes(self.registration.scope));
+      if (existente) return existente.focus();
+      return self.clients.openWindow("./index.html");
+    })
+  );
 });

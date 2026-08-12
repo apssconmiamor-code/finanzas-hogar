@@ -891,6 +891,7 @@ function navegarATab(tab) {
     if (sec) sec.classList.remove("hidden");
     if (tab === "prestamos") cargarPrestamos();
     if (tab === "suscripciones") cargarSuscripciones();
+    if (tab === "notificaciones") cargarNotificaciones();
     if (tab === "compras") cargarCompras();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
@@ -3784,7 +3785,8 @@ function renderResumen(mesSeleccionado = null) {
 // =============================================
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
-  prestamos: "Préstamos", suscripciones: "Suscripciones", compras: "Lista de compras", resumen: "Análisis"
+  prestamos: "Préstamos", suscripciones: "Suscripciones", notificaciones: "Notificaciones",
+  compras: "Lista de compras", resumen: "Análisis"
 };
 
 function actualizarTopbarTitulo(tab) {

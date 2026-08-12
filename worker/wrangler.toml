@@ -11,10 +11,27 @@ preview_urls = false
 [vars]
 GOOGLE_CLIENT_ID = "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com"
 ALLOWED_ORIGIN = "https://apssconmiamor-code.github.io"
+# Mismo ID que SPREADSHEET_ID en config.js del frontend — el Worker lo
+# necesita para leer/escribir la hoja "Notificaciones" por su cuenta desde
+# el Cron Trigger, sin depender de que haya alguien con la app abierta.
+SPREADSHEET_ID = "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o"
+# Clave pública VAPID (identifica a esta app ante los navegadores para Web
+# Push) — no es secreta, viaja igual al frontend. La privada se guarda
+# aparte con `wrangler secret put VAPID_PRIVATE_KEY`.
+VAPID_PUBLIC_KEY = "BKOeICz5Kp4HxHYF1mAFBAoZc6ED4EP3Uz3VDVQ8MXUj3l-3VJjTJeEVqYYfbVWA9CSl9PTmTbpGlMP_c_h5UbM"
 
 [[kv_namespaces]]
 binding = "REFRESH_TOKENS"
 id = "9c0034ced7004e4d8831871bcfb1f95d"
+
+[[kv_namespaces]]
+binding = "PUSH_SUBS"
+id = "a80bd8dd6a8a4b98b3b9c4d6c34aa4a9"
+
+[triggers]
+# Revisa la hoja "Notificaciones" cada 5 minutos y manda los push que ya
+# vencieron. Cloudflare Cron Triggers usan sintaxis crontab en UTC.
+crons = ["*/5 * * * *"]
 
 [observability]
 enabled = true

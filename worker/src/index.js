@@ -15,6 +15,8 @@
 //  - GET /token?email=... → con un sessionToken propio (ver abajo) válido,
 //    entrega un access_token fresco usando el refresh_token guardado.
 
+import { handlePushSubscribe, handlePushUnsubscribe, revisarYEnviarNotificaciones } from "./push.js";
+
 const TOKEN_ENDPOINT     = "https://oauth2.googleapis.com/token";
 const USERINFO_ENDPOINT  = "https://www.googleapis.com/oauth2/v3/userinfo";
 const SESSION_TTL_SEGUNDOS = 60 * 60 * 24 * 180; // ~180 días
@@ -39,9 +41,35 @@ export default {
       return withCors(handleDiag(url), env);
     }
 
+    if (url.pathname === "/push/subscribe" || url.pathname === "/push/unsubscribe") {
+      const auth = await autenticarPeticion(request, env);
+      if (!auth) return withCors(jsonResponse({ error: "session_invalida" }, 401), env);
+      const resultado = url.pathname === "/push/subscribe"
+        ? await handlePushSubscribe(request, env, auth)
+        : await handlePushUnsubscribe(request, env, auth);
+      return withCors(resultado, env);
+    }
+
     return withCors(new Response("Not found", { status: 404 }), env);
+  },
+
+  // Cron Trigger (ver [triggers] en wrangler.toml) — revisa la hoja
+  // "Notificaciones" cada 5 minutos y manda los push que ya vencieron.
+  // No depende de que nadie tenga la app abierta en ese momento.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(revisarYEnviarNotificaciones(env));
   }
 };
+
+// Mismo sessionToken (JWT propio) que ya usa /token — reutilizado acá para
+// autenticar quién está registrando/borrando una suscripción push.
+async function autenticarPeticion(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  const sessionToken = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!sessionToken) return null;
+  const payload = await verificarSessionToken(sessionToken, env.WORKER_SESSION_SECRET);
+  return payload; // { email, iat, exp } o null si no es válido
+}
 
 function withCors(response, env) {
   const headers = new Headers(response.headers);

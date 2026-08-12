@@ -1,0 +1,16 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node src/push.test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "web-push-browser": "^1.4.2"
+  }
+}

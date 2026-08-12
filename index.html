@@ -177,6 +177,9 @@
             <button class="dropdown-item" data-tab-nav="suscripciones">
               <span class="dd-icon">🔁</span> Suscripciones
             </button>
+            <button class="dropdown-item" data-tab-nav="notificaciones">
+              <span class="dd-icon">🔔</span> Notificaciones
+            </button>
             <button class="dropdown-item" data-tab-nav="compras">
               <span class="dd-icon">🛒</span> Lista de compras
             </button>
@@ -493,6 +496,18 @@
         </div>
       </section>
 
+      <!-- ══ TAB: NOTIFICACIONES ══ -->
+      <section id="tab-notificaciones" class="tab-section hidden">
+        <div class="planes-panel">
+          <div class="notif-header-acciones">
+            <button class="btn-primary btn-franja" id="btn-nueva-notificacion">+ Nueva</button>
+            <button class="btn-secondary btn-franja" id="btn-activar-push">🔔 Activar en este dispositivo</button>
+          </div>
+          <p class="notif-header-nota">Cada dispositivo (teléfono, computador) necesita activarlas por su cuenta una sola vez.</p>
+          <div id="notificaciones-list"><div class="loading-state">Cargando…</div></div>
+        </div>
+      </section>
+
       <!-- ══ TAB: LISTA DE COMPRAS ══ -->
       <section id="tab-compras" class="tab-section hidden">
         <div id="planes-panel-compras" class="planes-panel">
@@ -706,6 +721,55 @@
       </div>
     </div>
 
+    <!-- Modal notificación (nuevo recordatorio push) -->
+    <div id="modal-notificacion" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title">Nueva notificación</h3>
+        <p class="modal-subtitle">Te avisa aunque la app esté cerrada — cada dispositivo tiene que activarlas por su cuenta.</p>
+        <div class="form-group">
+          <label>Título</label>
+          <input id="notif-titulo" type="text" placeholder="Pagar arriendo, sacar la basura…" class="input"/>
+        </div>
+        <div class="form-group">
+          <label>Mensaje <span class="label-opcional">(opcional)</span></label>
+          <textarea id="notif-mensaje" rows="2" placeholder="Detalle adicional…"
+            class="input" style="resize:none;min-height:56px;font-size:15px"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Frecuencia</label>
+            <select id="notif-tipo" class="input">
+              <option value="unica">Única vez</option>
+              <option value="diaria">Diaria</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Destinatario</label>
+            <select id="notif-destinatario" class="input">
+              <option value="yo">Solo yo</option>
+              <option value="familia">Toda la familia</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fecha y hora</label>
+            <input id="notif-fecha-hora" type="datetime-local" class="input"/>
+          </div>
+          <div class="form-group">
+            <label>Repetir hasta <span class="label-opcional">(opcional)</span></label>
+            <input id="notif-fecha-limite" type="date" class="input"/>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-notificacion">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-notificacion">Guardar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal pago rápido -->
     <div id="modal-pago-rapido" class="modal hidden">
       <div class="modal-card">
@@ -862,6 +926,7 @@
   <script src="compras.js"></script>
   <script src="recordatorios.js"></script>
   <script src="suscripciones.js"></script>
+  <script src="notificaciones.js"></script>
   <script src="app.js"></script>
   <script src="sw-register.js"></script>
 </body>

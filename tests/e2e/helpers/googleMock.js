@@ -6,6 +6,7 @@
 const SHEET_NAMES = [
   'Cajas', 'Movimiento de Caja', 'Presupuesto', 'Cronologia',
   'Prestamo', 'Compras', 'Proyeccion', 'Recordatorios', 'Metas', 'Suscripciones',
+  'Notificaciones',
 ];
 
 function nombreHojaDesdeUrl(url) {

@@ -3,7 +3,7 @@
 // =============================================
 
 const CONFIG = {
-  VERSION: "3.30.0",
+  VERSION: "3.31.0",
   GOOGLE_CLIENT_ID: "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com",
   SPREADSHEET_ID: "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o",
 
@@ -12,6 +12,11 @@ const CONFIG = {
   // se puede renovar aunque el navegador no tenga cookie de sesión de Google
   // (lo que pasa siempre en una PWA instalada en la pantalla de inicio de iOS).
   WORKER_URL: "https://finanzas-hogar-token.byco85.workers.dev",
+
+  // Clave pública VAPID — identifica a esta app ante el navegador al pedir
+  // permiso de notificaciones push. No es secreta (viaja igual al
+  // navegador); la privada vive solo en el Worker (wrangler secret).
+  VAPID_PUBLIC_KEY: "BKOeICz5Kp4HxHYF1mAFBAoZc6ED4EP3Uz3VDVQ8MXUj3l-3VJjTJeEVqYYfbVWA9CSl9PTmTbpGlMP_c_h5UbM",
 
   // Nombres de las hojas en Google Sheets
   SHEETS: {
@@ -24,6 +29,7 @@ const CONFIG = {
     PROYECCION: "Proyeccion",
     METAS: "Metas",
     RECORDATORIOS: "Recordatorios",
-    SUSCRIPCIONES: "Suscripciones"
+    SUSCRIPCIONES: "Suscripciones",
+    NOTIFICACIONES: "Notificaciones"
   }
 };
