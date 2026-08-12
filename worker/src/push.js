@@ -110,7 +110,13 @@ export async function revisarYEnviarNotificaciones(env) {
     enviadas++;
 
     const cambios = { ultimo_envio: ahora.toISOString() };
-    if (fila.tipo === "unica") cambios.estado = "cancelada"; // ya cumplió su único propósito
+    // "enviada", no "cancelada" todavía: las de una sola vez se quedan
+    // esperando a que alguien las marque como revisada desde la app (ver
+    // marcarNotificacionRevisada en notificaciones.js) — así no desaparecen
+    // solas sin que nadie se entere de que ya dispararon. El filtro de
+    // arriba (fila.estado !== "activa") ya evita que el Cron la vuelva a
+    // mandar mientras esté en "enviada".
+    if (fila.tipo === "unica") cambios.estado = "enviada";
     await actualizarNotificacion(auth.accessToken, env, fila, cambios);
   }
 

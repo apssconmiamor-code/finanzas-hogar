@@ -3,7 +3,10 @@
 // =============================================
 // Pone un número sobre el ícono de la app (pantalla de inicio / dock) con
 // la suma de lo que necesita atención en cuatro módulos:
-//   - Notificaciones: las que siguen "activa" (no canceladas)
+//   - Notificaciones: las que ya dispararon y están "enviada" (esperando
+//     que alguien las revise en la app — ver marcarNotificacionRevisada en
+//     notificaciones.js). Las "activa" son solo programadas a futuro, no
+//     necesitan atención todavía.
 //   - Recordatorios: todos los guardados (mismo criterio que ya usa su
 //     propio badge interno, ver renderRecordatorioBadge en recordatorios.js)
 //   - Suscripciones: las que están en la ventana de alerta (mismo criterio
@@ -51,7 +54,7 @@ function _badgeDiasHastaFecha(fechaStr) {
 }
 
 function _badgeContarNotificaciones() {
-  return _badgeLeerCache("cache_notificaciones").filter(n => n.estado === "activa").length;
+  return _badgeLeerCache("cache_notificaciones").filter(n => n.estado === "enviada").length;
 }
 
 function _badgeContarRecordatorios() {

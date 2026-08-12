@@ -253,6 +253,7 @@ async function cargarNotificaciones() {
     if (cache) { try { notificaciones = JSON.parse(cache); } catch {} }
   }
   renderNotificaciones();
+  renderNotificacionesBadge();
   if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
 }
 
@@ -267,8 +268,9 @@ function renderNotificaciones() {
   const lista = document.getElementById("notificaciones-list");
   if (!lista) return;
 
-  const activas    = notificaciones.filter(n => n.estado !== "cancelada");
-  const canceladas = notificaciones.filter(n => n.estado === "cancelada");
+  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
+  const activas     = notificaciones.filter(n => n.estado === "activa");
+  const canceladas  = notificaciones.filter(n => n.estado === "cancelada");
 
   if (notificaciones.length === 0) {
     lista.innerHTML = `
@@ -287,6 +289,7 @@ function renderNotificaciones() {
             <span class="notif-titulo">${escapeHtml(n.titulo)}</span>
             <span class="notif-tipo-badge">${TIPOS_NOTIFICACION[n.tipo] || n.tipo}</span>
             <span class="notif-dest-badge">${n.destinatario === "familia" ? "👨‍👩‍👧 Familia" : "👤 Solo yo"}</span>
+            ${n.estado === "enviada" ? `<span class="notif-dest-badge notif-enviada-badge">📩 Por revisar</span>` : ""}
             ${n.estado === "cancelada" ? `<span class="notif-dest-badge notif-cancelada-badge">Cancelada</span>` : ""}
           </div>
         </div>
@@ -297,13 +300,19 @@ function renderNotificaciones() {
           ${n.ultimoEnvio ? `<span>✅ Último envío: ${_formatoFechaHoraLocal(n.ultimoEnvio)}</span>` : ""}
         </div>
         <div class="notif-acciones">
-          ${n.estado !== "cancelada" ? `<button class="btn-secondary" onclick="cancelarNotificacion('${n.id}')">🚫 Cancelar</button>` : ""}
+          ${n.estado === "activa" ? `<button class="btn-secondary" onclick="cancelarNotificacion('${n.id}')">🚫 Cancelar</button>` : ""}
+          ${n.estado === "enviada" ? `<button class="btn-primary" onclick="marcarNotificacionRevisada('${n.id}')">✅ Revisado</button>` : ""}
           <button class="btn-accion btn-borrar" title="Eliminar" onclick="borrarNotificacion('${n.id}')">🗑️</button>
         </div>
       </div>
     </div>`;
 
-  let html = activas.map(renderItem).join("");
+  let html = "";
+  if (porRevisar.length > 0) {
+    html += `<div class="prestamos-seccion-title">Por revisar (${porRevisar.length})</div>`;
+    html += porRevisar.map(renderItem).join("");
+  }
+  html += activas.map(renderItem).join("");
   if (canceladas.length > 0) {
     html += `<div class="prestamos-seccion-title pagados-title">Canceladas (${canceladas.length})</div>`;
     html += canceladas.map(renderItem).join("");
@@ -321,6 +330,21 @@ async function cancelarNotificacion(id) {
     SyncManager.mostrarToast(`🚫 "${n.titulo}" cancelada`);
   } catch (err) {
     alert("Error cancelando la notificación: " + err.message);
+  }
+}
+
+// Notificaciones de una sola vez no se cancelan solas al dispararse (ver
+// worker/src/push.js) -- se quedan en "enviada" hasta que alguien las
+// revisa acá. Recién ahí pasan a "cancelada" (su estado final).
+async function marcarNotificacionRevisada(id) {
+  const n = notificaciones.find(x => x.id === id);
+  if (!n) return;
+  try {
+    await Sheets.editarNotificacion(id, { estado: "cancelada" });
+    await cargarNotificaciones();
+    SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);
+  } catch (err) {
+    alert("Error marcando la notificación como revisada: " + err.message);
   }
 }
 
@@ -383,7 +407,63 @@ async function guardarNotificacion() {
   }
 }
 
+// =============================================
+// BADGE + PANEL EN LA TOPBAR (mismo patrón que Recordatorios) — muestra
+// las notificaciones "enviada" (ya dispararon, esperando revisión)
+// =============================================
+
+function renderNotificacionesBadge() {
+  const btn   = document.getElementById("btn-notificaciones-badge");
+  const count = document.getElementById("notificaciones-count");
+  if (!btn || !count) return;
+  const porRevisar = notificaciones.filter(n => n.estado === "enviada").length;
+  count.textContent = porRevisar;
+  btn.classList.toggle("hidden", porRevisar === 0);
+  if (porRevisar === 0) document.getElementById("notificaciones-panel")?.classList.add("hidden");
+}
+
+function toggleNotificacionesPanel() {
+  const panel = document.getElementById("notificaciones-panel");
+  if (!panel) return;
+  document.getElementById("dropdown-menu")?.classList.add("hidden");
+  document.getElementById("recordatorios-panel")?.classList.add("hidden");
+  const abierto = !panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", abierto);
+  if (!abierto) renderNotificacionesPanel();
+}
+
+function renderNotificacionesPanel() {
+  const panel = document.getElementById("notificaciones-panel");
+  if (!panel) return;
+
+  const porRevisar = notificaciones.filter(n => n.estado === "enviada");
+  if (porRevisar.length === 0) {
+    panel.innerHTML = `<div class="recordatorio-panel-vacio">No tienes notificaciones por revisar.</div>`;
+    return;
+  }
+
+  panel.innerHTML = porRevisar.map(n => `
+    <div class="recordatorio-item">
+      <span class="recordatorio-item-icon">🔔</span>
+      <div class="recordatorio-item-body">
+        <div class="recordatorio-item-texto">${escapeHtml(n.titulo)}</div>
+        <div class="recordatorio-item-fecha">${n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : ""}</div>
+      </div>
+      <button class="btn-accion" title="Marcar como revisada" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅</button>
+    </div>`).join("");
+}
+
 function setupNotificacionesListeners() {
+  document.getElementById("btn-notificaciones-badge")?.addEventListener("click", toggleNotificacionesPanel);
+
+  document.addEventListener("click", (e) => {
+    const panel = document.getElementById("notificaciones-panel");
+    const btn   = document.getElementById("btn-notificaciones-badge");
+    if (!panel || panel.classList.contains("hidden")) return;
+    if (panel.contains(e.target) || e.target === btn || btn?.contains(e.target)) return;
+    panel.classList.add("hidden");
+  });
+
   document.getElementById("btn-nueva-notificacion")
     ?.addEventListener("click", () => {
       limpiarFormNotificacion();

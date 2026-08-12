@@ -813,6 +813,16 @@ async function mostrarApp() {
     renderRecordatorioBadge();
     cargarRecordatorios();
   }
+
+  // Notificaciones: igual que Recordatorios arriba — se carga sola al abrir
+  // la app (no solo al entrar a esa pestaña) para que el badge de la
+  // topbar (notificaciones "enviada" por revisar) esté al día de una vez.
+  if (typeof cargarNotificaciones === "function") {
+    const cacheN = localStorage.getItem("cache_notificaciones");
+    if (cacheN) { try { notificaciones = JSON.parse(cacheN); } catch {} }
+    renderNotificacionesBadge();
+    cargarNotificaciones();
+  }
 }
 
 // ---- GESTO DE "VOLVER" ESTILO iPHONE (deslizar de izquierda a derecha desde el borde) ----
@@ -852,6 +862,11 @@ function cerrarPantallaActual() {
   const recPanel = document.getElementById("recordatorios-panel");
   if (recPanel && !recPanel.classList.contains("hidden")) {
     animarYCerrar(recPanel, () => recPanel.classList.add("hidden"));
+    return true;
+  }
+  const notifPanel = document.getElementById("notificaciones-panel");
+  if (notifPanel && !notifPanel.classList.contains("hidden")) {
+    animarYCerrar(notifPanel, () => notifPanel.classList.add("hidden"));
     return true;
   }
   return false;
