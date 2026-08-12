@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v98";
+const CACHE_NAME = "finanzas-v99";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -182,16 +182,18 @@ self.addEventListener("notificationclick", (event) => {
 // esa función. Acá, en cambio, usamos la cantidad de notificaciones que
 // ya están mostrándose en el centro de notificaciones del sistema como
 // proxy en tiempo real: cada push nuevo sube el número, y al tocar/cerrar
-// una notificación (arriba) baja solo. Confirmado por WebKit que
-// self.registration.setAppBadge() funciona desde el Service Worker en
-// segundo plano, no solo con la app en primer plano. Cuando la app se
+// una notificación (arriba) baja solo. La API de badges cuelga de
+// NavigatorBadge, que implementan Navigator Y WorkerNavigator -- dentro de
+// un Service Worker es "self.navigator.setAppBadge()", NO
+// "self.registration.setAppBadge()" (esa no existe ahí; el intento
+// anterior fallaba en silencio por el catch de abajo). Cuando la app se
 // vuelva a abrir, actualizarBadgeApp() en badge.js pisa este número con el
 // total real (los otros 3 módulos que el Service Worker no puede ver).
 function _actualizarBadgeDesdeNotificaciones() {
-  if (!("setAppBadge" in self.registration)) return Promise.resolve();
+  if (!("setAppBadge" in self.navigator)) return Promise.resolve();
   return self.registration.getNotifications().then((lista) => {
     return lista.length > 0
-      ? self.registration.setAppBadge(lista.length)
-      : self.registration.clearAppBadge();
+      ? self.navigator.setAppBadge(lista.length)
+      : self.navigator.clearAppBadge();
   }).catch(() => {});
 }
