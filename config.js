@@ -3,7 +3,7 @@
 // =============================================
 
 const CONFIG = {
-  VERSION: "3.31.0",
+  VERSION: "3.32.0",
   GOOGLE_CLIENT_ID: "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com",
   SPREADSHEET_ID: "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o",
 
@@ -16,7 +16,7 @@ const CONFIG = {
   // Clave pública VAPID — identifica a esta app ante el navegador al pedir
   // permiso de notificaciones push. No es secreta (viaja igual al
   // navegador); la privada vive solo en el Worker (wrangler secret).
-  VAPID_PUBLIC_KEY: "BKOeICz5Kp4HxHYF1mAFBAoZc6ED4EP3Uz3VDVQ8MXUj3l-3VJjTJeEVqYYfbVWA9CSl9PTmTbpGlMP_c_h5UbM",
+  VAPID_PUBLIC_KEY: "BBaO4zGUoUgNSwZo-yOurnDy_eZqgIAeGbdzdI6J70ELt2Iut8PVjD-bjNlFTGsiVu1dgiL2unG4322J3vB7ur0",
 
   // Nombres de las hojas en Google Sheets
   SHEETS: {

@@ -18,7 +18,7 @@ SPREADSHEET_ID = "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o"
 # Clave pública VAPID (identifica a esta app ante los navegadores para Web
 # Push) — no es secreta, viaja igual al frontend. La privada se guarda
 # aparte con `wrangler secret put VAPID_PRIVATE_KEY`.
-VAPID_PUBLIC_KEY = "BKOeICz5Kp4HxHYF1mAFBAoZc6ED4EP3Uz3VDVQ8MXUj3l-3VJjTJeEVqYYfbVWA9CSl9PTmTbpGlMP_c_h5UbM"
+VAPID_PUBLIC_KEY = "BBaO4zGUoUgNSwZo-yOurnDy_eZqgIAeGbdzdI6J70ELt2Iut8PVjD-bjNlFTGsiVu1dgiL2unG4322J3vB7ur0"
 
 [[kv_namespaces]]
 binding = "REFRESH_TOKENS"

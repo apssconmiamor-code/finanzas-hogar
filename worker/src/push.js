@@ -98,7 +98,11 @@ export async function revisarYEnviarNotificaciones(env) {
       body: fila.mensaje || ""
     });
 
-    await enviarPushATodos(env, destinatarios, payload);
+    const huboExito = await enviarPushATodos(env, destinatarios, payload);
+    // Si el envío falló para todos los destinatarios (ej. VAPID mal configurado),
+    // no se marca como enviada — así el Cron la vuelve a intentar en el próximo
+    // ciclo en vez de darla por hecha en silencio.
+    if (!huboExito) continue;
     enviadas++;
 
     const cambios = { ultimo_envio: ahora.toISOString() };
@@ -216,12 +220,14 @@ async function todosLosEmailsConSuscripcion(env) {
 // ---- Manda el push de verdad a cada dispositivo de cada email dado.
 // Si el navegador ya no reconoce la suscripción (404/410 = se desinstaló o
 // se revocó el permiso), la borra sola en vez de seguir intentando para
-// siempre. ----
+// siempre. Devuelve true si al menos un dispositivo recibió el push. ----
 async function enviarPushATodos(env, emails, payloadJson) {
   const vapidKeys = await deserializeVapidKeys({
     publicKey: env.VAPID_PUBLIC_KEY,
     privateKey: env.VAPID_PRIVATE_KEY
   });
+
+  let huboExito = false;
 
   for (const email of emails) {
     const subs = await obtenerSuscripciones(env, email);
@@ -238,6 +244,7 @@ async function enviarPushATodos(env, emails, payloadJson) {
         );
         if (res.ok || res.status === 201) {
           vivas.push(sub);
+          huboExito = true;
         } else if (res.status !== 404 && res.status !== 410) {
           // Error temporal (5xx, etc.) — no la borramos, puede servir la próxima vez.
           vivas.push(sub);
@@ -255,6 +262,8 @@ async function enviarPushATodos(env, emails, payloadJson) {
       else await env.PUSH_SUBS.delete(email);
     }
   }
+
+  return huboExito;
 }
 
 function jsonResponse(obj, status = 200) {
