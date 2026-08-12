@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v100";
+const CACHE_NAME = "finanzas-v101";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -152,33 +152,28 @@ self.addEventListener("push", (event) => {
   } catch (e) { /* payload no era JSON — se usa el texto genérico de arriba */ }
 
   event.waitUntil(
-    (async () => {
-      // TEMPORAL — diagnóstico del badge que no aparece: mete el resultado
-      // real en el propio texto de la notificación (no hay forma de ver
-      // console.log de un Service Worker en background desde acá). Se
-      // saca apenas se resuelva.
-      const diag = await _diagBadgeTemporal();
-      await self.registration.showNotification(datos.title, {
-        body: `${datos.body} ${diag}`,
-        icon: "./icono.png",
-        badge: "./icono.png",
-        tag: datos.tag || undefined
-      });
-    })()
+    self.registration.getNotifications().then((listaPrevia) => {
+      // WebKit exige que cada push resulte en una notificación VISIBLE —
+      // por eso showNotification() y setAppBadge() se disparan juntos acá
+      // (mismo patrón que el ejemplo oficial de WebKit), en vez de esperar
+      // a que uno termine antes de arrancar el otro: seteando el badge
+      // ANTES de que la notificación exista, iOS lo descarta en silencio
+      // (sin tirar error) — eso pasó en un intento anterior de este bug.
+      const promesas = [
+        self.registration.showNotification(datos.title, {
+          body: datos.body,
+          icon: "./icono.png",
+          badge: "./icono.png",
+          tag: datos.tag || undefined
+        })
+      ];
+      if ("setAppBadge" in self.navigator) {
+        promesas.push(self.navigator.setAppBadge(listaPrevia.length + 1).catch(() => {}));
+      }
+      return Promise.all(promesas);
+    })
   );
 });
-
-async function _diagBadgeTemporal() {
-  const soportado = "setAppBadge" in self.navigator;
-  if (!soportado) return "[badge: self.navigator.setAppBadge NO existe]";
-  try {
-    const lista = await self.registration.getNotifications();
-    await self.navigator.setAppBadge(lista.length + 1);
-    return `[badge: seteado a ${lista.length + 1} OK]`;
-  } catch (e) {
-    return `[badge: ERROR ${e && e.name}: ${(e && e.message || String(e)).slice(0, 60)}]`;
-  }
-}
 
 // Al tocar la notificación, enfoca una pestaña ya abierta de la app o abre una nueva.
 self.addEventListener("notificationclick", (event) => {
