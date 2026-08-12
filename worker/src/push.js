@@ -17,7 +17,11 @@ import { deserializeVapidKeys, sendPushNotification, fromBase64Url } from "web-p
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const HOJA_NOTIFICACIONES = "Notificaciones";
-const VAPID_CONTACTO = "mailto:byco85@gmail.com";
+// SIN "mailto:" -- sendPushNotification (web-push-browser) se lo agrega
+// solo adentro de createJWT(). Ponerlo acá también producía un claim "sub"
+// con "mailto:mailto:..." -- Apple lo rechazaba con 403 BadJwtToken (bug
+// real, causa raíz de que las notificaciones nunca llegaran).
+const VAPID_CONTACTO = "byco85@gmail.com";
 
 // ---- /push/subscribe: guarda la suscripción de este dispositivo ----
 export async function handlePushSubscribe(request, env, payload) {
