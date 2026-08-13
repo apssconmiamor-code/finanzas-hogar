@@ -42,23 +42,22 @@ Sheets._asegurarHojaNotificaciones = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad"]] })
+        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo"]] })
       }
     );
   } else {
-    // Migración liviana: hojas creadas antes de que existiera la
-    // repetición personalizada (intervalo/unidad) no tienen esas columnas
-    // en el encabezado -- se agregan solas, sin tocar las filas existentes
-    // (que igual siguen funcionando por compatibilidad hacia atrás, ver
-    // UNIDAD_LEGADO en worker/src/push.js).
-    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:L1`);
-    if (!encabezado[0] || !encabezado[0][0]) {
+    // Migración liviana: hojas creadas antes de que existieran estas
+    // columnas no las tienen en el encabezado -- se agregan solas, sin
+    // tocar las filas existentes (que igual siguen funcionando por
+    // compatibilidad hacia atrás, ver UNIDAD_LEGADO en worker/src/push.js).
+    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:M1`);
+    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2]) {
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:L1")}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:M1")}?valueInputOption=RAW`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ values: [["intervalo", "unidad"]] })
+          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo"]] })
         }
       );
     }
@@ -68,7 +67,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
 
 Sheets.getNotificaciones = async function () {
   await this._asegurarHojaNotificaciones();
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:L`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:M`);
   return rows.filter(r => r && r[0]).map(r => ({
     id:           r[0] || "",
     titulo:       r[1] || "",
@@ -81,22 +80,27 @@ Sheets.getNotificaciones = async function () {
     estado:       r[8] || "activa",
     ultimoEnvio:  r[9] || "",
     intervalo:    r[10] || "",
-    unidad:       r[11] || ""
+    unidad:       r[11] || "",
+    gastoFijo:    r[12] || ""
   }));
 };
 
 // "texto" es lo único que pide el formulario (sin título separado, ver
 // index.html) -- se guarda en la columna "titulo" para que el push lo
 // muestre como único renglón, sin un segundo texto de cuerpo debajo.
-Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad) {
+// "gastoFijo" (opcional) vincula la notificación a un concepto de Gasto
+// fijo por NOMBRE, no a una fila de Presupuesto/Proyección -- así sigue
+// funcionando aunque el usuario nunca haya cargado presupuesto ni
+// proyección para ese concepto (ver conversación: ambos son opcionales).
+Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo) {
   await this._asegurarHojaNotificaciones();
   const id = "N" + Date.now();
-  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || ""]);
+  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || ""]);
   return id;
 };
 
 Sheets._escribirFilaNotificacion = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:L`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:M`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Notificación no encontrada");
   const sheetRow = rowIndex + 2;
@@ -113,9 +117,10 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     campos.estado ?? actual[8],
     actual[9] || "",
     campos.intervalo ?? actual[10] ?? "",
-    campos.unidad ?? actual[11] ?? ""
+    campos.unidad ?? actual[11] ?? "",
+    campos.gastoFijo ?? actual[12] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:L${sheetRow}`;
+  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:M${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -315,9 +320,10 @@ function renderNotificaciones() {
   const lista = document.getElementById("notificaciones-list");
   if (!lista) return;
 
-  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
-  const activas     = notificaciones.filter(n => n.estado === "activa");
-  const canceladas  = notificaciones.filter(n => n.estado === "cancelada");
+  const porRevisar     = notificaciones.filter(n => n.estado === "enviada");
+  const gastosFijos    = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
+  const activas        = notificaciones.filter(n => n.estado === "activa" && !n.gastoFijo);
+  const canceladas     = notificaciones.filter(n => n.estado === "cancelada");
 
   if (notificaciones.length === 0) {
     lista.innerHTML = `
@@ -336,6 +342,7 @@ function renderNotificaciones() {
             <span class="notif-titulo">${escapeHtml(n.titulo)}</span>
             <span class="notif-tipo-badge">${descripcionRecurrencia(n)}</span>
             <span class="notif-dest-badge">${n.destinatario === "familia" ? "👨‍👩‍👧 Familia" : "👤 Solo yo"}</span>
+            ${n.gastoFijo ? `<span class="notif-dest-badge">📌 ${escapeHtml(n.gastoFijo)}</span>` : ""}
             ${n.estado === "enviada" ? `<span class="notif-dest-badge notif-enviada-badge">📩 Por revisar</span>` : ""}
             ${n.estado === "cancelada" ? `<span class="notif-dest-badge notif-cancelada-badge">Cancelada</span>` : ""}
           </div>
@@ -358,6 +365,10 @@ function renderNotificaciones() {
   if (porRevisar.length > 0) {
     html += `<div class="prestamos-seccion-title">Por revisar (${porRevisar.length})</div>`;
     html += porRevisar.map(renderItem).join("");
+  }
+  if (gastosFijos.length > 0) {
+    html += `<div class="prestamos-seccion-title">Gastos fijos (${gastosFijos.length})</div>`;
+    html += gastosFijos.map(renderItem).join("");
   }
   html += activas.map(renderItem).join("");
   if (canceladas.length > 0) {
@@ -407,6 +418,17 @@ async function borrarNotificacion(id) {
   }
 }
 
+// GASTOS_FIJOS (definida en app.js) crece con el tiempo -- se repuebla
+// cada vez que se abre el modal en vez de una sola vez al cargar la página.
+function poblarSelectGastoFijo() {
+  const sel = document.getElementById("notif-gasto-fijo");
+  if (!sel || typeof GASTOS_FIJOS === "undefined") return;
+  const valorActual = sel.value;
+  sel.innerHTML = `<option value="">— Ninguno —</option>` +
+    GASTOS_FIJOS.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
+  sel.value = GASTOS_FIJOS.includes(valorActual) ? valorActual : "";
+}
+
 function limpiarFormNotificacion() {
   document.getElementById("notif-texto").value = "";
   document.getElementById("notif-repetir-preset").value = "no";
@@ -414,6 +436,7 @@ function limpiarFormNotificacion() {
   document.getElementById("notif-repetir-unidad").value = "dia";
   document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
   document.getElementById("notif-destinatario").value = "yo";
+  poblarSelectGastoFijo();
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
   document.getElementById("notif-fecha-hora").value = ahora.toISOString().slice(0, 16);
   document.getElementById("notif-fecha-limite").value = "";
@@ -439,6 +462,7 @@ async function guardarNotificacion() {
   const fechaHoraLocal  = document.getElementById("notif-fecha-hora").value;
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
   const destinatario    = document.getElementById("notif-destinatario").value;
+  const gastoFijo       = document.getElementById("notif-gasto-fijo")?.value || "";
 
   if (!texto || !fechaHoraLocal) {
     alert("Completa al menos el texto y la fecha/hora");
@@ -457,7 +481,7 @@ async function guardarNotificacion() {
       if (activar) await activarNotificacionesPush();
     }
 
-    await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad);
+    await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo);
     document.getElementById("modal-notificacion").classList.add("hidden");
     limpiarFormNotificacion();
     await cargarNotificaciones();
@@ -544,6 +568,23 @@ function setupNotificacionesListeners() {
   document.getElementById("notif-repetir-preset")
     ?.addEventListener("change", (e) => {
       document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
+    });
+
+  // Elegir un gasto fijo pre-llena texto/destinatario/repetición con
+  // valores sensatos (mensual, familia) -- todo sigue siendo editable
+  // después, esto es solo para no partir de un formulario en blanco.
+  document.getElementById("notif-gasto-fijo")
+    ?.addEventListener("change", (e) => {
+      const concepto = e.target.value;
+      if (!concepto) return;
+      const texto = document.getElementById("notif-texto");
+      if (!texto.value.trim()) texto.value = `Pagar ${concepto}`;
+      document.getElementById("notif-destinatario").value = "familia";
+      const preset = document.getElementById("notif-repetir-preset");
+      if (preset.value === "no") {
+        preset.value = "mes:1";
+        document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
+      }
     });
 
   document.getElementById("btn-activar-push")

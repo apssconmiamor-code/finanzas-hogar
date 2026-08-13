@@ -95,6 +95,28 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Cada 3 semanas');
   });
 
+  test('elegir un gasto fijo pre-llena el texto/destinatario/repetición y agrupa en "Gastos fijos"', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await page.locator('#btn-nueva-notificacion').click();
+    await page.locator('#notif-gasto-fijo').selectOption('Alquiler');
+
+    await expect(page.locator('#notif-texto')).toHaveValue('Pagar Alquiler');
+    await expect(page.locator('#notif-destinatario')).toHaveValue('familia');
+    await expect(page.locator('#notif-repetir-preset')).toHaveValue('mes:1');
+
+    page.once('dialog', (d) => d.dismiss());
+    await page.locator('#btn-guardar-notificacion').click();
+
+    await expect(page.locator('#modal-notificacion')).toBeHidden();
+    await expect(page.locator('.prestamos-seccion-title')).toContainText('Gastos fijos');
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar Alquiler');
+    await expect(page.locator('.notificacion-item')).toContainText('📌 Alquiler');
+  });
+
   test('cancelar una notificación la mueve a "Canceladas"', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
