@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v101";
+const CACHE_NAME = "finanzas-v102";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -151,27 +151,31 @@ self.addEventListener("push", (event) => {
     if (event.data) datos = Object.assign(datos, event.data.json());
   } catch (e) { /* payload no era JSON — se usa el texto genérico de arriba */ }
 
+  // setAppBadge() se llama SINCRÓNICO acá, en el mismo tick en el que llega
+  // el evento push -- ni siquiera un microtask de por medio (a diferencia
+  // del intento anterior, que lo hacía dentro de un .then() de
+  // getNotifications() antes de mostrar la notificación). Sospecha: iOS
+  // puede exigir que el badge se actualice en el mismo turno de ejecución
+  // que produce la notificación visible, no en una promesa que se resuelve
+  // después. El ejemplo oficial de WebKit hace exactamente esto.
+  const tieneBadge = "setAppBadge" in self.navigator;
+  const promesaBadge = tieneBadge ? self.navigator.setAppBadge(1).catch(() => {}) : Promise.resolve();
+
   event.waitUntil(
-    self.registration.getNotifications().then((listaPrevia) => {
-      // WebKit exige que cada push resulte en una notificación VISIBLE —
-      // por eso showNotification() y setAppBadge() se disparan juntos acá
-      // (mismo patrón que el ejemplo oficial de WebKit), en vez de esperar
-      // a que uno termine antes de arrancar el otro: seteando el badge
-      // ANTES de que la notificación exista, iOS lo descarta en silencio
-      // (sin tirar error) — eso pasó en un intento anterior de este bug.
-      const promesas = [
-        self.registration.showNotification(datos.title, {
-          body: datos.body,
-          icon: "./icono.png",
-          badge: "./icono.png",
-          tag: datos.tag || undefined
-        })
-      ];
-      if ("setAppBadge" in self.navigator) {
-        promesas.push(self.navigator.setAppBadge(listaPrevia.length + 1).catch(() => {}));
-      }
-      return Promise.all(promesas);
-    })
+    Promise.all([
+      self.registration.showNotification(datos.title, {
+        body: datos.body,
+        icon: "./icono.png",
+        badge: "./icono.png",
+        tag: datos.tag || undefined
+      }),
+      promesaBadge,
+      // Corrección del número real (puede haber más de una notificación
+      // pendiente) una vez que ya se disparó el badge inicial de arriba.
+      tieneBadge
+        ? self.registration.getNotifications().then((lista) => self.navigator.setAppBadge(lista.length).catch(() => {}))
+        : Promise.resolve()
+    ])
   );
 });
 
