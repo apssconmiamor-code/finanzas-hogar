@@ -90,15 +90,25 @@ export async function revisarYEnviarNotificaciones(env) {
   let enviadas = 0;
 
   for (const fila of filas) {
-    if (fila.estado !== "activa") continue;
-    if (!estaVencida(fila, ahora)) continue;
+    let esRecordatorioDeSeguimiento = false;
+
+    if (fila.estado === "activa") {
+      if (!estaVencida(fila, ahora)) continue;
+    } else if (fila.estado === "enviada" && fila.tipo === "unica") {
+      // Campo opcional "recordar_en_dias": si quedó sin revisar, insiste
+      // cada tantos días en vez de desaparecer para siempre en silencio.
+      if (!tocaRecordatorioDeSeguimiento(fila, ahora)) continue;
+      esRecordatorioDeSeguimiento = true;
+    } else {
+      continue;
+    }
 
     const destinatarios = fila.destinatario === "familia"
       ? await todosLosEmailsConSuscripcion(env)
       : [fila.autor];
 
     const payload = JSON.stringify({
-      title: fila.titulo || "Finanzas Luni-Chuni",
+      title: (esRecordatorioDeSeguimiento ? "🔁 " : "") + (fila.titulo || "Finanzas Luni-Chuni"),
       body: fila.mensaje || ""
     });
 
@@ -114,13 +124,31 @@ export async function revisarYEnviarNotificaciones(env) {
     // esperando a que alguien las marque como revisada desde la app (ver
     // marcarNotificacionRevisada en notificaciones.js) — así no desaparecen
     // solas sin que nadie se entere de que ya dispararon. El filtro de
-    // arriba (fila.estado !== "activa") ya evita que el Cron la vuelva a
-    // mandar mientras esté en "enviada".
-    if (fila.tipo === "unica") cambios.estado = "enviada";
+    // arriba ya evita que el Cron la vuelva a mandar como envío "normal"
+    // mientras esté en "enviada" -- un recordatorio de seguimiento no
+    // cambia el estado, solo actualiza ultimo_envio (reinicia la cuenta de
+    // "recordar_en_dias" para el próximo insistir).
+    if (!esRecordatorioDeSeguimiento && fila.tipo === "unica") cambios.estado = "enviada";
     await actualizarNotificacion(auth.accessToken, env, fila, cambios);
   }
 
   if (enviadas > 0) console.log(`cron_notificaciones: ${enviadas} notificación(es) enviada(s)`);
+}
+
+// ---- ¿Toca reenviar como recordatorio de seguimiento? ----
+// Campo opcional "recordar_en_dias": una notificación "unica" que quedó
+// en "enviada" (sin que nadie la marcara como revisada) se vuelve a
+// mandar cada tantos días desde el último envío -- reinicia la cuenta en
+// cada reenvío, así que sigue insistiendo hasta que se revise o se borre.
+// Exportada para poder probarla con pruebas unitarias, igual que estaVencida.
+export function tocaRecordatorioDeSeguimiento(fila, ahora) {
+  const dias = parseInt(fila.recordar_en_dias, 10);
+  if (!dias || dias <= 0) return false;
+  if (!fila.ultimo_envio) return false;
+  const ultimo = new Date(fila.ultimo_envio);
+  if (isNaN(ultimo.getTime())) return false;
+  const proximo = new Date(ultimo.getTime() + dias * 86400000);
+  return ahora >= proximo;
 }
 
 // Mapeo de los tipos viejos (de antes de que existiera repetición
@@ -222,7 +250,7 @@ async function obtenerAccessTokenAutonomo(env) {
 // acceso a sheets.js del frontend, así que repite las llamadas mínimas). ----
 async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:M")}?valueRenderOption=UNFORMATTED_VALUE`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:N")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!res.ok) throw new Error(`Error leyendo Notificaciones: ${res.status}`);
@@ -233,6 +261,7 @@ async function leerNotificaciones(accessToken, env) {
     fecha_hora: r[4] || "", fecha_limite: r[5] || "", destinatario: r[6] || "yo",
     autor: r[7] || "", estado: r[8] || "activa", ultimo_envio: r[9] || "",
     intervalo: r[10] || "", unidad: r[11] || "", gasto_fijo: r[12] || "",
+    recordar_en_dias: r[13] || "",
     _fila: rows.indexOf(r)
   }));
 }
@@ -244,10 +273,10 @@ async function actualizarNotificacion(accessToken, env, fila, cambios) {
     fila.destinatario, fila.autor,
     cambios.estado ?? fila.estado,
     cambios.ultimo_envio ?? fila.ultimo_envio,
-    fila.intervalo, fila.unidad, fila.gasto_fijo
+    fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias
   ];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:M${sheetRow}`)}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:N${sheetRow}`)}?valueInputOption=RAW`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },

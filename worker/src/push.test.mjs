@@ -1,4 +1,4 @@
-import { estaVencida } from "./push.js";
+import { estaVencida, tocaRecordatorioDeSeguimiento } from "./push.js";
 
 let fallos = 0;
 function assert(desc, actual, esperado) {
@@ -82,6 +82,19 @@ assert("recurrente cada año: mismo mes/día, 1 año antes -> true",
 
 assert("recurrente cada 2 años: solo 1 año antes -> false",
   estaVencida({ tipo: "recurrente", unidad: "anio", intervalo: 2, fecha_hora: "2025-08-15T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+// ---- recordatorio de seguimiento (campo opcional "recordar_en_dias") ----
+assert("recordar en 3 días: pasaron 4 días desde el último envío -> true",
+  tocaRecordatorioDeSeguimiento({ recordar_en_dias: 3, ultimo_envio: "2026-08-11T14:00:00Z" }, AHORA), true);
+
+assert("recordar en 3 días: pasó solo 1 día -> false",
+  tocaRecordatorioDeSeguimiento({ recordar_en_dias: 3, ultimo_envio: "2026-08-14T14:00:00Z" }, AHORA), false);
+
+assert("recordar_en_dias vacío -> false aunque haya pasado tiempo",
+  tocaRecordatorioDeSeguimiento({ recordar_en_dias: "", ultimo_envio: "2026-08-01T14:00:00Z" }, AHORA), false);
+
+assert("recordar_en_dias puesto pero sin ultimo_envio todavía -> false",
+  tocaRecordatorioDeSeguimiento({ recordar_en_dias: 3, ultimo_envio: "" }, AHORA), false);
 
 console.log(fallos === 0 ? "\n✅ TODO OK" : `\n❌ ${fallos} prueba(s) fallaron`);
 process.exit(fallos === 0 ? 0 : 1);

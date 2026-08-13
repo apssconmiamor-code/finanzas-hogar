@@ -42,7 +42,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo"]] })
+        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo", "recordar_en_dias"]] })
       }
     );
   } else {
@@ -50,14 +50,14 @@ Sheets._asegurarHojaNotificaciones = async function () {
     // columnas no las tienen en el encabezado -- se agregan solas, sin
     // tocar las filas existentes (que igual siguen funcionando por
     // compatibilidad hacia atrás, ver UNIDAD_LEGADO en worker/src/push.js).
-    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:M1`);
-    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2]) {
+    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:N1`);
+    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2] || !encabezado[0][3]) {
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:M1")}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:N1")}?valueInputOption=RAW`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo"]] })
+          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo", "recordar_en_dias"]] })
         }
       );
     }
@@ -67,21 +67,22 @@ Sheets._asegurarHojaNotificaciones = async function () {
 
 Sheets.getNotificaciones = async function () {
   await this._asegurarHojaNotificaciones();
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:M`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:N`);
   return rows.filter(r => r && r[0]).map(r => ({
-    id:           r[0] || "",
-    titulo:       r[1] || "",
-    mensaje:      r[2] || "",
-    tipo:         r[3] || "unica",
-    fechaHora:    r[4] || "",
-    fechaLimite:  r[5] || "",
-    destinatario: r[6] || "yo",
-    autor:        r[7] || "",
-    estado:       r[8] || "activa",
-    ultimoEnvio:  r[9] || "",
-    intervalo:    r[10] || "",
-    unidad:       r[11] || "",
-    gastoFijo:    r[12] || ""
+    id:            r[0] || "",
+    titulo:        r[1] || "",
+    mensaje:       r[2] || "",
+    tipo:          r[3] || "unica",
+    fechaHora:     r[4] || "",
+    fechaLimite:   r[5] || "",
+    destinatario:  r[6] || "yo",
+    autor:         r[7] || "",
+    estado:        r[8] || "activa",
+    ultimoEnvio:   r[9] || "",
+    intervalo:     r[10] || "",
+    unidad:        r[11] || "",
+    gastoFijo:     r[12] || "",
+    recordarEnDias: r[13] || ""
   }));
 };
 
@@ -92,15 +93,18 @@ Sheets.getNotificaciones = async function () {
 // fijo por NOMBRE, no a una fila de Presupuesto/Proyección -- así sigue
 // funcionando aunque el usuario nunca haya cargado presupuesto ni
 // proyección para ese concepto (ver conversación: ambos son opcionales).
-Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo) {
+// "recordarEnDias" (opcional, solo aplica a "unica"): si nadie la marca
+// como revisada, el Worker la vuelve a mandar cada esos días (ver
+// tocaRecordatorioDeSeguimiento en worker/src/push.js).
+Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo, recordarEnDias) {
   await this._asegurarHojaNotificaciones();
   const id = "N" + Date.now();
-  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || ""]);
+  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || "", recordarEnDias || ""]);
   return id;
 };
 
 Sheets._escribirFilaNotificacion = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:M`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:N`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Notificación no encontrada");
   const sheetRow = rowIndex + 2;
@@ -118,9 +122,10 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     actual[9] || "",
     campos.intervalo ?? actual[10] ?? "",
     campos.unidad ?? actual[11] ?? "",
-    campos.gastoFijo ?? actual[12] ?? ""
+    campos.gastoFijo ?? actual[12] ?? "",
+    campos.recordarEnDias ?? actual[13] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:M${sheetRow}`;
+  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:N${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -343,6 +348,7 @@ function renderNotificaciones() {
             <span class="notif-tipo-badge">${descripcionRecurrencia(n)}</span>
             <span class="notif-dest-badge">${n.destinatario === "familia" ? "👨‍👩‍👧 Familia" : "👤 Solo yo"}</span>
             ${n.gastoFijo ? `<span class="notif-dest-badge">📌 ${escapeHtml(n.gastoFijo)}</span>` : ""}
+            ${n.recordarEnDias ? `<span class="notif-dest-badge">🔁 Insiste cada ${n.recordarEnDias} día${n.recordarEnDias == 1 ? "" : "s"}</span>` : ""}
             ${n.estado === "enviada" ? `<span class="notif-dest-badge notif-enviada-badge">📩 Por revisar</span>` : ""}
             ${n.estado === "cancelada" ? `<span class="notif-dest-badge notif-cancelada-badge">Cancelada</span>` : ""}
           </div>
@@ -429,12 +435,23 @@ function poblarSelectGastoFijo() {
   sel.value = GASTOS_FIJOS.includes(valorActual) ? valorActual : "";
 }
 
+// El "recordar de nuevo" solo tiene sentido para notificaciones "unica":
+// son las únicas que quedan en estado "enviada" esperando revisión (ver
+// tocaRecordatorioDeSeguimiento en worker/src/push.js) -- las recurrentes
+// ya vuelven a disparar solas según su propio ciclo.
+function actualizarVisibilidadRecordarDeNuevo() {
+  const esUnica = document.getElementById("notif-repetir-preset").value === "no";
+  document.getElementById("notif-recordar-row")?.classList.toggle("hidden", !esUnica);
+}
+
 function limpiarFormNotificacion() {
   document.getElementById("notif-texto").value = "";
   document.getElementById("notif-repetir-preset").value = "no";
   document.getElementById("notif-repetir-intervalo").value = "1";
   document.getElementById("notif-repetir-unidad").value = "dia";
   document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
+  document.getElementById("notif-recordar-dias").value = "";
+  actualizarVisibilidadRecordarDeNuevo();
   document.getElementById("notif-destinatario").value = "yo";
   poblarSelectGastoFijo();
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
@@ -463,6 +480,9 @@ async function guardarNotificacion() {
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
   const destinatario    = document.getElementById("notif-destinatario").value;
   const gastoFijo       = document.getElementById("notif-gasto-fijo")?.value || "";
+  const recordarEnDias  = tipo === "unica"
+    ? (parseInt(document.getElementById("notif-recordar-dias")?.value, 10) || "")
+    : "";
 
   if (!texto || !fechaHoraLocal) {
     alert("Completa al menos el texto y la fecha/hora");
@@ -481,7 +501,7 @@ async function guardarNotificacion() {
       if (activar) await activarNotificacionesPush();
     }
 
-    await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo);
+    await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias);
     document.getElementById("modal-notificacion").classList.add("hidden");
     limpiarFormNotificacion();
     await cargarNotificaciones();
@@ -568,6 +588,7 @@ function setupNotificacionesListeners() {
   document.getElementById("notif-repetir-preset")
     ?.addEventListener("change", (e) => {
       document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
+      actualizarVisibilidadRecordarDeNuevo();
     });
 
   // Elegir un gasto fijo pre-llena texto/destinatario/repetición con
@@ -584,6 +605,7 @@ function setupNotificacionesListeners() {
       if (preset.value === "no") {
         preset.value = "mes:1";
         document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
+        actualizarVisibilidadRecordarDeNuevo();
       }
     });
 
