@@ -123,6 +123,19 @@ export async function revisarYEnviarNotificaciones(env) {
   if (enviadas > 0) console.log(`cron_notificaciones: ${enviadas} notificación(es) enviada(s)`);
 }
 
+// Mapeo de los tipos viejos (de antes de que existiera repetición
+// personalizada tipo Recordatorios de iPhone) a la nueva pareja
+// intervalo+unidad -- así las filas que ya existían en la hoja antes de
+// este cambio siguen funcionando exactamente igual, sin necesitar migrar
+// datos. "unica" no pasa por acá.
+const UNIDAD_LEGADO = { diaria: "dia", semanal: "semana", mensual: "mes" };
+
+function _normalizarRecurrencia(fila) {
+  const unidad = fila.unidad || UNIDAD_LEGADO[fila.tipo] || "dia";
+  const intervalo = Math.max(1, parseInt(fila.intervalo, 10) || 1);
+  return { unidad, intervalo };
+}
+
 // ---- ¿Ya toca mandar esta notificación? ----
 // Exportada (además de usarse internamente) para poder probar la lógica de
 // fechas con pruebas unitarias reales — es la parte con más riesgo de bugs
@@ -136,27 +149,46 @@ export function estaVencida(fila, ahora) {
     if (!isNaN(limite.getTime()) && ahora > limite) return false;
   }
 
-  const yaEnviadaHoy = fila.ultimo_envio &&
-    new Date(fila.ultimo_envio).toISOString().slice(0, 10) === ahora.toISOString().slice(0, 10);
-
   if (fila.tipo === "unica") {
     return !fila.ultimo_envio && ahora >= anchor;
   }
 
-  // Recurrentes: mismo día-de-la-semana / día-del-mes que el ancla, ya
-  // pasada la hora, y todavía no enviada hoy.
+  // Recurrentes: ya pasada la hora del ancla, todavía no enviada hoy, y le
+  // toca según intervalo+unidad (equivalente al picker "Repetir cada N
+  // día/semana/mes/año" de Recordatorios de iPhone).
+  const yaEnviadaHoy = fila.ultimo_envio &&
+    new Date(fila.ultimo_envio).toISOString().slice(0, 10) === ahora.toISOString().slice(0, 10);
   if (yaEnviadaHoy) return false;
+
   const horaYaLlego =
     ahora.getUTCHours() > anchor.getUTCHours() ||
     (ahora.getUTCHours() === anchor.getUTCHours() && ahora.getUTCMinutes() >= anchor.getUTCMinutes());
   if (!horaYaLlego) return false;
 
-  if (fila.tipo === "diaria") return true;
-  if (fila.tipo === "semanal") return ahora.getUTCDay() === anchor.getUTCDay();
-  if (fila.tipo === "mensual") {
+  const { unidad, intervalo } = _normalizarRecurrencia(fila);
+  const diaAncla   = Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate());
+  const diaAhora   = Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate());
+  const diasDesdeAncla = Math.round((diaAhora - diaAncla) / 86400000);
+  if (diasDesdeAncla < 0) return false;
+
+  if (unidad === "dia") {
+    return diasDesdeAncla % intervalo === 0;
+  }
+  if (unidad === "semana") {
+    if (ahora.getUTCDay() !== anchor.getUTCDay()) return false;
+    return Math.round(diasDesdeAncla / 7) % intervalo === 0;
+  }
+  if (unidad === "mes") {
+    const mesesDesdeAncla = (ahora.getUTCFullYear() - anchor.getUTCFullYear()) * 12 + (ahora.getUTCMonth() - anchor.getUTCMonth());
+    if (mesesDesdeAncla % intervalo !== 0) return false;
     const ultimoDiaMesActual = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() + 1, 0)).getUTCDate();
     const diaObjetivo = Math.min(anchor.getUTCDate(), ultimoDiaMesActual);
     return ahora.getUTCDate() === diaObjetivo;
+  }
+  if (unidad === "anio") {
+    const aniosDesdeAncla = ahora.getUTCFullYear() - anchor.getUTCFullYear();
+    if (aniosDesdeAncla % intervalo !== 0) return false;
+    return ahora.getUTCMonth() === anchor.getUTCMonth() && ahora.getUTCDate() === anchor.getUTCDate();
   }
   return false;
 }
@@ -190,7 +222,7 @@ async function obtenerAccessTokenAutonomo(env) {
 // acceso a sheets.js del frontend, así que repite las llamadas mínimas). ----
 async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:J")}?valueRenderOption=UNFORMATTED_VALUE`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:L")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!res.ok) throw new Error(`Error leyendo Notificaciones: ${res.status}`);
@@ -200,6 +232,7 @@ async function leerNotificaciones(accessToken, env) {
     id: r[0] || "", titulo: r[1] || "", mensaje: r[2] || "", tipo: r[3] || "unica",
     fecha_hora: r[4] || "", fecha_limite: r[5] || "", destinatario: r[6] || "yo",
     autor: r[7] || "", estado: r[8] || "activa", ultimo_envio: r[9] || "",
+    intervalo: r[10] || "", unidad: r[11] || "",
     _fila: rows.indexOf(r)
   }));
 }
@@ -210,10 +243,11 @@ async function actualizarNotificacion(accessToken, env, fila, cambios) {
     fila.id, fila.titulo, fila.mensaje, fila.tipo, fila.fecha_hora, fila.fecha_limite,
     fila.destinatario, fila.autor,
     cambios.estado ?? fila.estado,
-    cambios.ultimo_envio ?? fila.ultimo_envio
+    cambios.ultimo_envio ?? fila.ultimo_envio,
+    fila.intervalo, fila.unidad
   ];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:J${sheetRow}`)}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:L${sheetRow}`)}?valueInputOption=RAW`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },

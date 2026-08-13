@@ -58,8 +58,8 @@ test.describe('Notificaciones (Web Push)', () => {
     await page.locator('#btn-nueva-notificacion').click();
     await expect(page.locator('#modal-notificacion')).toBeVisible();
 
-    await page.locator('#notif-titulo').fill('Pagar arriendo');
-    await page.locator('#notif-tipo').selectOption('mensual');
+    await page.locator('#notif-texto').fill('Pagar arriendo');
+    await page.locator('#notif-repetir-preset').selectOption('mes:1');
     await page.locator('#notif-destinatario').selectOption('familia');
     // No se toca la fecha (ya viene con un valor por defecto al abrir el modal).
 
@@ -70,8 +70,29 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await expect(page.locator('#modal-notificacion')).toBeHidden();
     await expect(page.locator('.notificacion-item')).toContainText('Pagar arriendo');
-    await expect(page.locator('.notificacion-item')).toContainText('Mensual');
+    await expect(page.locator('.notificacion-item')).toContainText('Cada mes');
     await expect(page.locator('.notificacion-item')).toContainText('Familia');
+  });
+
+  test('repetición personalizada (cada N unidad, estilo Recordatorios de iPhone)', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await page.locator('#btn-nueva-notificacion').click();
+    await page.locator('#notif-texto').fill('Regar las plantas');
+    await page.locator('#notif-repetir-preset').selectOption('custom');
+    await expect(page.locator('#notif-repetir-custom-row')).toBeVisible();
+    await page.locator('#notif-repetir-intervalo').fill('3');
+    await page.locator('#notif-repetir-unidad').selectOption('semana');
+
+    page.once('dialog', (d) => d.dismiss());
+    await page.locator('#btn-guardar-notificacion').click();
+
+    await expect(page.locator('#modal-notificacion')).toBeHidden();
+    await expect(page.locator('.notificacion-item')).toContainText('Regar las plantas');
+    await expect(page.locator('.notificacion-item')).toContainText('Cada 3 semanas');
   });
 
   test('cancelar una notificación la mueve a "Canceladas"', async ({ page }) => {
@@ -136,5 +157,35 @@ test.describe('Notificaciones (Web Push)', () => {
 
     expect(cuerpoRecibido.subscription.endpoint).toBe('https://fcm.googleapis.com/fake/endpoint123');
     expect(cuerpoRecibido.subscription.keys.p256dh).toBe('FAKE_P256DH');
+  });
+
+  test('si el dispositivo ya está activado, no muestra "Activar en este dispositivo"', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'mock de PushManager poco confiable en WebKit headless');
+    await mockGoogleApis(page);
+    // A diferencia de mockPushManager() de arriba, acá getSubscription()
+    // devuelve una suscripción YA existente -- simula un dispositivo que ya
+    // activó las notificaciones antes.
+    await page.addInitScript(() => {
+      // Notification.permission es un getter de solo lectura en el navegador
+      // real -- una asignación directa (Notification.permission = 'granted')
+      // no tiene efecto y se queda en el valor nativo por defecto.
+      if (!window.Notification) window.Notification = function () {};
+      Object.defineProperty(window.Notification, 'permission', { value: 'granted', configurable: true });
+      const fakeSubscription = {
+        endpoint: 'https://fcm.googleapis.com/fake/endpoint123',
+        keys: { p256dh: 'FAKE_P256DH', auth: 'FAKE_AUTH' },
+        toJSON() { return { endpoint: this.endpoint, keys: this.keys }; }
+      };
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: { ready: Promise.resolve({ pushManager: { getSubscription: async () => fakeSubscription } }) },
+        configurable: true
+      });
+    });
+
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('#btn-activar-push')).toBeHidden();
   });
 });

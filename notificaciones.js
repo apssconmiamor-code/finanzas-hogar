@@ -42,16 +42,33 @@ Sheets._asegurarHojaNotificaciones = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio"]] })
+        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad"]] })
       }
     );
+  } else {
+    // Migración liviana: hojas creadas antes de que existiera la
+    // repetición personalizada (intervalo/unidad) no tienen esas columnas
+    // en el encabezado -- se agregan solas, sin tocar las filas existentes
+    // (que igual siguen funcionando por compatibilidad hacia atrás, ver
+    // UNIDAD_LEGADO en worker/src/push.js).
+    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:L1`);
+    if (!encabezado[0] || !encabezado[0][0]) {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:L1")}?valueInputOption=RAW`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values: [["intervalo", "unidad"]] })
+        }
+      );
+    }
   }
   this._notificacionesHojaLista = true;
 };
 
 Sheets.getNotificaciones = async function () {
   await this._asegurarHojaNotificaciones();
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:J`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:L`);
   return rows.filter(r => r && r[0]).map(r => ({
     id:           r[0] || "",
     titulo:       r[1] || "",
@@ -62,19 +79,24 @@ Sheets.getNotificaciones = async function () {
     destinatario: r[6] || "yo",
     autor:        r[7] || "",
     estado:       r[8] || "activa",
-    ultimoEnvio:  r[9] || ""
+    ultimoEnvio:  r[9] || "",
+    intervalo:    r[10] || "",
+    unidad:       r[11] || ""
   }));
 };
 
-Sheets.agregarNotificacion = async function (titulo, mensaje, tipo, fechaHoraISO, fechaLimite, destinatario, autor) {
+// "texto" es lo único que pide el formulario (sin título separado, ver
+// index.html) -- se guarda en la columna "titulo" para que el push lo
+// muestre como único renglón, sin un segundo texto de cuerpo debajo.
+Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad) {
   await this._asegurarHojaNotificaciones();
   const id = "N" + Date.now();
-  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, titulo, mensaje, tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", ""]);
+  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || ""]);
   return id;
 };
 
 Sheets._escribirFilaNotificacion = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:J`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:L`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Notificación no encontrada");
   const sheetRow = rowIndex + 2;
@@ -89,9 +111,11 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     campos.destinatario ?? actual[6],
     actual[7] || "",
     campos.estado ?? actual[8],
-    actual[9] || ""
+    actual[9] || "",
+    campos.intervalo ?? actual[10] ?? "",
+    campos.unidad ?? actual[11] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:J${sheetRow}`;
+  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:L${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -222,6 +246,7 @@ async function activarNotificacionesPush() {
     if (!res.ok) throw new Error(`Worker respondió ${res.status}`);
 
     SyncManager.mostrarToast("🔔 Notificaciones activadas en este dispositivo");
+    await actualizarBotonActivarPush();
     return true;
   } catch (err) {
     console.warn("Error activando notificaciones push:", err);
@@ -230,18 +255,39 @@ async function activarNotificacionesPush() {
   }
 }
 
+// Este dispositivo ya tiene el permiso + la suscripción push activa -- no
+// tiene sentido seguir ofreciendo el botón para activarlas de nuevo.
+async function actualizarBotonActivarPush() {
+  const btn = document.getElementById("btn-activar-push");
+  if (!btn) return;
+  const estado = await estadoSuscripcionPush();
+  btn.classList.toggle("hidden", estado === "activo");
+}
+
 // =============================================
 // LÓGICA DE UI
 // =============================================
 
 window.notificaciones = window.notificaciones || [];
 
-const TIPOS_NOTIFICACION = {
-  unica:   "Única vez",
-  diaria:  "Diaria",
-  semanal: "Semanal",
-  mensual: "Mensual"
+// Mismo mapeo legado que UNIDAD_LEGADO en worker/src/push.js -- filas
+// creadas antes de que existiera la repetición personalizada todavía
+// tienen tipo "diaria"/"semanal"/"mensual" en vez de "recurrente".
+const UNIDAD_LEGADO_NOTIF = { diaria: "dia", semanal: "semana", mensual: "mes" };
+const NOMBRES_UNIDAD_NOTIF = {
+  dia:    ["día", "días"],
+  semana: ["semana", "semanas"],
+  mes:    ["mes", "meses"],
+  anio:   ["año", "años"]
 };
+
+function descripcionRecurrencia(n) {
+  if (n.tipo === "unica") return "Única vez";
+  const unidad = n.unidad || UNIDAD_LEGADO_NOTIF[n.tipo] || "dia";
+  const intervalo = parseInt(n.intervalo, 10) || 1;
+  const [singular, plural] = NOMBRES_UNIDAD_NOTIF[unidad] || NOMBRES_UNIDAD_NOTIF.dia;
+  return intervalo === 1 ? `Cada ${singular}` : `Cada ${intervalo} ${plural}`;
+}
 
 async function cargarNotificaciones() {
   try {
@@ -252,6 +298,7 @@ async function cargarNotificaciones() {
     const cache = localStorage.getItem("cache_notificaciones");
     if (cache) { try { notificaciones = JSON.parse(cache); } catch {} }
   }
+  actualizarBotonActivarPush();
   renderNotificaciones();
   renderNotificacionesBadge();
   if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
@@ -287,7 +334,7 @@ function renderNotificaciones() {
         <div class="notif-top">
           <div class="notif-info">
             <span class="notif-titulo">${escapeHtml(n.titulo)}</span>
-            <span class="notif-tipo-badge">${TIPOS_NOTIFICACION[n.tipo] || n.tipo}</span>
+            <span class="notif-tipo-badge">${descripcionRecurrencia(n)}</span>
             <span class="notif-dest-badge">${n.destinatario === "familia" ? "👨‍👩‍👧 Familia" : "👤 Solo yo"}</span>
             ${n.estado === "enviada" ? `<span class="notif-dest-badge notif-enviada-badge">📩 Por revisar</span>` : ""}
             ${n.estado === "cancelada" ? `<span class="notif-dest-badge notif-cancelada-badge">Cancelada</span>` : ""}
@@ -361,25 +408,40 @@ async function borrarNotificacion(id) {
 }
 
 function limpiarFormNotificacion() {
-  document.getElementById("notif-titulo").value = "";
-  document.getElementById("notif-mensaje").value = "";
-  document.getElementById("notif-tipo").value = "unica";
+  document.getElementById("notif-texto").value = "";
+  document.getElementById("notif-repetir-preset").value = "no";
+  document.getElementById("notif-repetir-intervalo").value = "1";
+  document.getElementById("notif-repetir-unidad").value = "dia";
+  document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
   document.getElementById("notif-destinatario").value = "yo";
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
   document.getElementById("notif-fecha-hora").value = ahora.toISOString().slice(0, 16);
   document.getElementById("notif-fecha-limite").value = "";
 }
 
+// Traduce el picker "Repetir" (presets + Personalizado, mismo patrón que
+// Recordatorios de iPhone) a { tipo, intervalo, unidad } para guardar.
+function _leerRepeticionDelForm() {
+  const preset = document.getElementById("notif-repetir-preset").value;
+  if (preset === "no") return { tipo: "unica", intervalo: "", unidad: "" };
+  if (preset === "custom") {
+    const intervalo = Math.max(1, parseInt(document.getElementById("notif-repetir-intervalo").value, 10) || 1);
+    const unidad = document.getElementById("notif-repetir-unidad").value;
+    return { tipo: "recurrente", intervalo, unidad };
+  }
+  const [unidad, intervalo] = preset.split(":");
+  return { tipo: "recurrente", intervalo: parseInt(intervalo, 10) || 1, unidad };
+}
+
 async function guardarNotificacion() {
-  const titulo         = document.getElementById("notif-titulo").value.trim();
-  const mensaje         = document.getElementById("notif-mensaje").value.trim();
-  const tipo            = document.getElementById("notif-tipo").value;
+  const texto          = document.getElementById("notif-texto").value.trim();
+  const { tipo, intervalo, unidad } = _leerRepeticionDelForm();
   const fechaHoraLocal  = document.getElementById("notif-fecha-hora").value;
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
   const destinatario    = document.getElementById("notif-destinatario").value;
 
-  if (!titulo || !fechaHoraLocal) {
-    alert("Completa al menos el título y la fecha/hora");
+  if (!texto || !fechaHoraLocal) {
+    alert("Completa al menos el texto y la fecha/hora");
     return;
   }
 
@@ -395,11 +457,11 @@ async function guardarNotificacion() {
       if (activar) await activarNotificacionesPush();
     }
 
-    await Sheets.agregarNotificacion(titulo, mensaje, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "");
+    await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad);
     document.getElementById("modal-notificacion").classList.add("hidden");
     limpiarFormNotificacion();
     await cargarNotificaciones();
-    SyncManager.mostrarToast(`✅ "${titulo}" programada`);
+    SyncManager.mostrarToast(`✅ "${texto}" programada`);
   } catch (err) {
     alert("Error guardando la notificación: " + err.message);
   } finally {
@@ -478,6 +540,11 @@ function setupNotificacionesListeners() {
 
   document.getElementById("btn-guardar-notificacion")
     ?.addEventListener("click", guardarNotificacion);
+
+  document.getElementById("notif-repetir-preset")
+    ?.addEventListener("change", (e) => {
+      document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
+    });
 
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);

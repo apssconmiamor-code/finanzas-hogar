@@ -58,5 +58,30 @@ assert("fecha_limite ya pasada -> false aunque sería su turno",
 assert("fecha_limite todavía no llega -> normal (true)",
   estaVencida({ tipo: "diaria", fecha_hora: "2000-01-01T14:00:00Z", fecha_limite: "2026-08-20", ultimo_envio: "" }, AHORA), true);
 
+// ---- recurrencia personalizada (intervalo + unidad, estilo Recordatorios de iPhone) ----
+assert("recurrente cada 2 días: ancla hoy-2 -> true",
+  estaVencida({ tipo: "recurrente", unidad: "dia", intervalo: 2, fecha_hora: "2026-08-13T14:00:00Z", ultimo_envio: "" }, AHORA), true);
+
+assert("recurrente cada 2 días: ancla hoy-1 (día impar) -> false",
+  estaVencida({ tipo: "recurrente", unidad: "dia", intervalo: 2, fecha_hora: "2026-08-14T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+assert("recurrente cada 2 semanas: mismo día-de-semana, 2 semanas exactas -> true",
+  estaVencida({ tipo: "recurrente", unidad: "semana", intervalo: 2, fecha_hora: "2026-08-01T14:00:00Z", ultimo_envio: "" }, AHORA), true); // 2026-08-01 es sábado, 14 días antes
+
+assert("recurrente cada 2 semanas: mismo día-de-semana pero solo 1 semana antes -> false",
+  estaVencida({ tipo: "recurrente", unidad: "semana", intervalo: 2, fecha_hora: "2026-08-08T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+assert("recurrente cada 3 meses: mismo día, 3 meses exactos -> true",
+  estaVencida({ tipo: "recurrente", unidad: "mes", intervalo: 3, fecha_hora: "2026-05-15T14:00:00Z", ultimo_envio: "" }, AHORA), true);
+
+assert("recurrente cada 3 meses: mismo día, solo 2 meses -> false",
+  estaVencida({ tipo: "recurrente", unidad: "mes", intervalo: 3, fecha_hora: "2026-06-15T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+assert("recurrente cada año: mismo mes/día, 1 año antes -> true",
+  estaVencida({ tipo: "recurrente", unidad: "anio", intervalo: 1, fecha_hora: "2025-08-15T14:00:00Z", ultimo_envio: "" }, AHORA), true);
+
+assert("recurrente cada 2 años: solo 1 año antes -> false",
+  estaVencida({ tipo: "recurrente", unidad: "anio", intervalo: 2, fecha_hora: "2025-08-15T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
 console.log(fallos === 0 ? "\n✅ TODO OK" : `\n❌ ${fallos} prueba(s) fallaron`);
 process.exit(fallos === 0 ? 0 : 1);

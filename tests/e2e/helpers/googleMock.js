@@ -111,9 +111,22 @@ async function mockGoogleApis(page, seed = {}) {
 
     if (method === 'PUT') {
       const body = JSON.parse(req.postData() || '{}');
-      if (body.values && estado[hoja]) {
-        estado[hoja].length = 0;
-        estado[hoja].push(...body.values);
+      // Un PUT en Sheets de verdad solo toca las celdas del rango pedido
+      // (ej. "A5:L5" = una fila puntual, "K1:L1" = solo el encabezado) —
+      // antes acá se ignoraba el rango y se pisaba TODA la hoja con lo que
+      // viniera en el body, lo que corrompía las demás filas apenas algún
+      // código escribía una sola fila o el encabezado (bug real que hizo
+      // fallar los tests de Notificaciones al agregar la migración del
+      // encabezado intervalo/unidad).
+      const decoded = decodeURIComponent(url);
+      const rangeMatch = decoded.match(/\/values\/([^:?]+)/);
+      const celdas = rangeMatch ? (rangeMatch[1].split('!')[1] || '') : '';
+      const filaMatch = celdas.match(/^[A-Z]+(\d+)/);
+      const filaGrilla = filaMatch ? parseInt(filaMatch[1], 10) : null;
+
+      if (body.values && estado[hoja] && filaGrilla && filaGrilla > 1) {
+        // filaGrilla 2 = primera fila de datos (índice 0 en estado[hoja]).
+        estado[hoja][filaGrilla - 2] = body.values[0];
       }
       return route.fulfill({ json: {} });
     }
