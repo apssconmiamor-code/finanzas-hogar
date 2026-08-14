@@ -1,4 +1,4 @@
-import { estaVencida, tocaRecordatorioDeSeguimiento } from "./push.js";
+import { estaVencida, tocaRecordatorioDeSeguimiento, debeQuedarEnRevision } from "./push.js";
 
 let fallos = 0;
 function assert(desc, actual, esperado) {
@@ -95,6 +95,16 @@ assert("recordar_en_dias vacío -> false aunque haya pasado tiempo",
 
 assert("recordar_en_dias puesto pero sin ultimo_envio todavía -> false",
   tocaRecordatorioDeSeguimiento({ recordar_en_dias: 3, ultimo_envio: "" }, AHORA), false);
+
+// ---- ¿debe quedar "enviada" (pendiente de revisión) tras enviarse? ----
+assert("unica siempre queda en revisión, tenga o no recordar_en_dias",
+  debeQuedarEnRevision({ tipo: "unica", recordar_en_dias: "" }), true);
+
+assert("recurrente SIN recordar_en_dias -> no queda en revisión (sigue su ciclo solo)",
+  debeQuedarEnRevision({ tipo: "recurrente", recordar_en_dias: "" }), false);
+
+assert("recurrente CON recordar_en_dias -> sí queda en revisión",
+  debeQuedarEnRevision({ tipo: "recurrente", recordar_en_dias: 3 }), true);
 
 console.log(fallos === 0 ? "\n✅ TODO OK" : `\n❌ ${fallos} prueba(s) fallaron`);
 process.exit(fallos === 0 ? 0 : 1);

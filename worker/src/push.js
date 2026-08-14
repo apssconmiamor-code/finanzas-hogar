@@ -94,9 +94,10 @@ export async function revisarYEnviarNotificaciones(env) {
 
     if (fila.estado === "activa") {
       if (!estaVencida(fila, ahora)) continue;
-    } else if (fila.estado === "enviada" && fila.tipo === "unica") {
+    } else if (fila.estado === "enviada" && fila.recordar_en_dias) {
       // Campo opcional "recordar_en_dias": si quedó sin revisar, insiste
       // cada tantos días en vez de desaparecer para siempre en silencio.
+      // Aplica tanto a "unica" como a recurrentes que lo hayan activado.
       if (!tocaRecordatorioDeSeguimiento(fila, ahora)) continue;
       esRecordatorioDeSeguimiento = true;
     } else {
@@ -120,19 +121,35 @@ export async function revisarYEnviarNotificaciones(env) {
     enviadas++;
 
     const cambios = { ultimo_envio: ahora.toISOString() };
-    // "enviada", no "cancelada" todavía: las de una sola vez se quedan
-    // esperando a que alguien las marque como revisada desde la app (ver
-    // marcarNotificacionRevisada en notificaciones.js) — así no desaparecen
-    // solas sin que nadie se entere de que ya dispararon. El filtro de
-    // arriba ya evita que el Cron la vuelva a mandar como envío "normal"
-    // mientras esté en "enviada" -- un recordatorio de seguimiento no
-    // cambia el estado, solo actualiza ultimo_envio (reinicia la cuenta de
-    // "recordar_en_dias" para el próximo insistir).
-    if (!esRecordatorioDeSeguimiento && fila.tipo === "unica") cambios.estado = "enviada";
+    // "enviada", no "cancelada"/"activa" todavía: se queda esperando a que
+    // alguien la marque como revisada desde la app (ver
+    // marcarNotificacionRevisada en notificaciones.js) — así no desaparece
+    // ni vuelve a su ciclo sin que nadie se entere de que ya disparó. Un
+    // recordatorio de seguimiento no cambia el estado, solo actualiza
+    // ultimo_envio (reinicia la cuenta de "recordar_en_dias").
+    //
+    // Las "unica" SIEMPRE pasan por revisión (es lo único que las saca de
+    // en medio). Las recurrentes solo pasan por "enviada" si activaron
+    // "recordar_en_dias" -- si no, se quedan "activa" y disparan solas en
+    // su próximo ciclo como siempre, sin depender de que nadie las revise
+    // (si dependieran de eso, olvidarse de revisar una rompería la
+    // repetición para siempre).
+    if (!esRecordatorioDeSeguimiento && debeQuedarEnRevision(fila)) cambios.estado = "enviada";
     await actualizarNotificacion(auth.accessToken, env, fila, cambios);
   }
 
   if (enviadas > 0) console.log(`cron_notificaciones: ${enviadas} notificación(es) enviada(s)`);
+}
+
+// ---- ¿Esta notificación debe quedar "enviada" (pendiente de revisión) en
+// vez de volver directo a su ciclo normal? ----
+// "unica" siempre (es lo único que la saca de en medio, ver
+// marcarNotificacionRevisada). Una recurrente SOLO si activó
+// "recordar_en_dias" -- si no, seguiría exactamente igual que antes de que
+// existiera este campo: dispara y se queda "activa", lista para su
+// próximo ciclo, sin depender de que nadie la revise.
+export function debeQuedarEnRevision(fila) {
+  return fila.tipo === "unica" || !!fila.recordar_en_dias;
 }
 
 // ---- ¿Toca reenviar como recordatorio de seguimiento? ----

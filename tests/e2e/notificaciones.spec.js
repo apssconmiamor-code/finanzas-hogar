@@ -95,7 +95,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Cada 3 semanas');
   });
 
-  test('"recordar de nuevo en X días" solo se muestra para "No se repite" y se guarda', async ({ page }) => {
+  test('"recordar de nuevo en X días" está disponible tanto para "No se repite" como para recurrentes', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
@@ -107,11 +107,11 @@ test.describe('Notificaciones (Web Push)', () => {
     await page.locator('#notif-texto').fill('Pagar la luz');
     await page.locator('#notif-recordar-dias').fill('3');
 
-    // Al elegir una repetición, el campo se oculta -- no aplica a recurrentes.
+    // También sigue disponible al elegir una repetición (ej. mensual) --
+    // una recurrente puede optar por "insistir" igual que una única.
     await page.locator('#notif-repetir-preset').selectOption('mes:1');
-    await expect(page.locator('#notif-recordar-row')).toBeHidden();
-    await page.locator('#notif-repetir-preset').selectOption('no');
     await expect(page.locator('#notif-recordar-row')).toBeVisible();
+    await expect(page.locator('#notif-recordar-dias')).toHaveValue('3');
 
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();

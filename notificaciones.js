@@ -404,7 +404,13 @@ async function marcarNotificacionRevisada(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
   try {
-    await Sheets.editarNotificacion(id, { estado: "cancelada" });
+    // "unica" ya cumplió su único propósito -> "cancelada" (estado final).
+    // Una recurrente solo estaba en revisión por tener "recordar_en_dias"
+    // activado (ver debeQuedarEnRevision en worker/src/push.js) -- al
+    // revisarla vuelve a "activa", lista para su próximo ciclo normal, en
+    // vez de cancelarse para siempre.
+    const nuevoEstado = n.tipo === "unica" ? "cancelada" : "activa";
+    await Sheets.editarNotificacion(id, { estado: nuevoEstado });
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);
   } catch (err) {
@@ -437,12 +443,11 @@ function poblarSelectGastoFijo() {
 
 // El "recordar de nuevo" solo tiene sentido para notificaciones "unica":
 // son las únicas que quedan en estado "enviada" esperando revisión (ver
-// tocaRecordatorioDeSeguimiento en worker/src/push.js) -- las recurrentes
-// ya vuelven a disparar solas según su propio ciclo.
-function actualizarVisibilidadRecordarDeNuevo() {
-  const esUnica = document.getElementById("notif-repetir-preset").value === "no";
-  document.getElementById("notif-recordar-row")?.classList.toggle("hidden", !esUnica);
-}
+// tocaRecordatorioDeSeguimiento en worker/src/push.js) -- también aplica a
+// recurrentes: si se activa ahí, esa notificación pasa por "revisar" en
+// cada ciclo antes de volver a su repetición normal (ver
+// marcarNotificacionRevisada). Por eso el campo queda siempre visible, sin
+// importar la repetición elegida.
 
 function limpiarFormNotificacion() {
   document.getElementById("notif-texto").value = "";
@@ -451,7 +456,6 @@ function limpiarFormNotificacion() {
   document.getElementById("notif-repetir-unidad").value = "dia";
   document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
   document.getElementById("notif-recordar-dias").value = "";
-  actualizarVisibilidadRecordarDeNuevo();
   document.getElementById("notif-destinatario").value = "yo";
   poblarSelectGastoFijo();
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
@@ -480,9 +484,7 @@ async function guardarNotificacion() {
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
   const destinatario    = document.getElementById("notif-destinatario").value;
   const gastoFijo       = document.getElementById("notif-gasto-fijo")?.value || "";
-  const recordarEnDias  = tipo === "unica"
-    ? (parseInt(document.getElementById("notif-recordar-dias")?.value, 10) || "")
-    : "";
+  const recordarEnDias  = parseInt(document.getElementById("notif-recordar-dias")?.value, 10) || "";
 
   if (!texto || !fechaHoraLocal) {
     alert("Completa al menos el texto y la fecha/hora");
@@ -588,7 +590,6 @@ function setupNotificacionesListeners() {
   document.getElementById("notif-repetir-preset")
     ?.addEventListener("change", (e) => {
       document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
-      actualizarVisibilidadRecordarDeNuevo();
     });
 
   // Elegir un gasto fijo pre-llena texto/destinatario/repetición con
@@ -605,7 +606,6 @@ function setupNotificacionesListeners() {
       if (preset.value === "no") {
         preset.value = "mes:1";
         document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
-        actualizarVisibilidadRecordarDeNuevo();
       }
     });
 
