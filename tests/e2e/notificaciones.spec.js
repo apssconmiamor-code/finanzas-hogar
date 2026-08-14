@@ -182,7 +182,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#modal-notificacion-detalle')).toBeHidden();
 
     await page.locator('.notif-acciones-fila button', { hasText: 'Editar' }).click();
-    await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar notificación');
+    await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');
 
     await page.locator('#notif-texto').fill('Pagar internet fibra');

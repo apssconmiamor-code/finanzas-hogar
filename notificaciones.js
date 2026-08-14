@@ -2,7 +2,7 @@
 // MÓDULO NOTIFICACIONES — recordatorios por Web Push
 // =============================================
 // Hoja "Notificaciones" en Google Sheets (se crea sola, igual que
-// Suscripciones/Recordatorios):
+// Recordatorios):
 // A: id | B: titulo | C: mensaje | D: tipo (unica/diaria/semanal/mensual)
 // E: fecha_hora (ISO UTC — el ancla: para "unica" es cuándo dispara, para
 //    las recurrentes de ahí se sacan la hora y el día-de-semana/mes)
@@ -214,12 +214,12 @@ async function estadoSuscripcionPush() {
 // Worker deduplica por endpoint.
 async function activarNotificacionesPush() {
   if (!notificacionesSoportadas()) {
-    alert("Este navegador no soporta notificaciones push.");
+    alert("Este navegador no soporta alertas push.");
     return false;
   }
   const permiso = await Notification.requestPermission();
   if (permiso !== "granted") {
-    SyncManager.mostrarToast("🔕 No se activaron las notificaciones (permiso no concedido)", "warn");
+    SyncManager.mostrarToast("🔕 No se activaron las alertas (permiso no concedido)", "warn");
     return false;
   }
 
@@ -257,12 +257,12 @@ async function activarNotificacionesPush() {
     });
     if (!res.ok) throw new Error(`Worker respondió ${res.status}`);
 
-    SyncManager.mostrarToast("🔔 Notificaciones activadas en este dispositivo");
+    SyncManager.mostrarToast("🔔 Alertas activadas en este dispositivo");
     await actualizarBotonActivarPush();
     return true;
   } catch (err) {
     console.warn("Error activando notificaciones push:", err);
-    alert("No se pudo activar las notificaciones: " + err.message);
+    alert("No se pudo activar las alertas: " + err.message);
     return false;
   }
 }
@@ -336,7 +336,7 @@ function renderNotificaciones() {
     lista.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">🔔</div>
-        <div class="empty-state-text">No tienes notificaciones programadas. Crea una para que te avise aunque la app esté cerrada.</div>
+        <div class="empty-state-text">No tienes alertas programadas. Crea una para que te avise aunque la app esté cerrada.</div>
       </div>`;
     return;
   }
@@ -409,7 +409,7 @@ async function marcarNotificacionRevisada(id) {
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);
   } catch (err) {
-    alert("Error marcando la notificación como revisada: " + err.message);
+    alert("Error marcando la alerta como revisada: " + err.message);
   }
 }
 
@@ -421,7 +421,7 @@ async function borrarNotificacion(id) {
     await Sheets.borrarNotificacion(id);
     await cargarNotificaciones();
   } catch (err) {
-    alert("Error borrando la notificación: " + err.message);
+    alert("Error borrando la alerta: " + err.message);
   }
 }
 
@@ -459,7 +459,7 @@ function limpiarFormNotificacion() {
 
   const modal = document.getElementById("modal-notificacion");
   delete modal.dataset.editId;
-  modal.querySelector(".modal-title").textContent = "Nueva notificación";
+  modal.querySelector(".modal-title").textContent = "Nueva alerta";
   document.getElementById("btn-guardar-notificacion").textContent = "Guardar";
 }
 
@@ -474,7 +474,7 @@ function _isoAFechaHoraLocalInput(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ---- Editar (reusa el modal de "Nueva notificación") ----
+// ---- Editar (reusa el modal de "Nueva alerta") ----
 function abrirEditarNotificacion(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
@@ -511,7 +511,7 @@ function abrirEditarNotificacion(id) {
 
   const modal = document.getElementById("modal-notificacion");
   modal.dataset.editId = id;
-  modal.querySelector(".modal-title").textContent = "Editar notificación";
+  modal.querySelector(".modal-title").textContent = "Editar alerta";
   document.getElementById("btn-guardar-notificacion").textContent = "Guardar cambios";
   modal.classList.remove("hidden");
 }
@@ -585,7 +585,7 @@ async function guardarNotificacion() {
     if (!editId) {
       const estadoPush = await estadoSuscripcionPush();
       if (estadoPush !== "activo") {
-        const activar = confirm("Todavía no activaste las notificaciones push en este dispositivo. ¿Activarlas ahora? (Sin esto, esta notificación se guarda pero no te va a avisar.)");
+        const activar = confirm("Todavía no activaste las alertas push en este dispositivo. ¿Activarlas ahora? (Sin esto, esta alerta se guarda pero no te va a avisar.)");
         if (activar) await activarNotificacionesPush();
       }
     }
@@ -603,7 +603,7 @@ async function guardarNotificacion() {
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${texto}" ${editId ? "actualizada" : "programada"}`);
   } catch (err) {
-    alert("Error guardando la notificación: " + err.message);
+    alert("Error guardando la alerta: " + err.message);
   } finally {
     btn.textContent = editId ? "Guardar cambios" : "Guardar"; btn.disabled = false;
   }
@@ -640,7 +640,7 @@ function renderNotificacionesPanel() {
 
   const porRevisar = notificaciones.filter(n => n.estado === "enviada");
   if (porRevisar.length === 0) {
-    panel.innerHTML = `<div class="recordatorio-panel-vacio">No tienes notificaciones por revisar.</div>`;
+    panel.innerHTML = `<div class="recordatorio-panel-vacio">No tienes alertas por revisar.</div>`;
     return;
   }
 
