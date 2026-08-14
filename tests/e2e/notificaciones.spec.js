@@ -1,10 +1,11 @@
 // Módulo Notificaciones: recordatorios que avisan por Web Push aunque la
 // app esté cerrada. El envío real lo hace el Cron Trigger del Worker (ver
 // worker/src/push.test.mjs para la lógica de fechas) — acá se prueba lo
-// que sí vive en el navegador: crear/cancelar/borrar, y que "Activar en
-// este dispositivo" registre la suscripción en el Worker con los datos
-// correctos. No se puede probar la entrega real de un push en un test
-// headless (necesitaría un servicio de push real).
+// que sí vive en el navegador: crear/revisar/editar/borrar, el detalle de
+// solo lectura, y que "Activar en este dispositivo" registre la
+// suscripción en el Worker con los datos correctos. No se puede probar la
+// entrega real de un push en un test headless (necesitaría un servicio de
+// push real).
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
@@ -143,22 +144,52 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('📌 Alquiler');
   });
 
-  test('cancelar una notificación la mueve a "Canceladas"', async ({ page }) => {
-    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+  test('no muestra botón de Cancelar; marcar como revisada mueve a "Canceladas"', async ({ page }) => {
+    const haceUnaHora = new Date(Date.now() - 3600000).toISOString();
     await mockGoogleApis(page, {
-      Notificaciones: [['N1', 'Sacar la basura', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+      // estado "enviada": simula una que ya disparó y está por revisar.
+      Notificaciones: [['N1', 'Sacar la basura', '', 'unica', haceUnaHora, '', 'yo', 'prueba@example.com', 'enviada', haceUnaHora]],
     });
     await page.goto('/index.html');
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
+    await expect(page.locator('.prestamos-seccion-title')).toContainText('Por revisar');
+    await expect(page.locator('.notif-acciones')).not.toContainText('Cancelar');
 
-    page.once('dialog', (d) => d.accept());
-    await page.locator('.notif-acciones .btn-secondary', { hasText: 'Cancelar' }).click();
+    await page.locator('.notif-btn-ancho', { hasText: 'Revisado' }).click();
 
     await expect(page.locator('.prestamos-seccion-title')).toContainText('Canceladas');
     await expect(page.locator('.notif-cancelada-badge')).toBeVisible();
+  });
+
+  test('doble clic abre el detalle de solo lectura; Editar permite modificar', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N3', 'Pagar internet', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar internet');
+
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-notificacion-detalle')).toBeVisible();
+    await expect(page.locator('#detalle-notificacion-cuerpo')).toContainText('Pagar internet');
+    await page.locator('#btn-cerrar-detalle-notificacion').click();
+    await expect(page.locator('#modal-notificacion-detalle')).toBeHidden();
+
+    await page.locator('.notif-acciones-fila button', { hasText: 'Editar' }).click();
+    await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar notificación');
+    await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');
+
+    await page.locator('#notif-texto').fill('Pagar internet fibra');
+    await page.locator('#btn-guardar-notificacion').click();
+
+    await expect(page.locator('#modal-notificacion')).toBeHidden();
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar internet fibra');
   });
 
   test('borrar una notificación la quita de la lista', async ({ page }) => {
@@ -172,7 +203,7 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await expect(page.locator('.notificacion-item')).toContainText('Revisar el correo');
     page.once('dialog', (d) => d.accept());
-    await page.locator('.btn-borrar').click();
+    await page.locator('.notif-btn-eliminar').click();
 
     await expect(page.locator('#notificaciones-list')).not.toContainText('Revisar el correo');
   });

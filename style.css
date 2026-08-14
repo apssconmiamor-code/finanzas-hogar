@@ -1063,7 +1063,21 @@ input, select, textarea, table {
   display: flex; flex-wrap: wrap; gap: 4px 14px;
   font-size: 12.5px; color: var(--text-3); margin-bottom: 10px;
 }
-.notif-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.notif-acciones { display: flex; flex-direction: column; gap: 8px; }
+.notif-btn-ancho { width: 100%; }
+.notif-acciones-fila { display: flex; gap: 8px; }
+.notif-acciones-fila button { flex: 1; }
+.notif-btn-eliminar { color: var(--red); border-color: var(--red); }
+.notif-btn-eliminar:hover { background: var(--red-soft); }
+
+.detalle-notif-cuerpo { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.detalle-notif-fila {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.detalle-notif-label { color: var(--text-4); }
+.detalle-notif-valor { color: var(--text); font-weight: 600; text-align: right; }
 
 /* ═══════════════ PRÉSTAMOS ═══════════════ */
 .prestamos-resumen { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }

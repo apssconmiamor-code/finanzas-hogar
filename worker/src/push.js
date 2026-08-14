@@ -22,6 +22,11 @@ const HOJA_NOTIFICACIONES = "Notificaciones";
 // con "mailto:mailto:..." -- Apple lo rechazaba con 403 BadJwtToken (bug
 // real, causa raíz de que las notificaciones nunca llegaran).
 const VAPID_CONTACTO = "byco85@gmail.com";
+// Cuántos días se deja una notificación "cancelada" (revisada) en la hoja
+// antes de borrarla sola -- así la lista de Notificaciones no se llena de
+// filas viejas ya resueltas, pero igual queda un rato por si hace falta
+// consultarla.
+const DIAS_ANTES_DE_BORRAR_REVISADAS = 15;
 
 // ---- /push/subscribe: guarda la suscripción de este dispositivo ----
 export async function handlePushSubscribe(request, env, payload) {
@@ -139,6 +144,42 @@ export async function revisarYEnviarNotificaciones(env) {
   }
 
   if (enviadas > 0) console.log(`cron_notificaciones: ${enviadas} notificación(es) enviada(s)`);
+
+  // Limpieza: notificaciones "cancelada" (ya revisadas) hace más de
+  // DIAS_ANTES_DE_BORRAR_REVISADAS días se borran solas de la hoja. Se
+  // borra de atrás para adelante (mayor _fila primero) porque borrar una
+  // fila corre hacia arriba el índice de todas las que están debajo --
+  // borrando de atrás para adelante, el índice de las que faltan por
+  // borrar no cambia.
+  const paraBorrar = filas
+    .filter((f) => debeBorrarsePorRevisada(f, ahora))
+    .sort((a, b) => b._fila - a._fila);
+  for (const fila of paraBorrar) {
+    try {
+      await borrarNotificacionPorFila(auth.accessToken, env, fila);
+    } catch (e) {
+      console.log("cron_notificaciones: error borrando revisada vieja", fila.id, e.message);
+    }
+  }
+  if (paraBorrar.length > 0) {
+    console.log(`cron_notificaciones: ${paraBorrar.length} notificación(es) revisada(s) borrada(s) tras ${DIAS_ANTES_DE_BORRAR_REVISADAS} días`);
+  }
+}
+
+// ---- ¿Ya pasaron los días suficientes desde que se revisó como para
+// borrarla sola? Solo aplica a "cancelada" (ver debeQuedarEnRevision +
+// marcarNotificacionRevisada en notificaciones.js) -- usa "revisado_en" si
+// existe, o "ultimo_envio" como respaldo para filas viejas que se
+// cancelaron antes de que existiera ese campo. Exportada para pruebas
+// unitarias, igual que las demás. ----
+export function debeBorrarsePorRevisada(fila, ahora) {
+  if (fila.estado !== "cancelada") return false;
+  const referencia = fila.revisado_en || fila.ultimo_envio;
+  if (!referencia) return false;
+  const fecha = new Date(referencia);
+  if (isNaN(fecha.getTime())) return false;
+  const limite = new Date(fecha.getTime() + DIAS_ANTES_DE_BORRAR_REVISADAS * 86400000);
+  return ahora >= limite;
 }
 
 // ---- ¿Esta notificación debe quedar "enviada" (pendiente de revisión) en
@@ -267,7 +308,7 @@ async function obtenerAccessTokenAutonomo(env) {
 // acceso a sheets.js del frontend, así que repite las llamadas mínimas). ----
 async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:N")}?valueRenderOption=UNFORMATTED_VALUE`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:O")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!res.ok) throw new Error(`Error leyendo Notificaciones: ${res.status}`);
@@ -278,7 +319,7 @@ async function leerNotificaciones(accessToken, env) {
     fecha_hora: r[4] || "", fecha_limite: r[5] || "", destinatario: r[6] || "yo",
     autor: r[7] || "", estado: r[8] || "activa", ultimo_envio: r[9] || "",
     intervalo: r[10] || "", unidad: r[11] || "", gasto_fijo: r[12] || "",
-    recordar_en_dias: r[13] || "",
+    recordar_en_dias: r[13] || "", revisado_en: r[14] || "",
     _fila: rows.indexOf(r)
   }));
 }
@@ -290,16 +331,45 @@ async function actualizarNotificacion(accessToken, env, fila, cambios) {
     fila.destinatario, fila.autor,
     cambios.estado ?? fila.estado,
     cambios.ultimo_envio ?? fila.ultimo_envio,
-    fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias
+    fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias, fila.revisado_en
   ];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:N${sheetRow}`)}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:O${sheetRow}`)}?valueInputOption=RAW`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ values: [nuevaFila] })
     }
   );
+}
+
+// ---- Borra definitivamente una fila de la hoja Notificaciones (limpieza
+// de revisadas viejas, ver DIAS_ANTES_DE_BORRAR_REVISADAS). ----
+async function borrarNotificacionPorFila(accessToken, env, fila) {
+  const metaRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!metaRes.ok) throw new Error(`Error obteniendo metadata: ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const sheet = meta.sheets.find((s) => s.properties.title === HOJA_NOTIFICACIONES);
+  if (!sheet) return;
+  const sheetId = sheet.properties.sheetId;
+  const sheetRowIndex = fila._fila + 1; // +1 por encabezado (índices de grid, base 0)
+
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}:batchUpdate`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: sheetRowIndex, endIndex: sheetRowIndex + 1 } }
+        }]
+      })
+    }
+  );
+  if (!res.ok) throw new Error(`Error borrando notificación: ${res.status}`);
 }
 
 async function todosLosEmailsConSuscripcion(env) {

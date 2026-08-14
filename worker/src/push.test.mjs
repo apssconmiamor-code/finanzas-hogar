@@ -1,4 +1,4 @@
-import { estaVencida, tocaRecordatorioDeSeguimiento, debeQuedarEnRevision } from "./push.js";
+import { estaVencida, tocaRecordatorioDeSeguimiento, debeQuedarEnRevision, debeBorrarsePorRevisada } from "./push.js";
 
 let fallos = 0;
 function assert(desc, actual, esperado) {
@@ -105,6 +105,22 @@ assert("recurrente SIN recordar_en_dias -> no queda en revisión (sigue su ciclo
 
 assert("recurrente CON recordar_en_dias -> sí queda en revisión",
   debeQuedarEnRevision({ tipo: "recurrente", recordar_en_dias: 3 }), true);
+
+// ---- limpieza: borrar "cancelada" (revisada) 15 días después ----
+assert("cancelada hace 16 días (revisado_en) -> true, se borra",
+  debeBorrarsePorRevisada({ estado: "cancelada", revisado_en: "2026-07-30T14:00:00Z", ultimo_envio: "" }, AHORA), true);
+
+assert("cancelada hace solo 10 días -> false, todavía no",
+  debeBorrarsePorRevisada({ estado: "cancelada", revisado_en: "2026-08-05T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+assert("no está cancelada -> false aunque sea vieja",
+  debeBorrarsePorRevisada({ estado: "activa", revisado_en: "2026-07-30T14:00:00Z", ultimo_envio: "" }, AHORA), false);
+
+assert("cancelada sin revisado_en (fila vieja) -> usa ultimo_envio como respaldo",
+  debeBorrarsePorRevisada({ estado: "cancelada", revisado_en: "", ultimo_envio: "2026-07-30T14:00:00Z" }, AHORA), true);
+
+assert("cancelada sin revisado_en NI ultimo_envio -> false (no hay de dónde contar)",
+  debeBorrarsePorRevisada({ estado: "cancelada", revisado_en: "", ultimo_envio: "" }, AHORA), false);
 
 console.log(fallos === 0 ? "\n✅ TODO OK" : `\n❌ ${fallos} prueba(s) fallaron`);
 process.exit(fallos === 0 ? 0 : 1);
