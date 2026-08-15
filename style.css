@@ -469,17 +469,26 @@ input, select, textarea, table {
 }
 .label-opcional { color: var(--text-4); font-weight: 400; }
 
-/* Category buttons — las 4 en una sola fila, mismo ancho cada una */
-.cat-btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+/* Category buttons — grilla 2x2 "pegada" (mismo criterio que
+   .modal-actions de Cancelar/Guardar: bordes compartidos, un solo
+   bloque), doble de ancho por botón que la fila de 4 que tenía antes. */
+.cat-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
 .cat-btn {
-  padding: 10px 4px; border: 1.5px solid var(--border-mid);
-  border-radius: var(--r-sm); background: var(--bg);
-  font-size: 12px; font-weight: 500; cursor: pointer;
+  padding: 12px 8px; border: 1px solid var(--border-mid);
+  border-radius: 0; background: var(--bg);
+  font-size: 13px; font-weight: 500; cursor: pointer;
   font-family: var(--font); color: var(--text-2);
   transition: all 0.15s; text-align: center;
+  position: relative; margin-top: -1px; margin-left: -1px;
 }
-.cat-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
-.cat-btn.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.cat-btn:nth-child(-n+2) { margin-top: 0; }
+.cat-btn:nth-child(2n+1) { margin-left: 0; }
+.cat-btn:nth-child(1) { border-top-left-radius: var(--r-sm); }
+.cat-btn:nth-child(2) { border-top-right-radius: var(--r-sm); }
+.cat-btn:nth-child(3) { border-bottom-left-radius: var(--r-sm); }
+.cat-btn:nth-child(4) { border-bottom-right-radius: var(--r-sm); }
+.cat-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); z-index: 1; }
+.cat-btn.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; z-index: 1; }
 .concepto-placeholder { font-size: 13px; color: var(--text-4); padding: 12px 0; text-align: center; font-style: italic; }
 .input-predictivo { position: relative; }
 
@@ -1174,8 +1183,8 @@ input, select, textarea, table {
   .resumen-valor { font-size: 14px; letter-spacing: -0.2px; }
   .prestamos-resumen { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
-  .cat-btn-group { grid-template-columns: repeat(4, 1fr); }
-  .cat-btn { font-size: 11px; padding: 9px 3px; }
+  .cat-btn-group { grid-template-columns: 1fr 1fr; }
+  .cat-btn { font-size: 12px; padding: 11px 6px; }
   /* cajas always 2 cols on mobile */
   .cajas-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
