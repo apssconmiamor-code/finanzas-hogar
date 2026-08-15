@@ -1085,7 +1085,6 @@ document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => 
 
 // ---- LÓGICA CONCEPTO DINÁMICO ----
 function poblarSelectGastosFijos() {
-  const sel = document.getElementById("mov-concepto-fijo");
   const editId = document.getElementById("modal-movimiento").dataset.editId;
 
   // Usar el mes de la fecha seleccionada en el formulario, no el mes de hoy
@@ -1110,12 +1109,14 @@ function poblarSelectGastosFijos() {
 
   const todosLosFijos = [...GASTOS_FIJOS, ...conceptosPrestamos];
 
-  sel.innerHTML = `<option value="">Selecciona un gasto fijo...</option>` +
-    todosLosFijos.map(c => {
-      const yaPagado = pagadosEnFecha.has(c);
-      // No bloquear: solo mostrar indicador visual de que ya está registrado este mes
-      return `<option value="${c}">${yaPagado ? "✓ " : ""}${c}${yaPagado ? " (ya registrado)" : ""}</option>`;
-    }).join("");
+  // {value, label}: el label lleva el indicador "(ya registrado)" pero el
+  // valor real guardado es el nombre del concepto solo, sin decorar.
+  const opciones = todosLosFijos.map(c => {
+    const yaPagado = pagadosEnFecha.has(c);
+    return { value: c, label: yaPagado ? `✓ ${c} (ya registrado)` : c };
+  });
+
+  poblarPanelConcepto("mov-concepto-fijo", "panel-concepto-fijo", opciones);
 }
 
 function actualizarCampoConcepto() {
@@ -1183,14 +1184,18 @@ else if (cat === "Gasto variable") {
 // hasta iOS 26). Reemplazado por un panel propio, mismo patrón ya probado
 // acá mismo para el selector de Caja (.caja-picker-panel).
 const PANELES_CONCEPTO = {
+  "mov-concepto-fijo":     "panel-concepto-fijo",
   "mov-concepto-variable": "panel-concepto-variable",
   "mov-concepto-ingreso":  "panel-concepto-ingreso"
 };
 
+// "opciones" acepta un array de strings (Variable/Ingreso, donde valor y
+// texto mostrado son lo mismo) o de {value, label} (Fijos, donde el label
+// lleva el "(ya registrado)" pero el valor guardado es el nombre solo).
 function poblarPanelConcepto(inputId, panelId, opciones) {
   const panel = document.getElementById(panelId);
   if (!panel) return;
-  panel._opciones = opciones;
+  panel._opciones = opciones.map(o => typeof o === "string" ? { value: o, label: o } : o);
   renderPanelConcepto(inputId, panelId);
 }
 
@@ -1199,17 +1204,22 @@ function renderPanelConcepto(inputId, panelId) {
   const panel = document.getElementById(panelId);
   if (!input || !panel) return;
   const opciones = panel._opciones || [];
-  const filtro = input.value.trim().toLowerCase();
-  const filtradas = filtro ? opciones.filter(o => o.toLowerCase().includes(filtro)) : opciones;
+  // Un campo de solo lectura (Fijos) siempre muestra la lista completa --
+  // filtrar por su propio valor ya elegido lo dejaría casi vacío al
+  // volver a abrirlo. Los campos que sí se pueden escribir (Variable/
+  // Ingreso) se refiltran con lo que el usuario va tipeando.
+  const filtro = input.readOnly ? "" : input.value.trim().toLowerCase();
+  const filtradas = filtro ? opciones.filter(o => o.label.toLowerCase().includes(filtro)) : opciones;
 
   panel.innerHTML = filtradas.length > 0
-    ? filtradas.map(o => `<button type="button" class="caja-picker-option" data-value="${escapeAttr(o)}">${escapeHtml(o)}</button>`).join("")
+    ? filtradas.map(o => `<button type="button" class="caja-picker-option" data-value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</button>`).join("")
     : `<div class="caja-picker-empty">Sin coincidencias</div>`;
 
   panel.querySelectorAll(".caja-picker-option").forEach(btn => {
     btn.addEventListener("click", () => {
       input.value = btn.dataset.value;
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
       panel.classList.add("hidden");
     });
   });
@@ -2322,6 +2332,7 @@ function limpiarFormMov() {
   document.getElementById("mov-concepto-fijo").value = "";
   document.getElementById("mov-concepto-variable").value = "";
   document.getElementById("mov-concepto-ingreso").value = "";
+  document.getElementById("panel-concepto-fijo")?.classList.add("hidden");
   document.getElementById("panel-concepto-variable")?.classList.add("hidden");
   document.getElementById("panel-concepto-ingreso")?.classList.add("hidden");
   document.getElementById("mov-monto").value = "";
