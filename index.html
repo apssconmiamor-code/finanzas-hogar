@@ -310,20 +310,17 @@
                 <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-fijo" aria-label="Mostrar opciones">▾</button>
               </div>
               <div class="campo-desplegable hidden" id="wrap-concepto-variable">
-                <input id="mov-concepto-variable" type="text" list="lista-variables"
+                <input id="mov-concepto-variable" type="text" autocomplete="off"
                   placeholder="Escribe o elige un gasto variable…" class="input"/>
-                <datalist id="lista-variables"></datalist>
                 <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-variable" aria-label="Mostrar opciones">▾</button>
+                <div class="caja-picker-panel hidden" id="panel-concepto-variable"></div>
               </div>
               <div class="campo-desplegable hidden" id="wrap-concepto-ingreso">
-                <input id="mov-concepto-ingreso" type="text" list="lista-ingresos"
+                <input id="mov-concepto-ingreso" type="text" autocomplete="off"
                   placeholder="Fuente de ingreso…" class="input"/>
                 <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-ingreso" aria-label="Mostrar opciones">▾</button>
+                <div class="caja-picker-panel hidden" id="panel-concepto-ingreso"></div>
               </div>
-              <datalist id="lista-ingresos">
-                <option value="SURA"/><option value="MEDFAN"/>
-                <option value="TATEQUIETO"/><option value="OTRO"/>
-              </datalist>
               <div id="concepto-placeholder" class="concepto-placeholder">Primero selecciona una categoría</div>
             </div>
             <div id="row-transferencia" class="hidden">

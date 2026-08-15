@@ -491,19 +491,21 @@ input, select, textarea, table {
 .cat-btn.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; z-index: 1; }
 .concepto-placeholder { font-size: 13px; color: var(--text-4); padding: 12px 0; text-align: center; font-style: italic; }
 
-/* Campo de Concepto (select de gasto fijo, o input+datalist de variable/
-   ingreso) -- ya no se abre solo al elegir la categoría (ver
-   actualizarCampoConcepto en app.js); se abre con doble clic en el campo
-   o tocando este botón, ambos dentro del mismo recuadro. */
+/* Campo de Concepto (select de gasto fijo, o input con panel propio de
+   variable/ingreso -- ver .caja-picker-panel más abajo, el datalist nativo
+   no es confiable en Safari de iOS) -- ya no se abre solo al elegir la
+   categoría (ver actualizarCampoConcepto en app.js); se abre con doble
+   clic en el campo o tocando este botón, ambos dentro del mismo recuadro. */
 .campo-desplegable { position: relative; }
-.campo-desplegable .input { padding-right: 38px; }
+.campo-desplegable .input { padding-right: 56px; }
 .btn-desplegar-concepto {
-  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; color: var(--text-4);
-  font-size: 15px; line-height: 1; cursor: pointer;
-  padding: 8px 10px; display: flex; align-items: center; justify-content: center;
+  position: absolute; right: 6px; top: 6px; bottom: 6px; width: 42px;
+  background: var(--brand-soft); border: 1.5px solid var(--brand);
+  border-radius: var(--r-sm); color: var(--brand);
+  font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
 }
-.btn-desplegar-concepto:active { color: var(--brand); }
+.btn-desplegar-concepto:active { background: var(--brand); color: #fff; }
 
 /* ═══════════════ SELECTOR DE CAJA CON COLOR ═══════════════ */
 /* Reemplaza visualmente al <select> nativo: iOS no pinta el fondo de las <option> */

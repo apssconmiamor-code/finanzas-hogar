@@ -1163,48 +1163,117 @@ setupTipoCambioListeners();
 
 else if (cat === "Gasto variable") {
   variable.classList.remove("hidden");
-  // Poblar datalist con GASTOS_VARIABLES
-  const dl = document.getElementById("lista-variables");
-  dl.innerHTML = GASTOS_VARIABLES.map(v => `<option value="${v}"/>`).join("");
+  poblarPanelConcepto("mov-concepto-variable", "panel-concepto-variable", GASTOS_VARIABLES);
 }
 
   else if (cat === "Ingreso") {
       ingreso.classList.remove("hidden");
-      // Poblar datalist con FUENTES_INGRESO (incluye las agregadas desde
-      // el presupuesto vía "Nuevo concepto", no solo las fijas de fábrica)
-      const dlIngreso = document.getElementById("lista-ingresos");
-      dlIngreso.innerHTML = FUENTES_INGRESO.map(f => `<option value="${f}"/>`).join("");
+      // Incluye las fuentes agregadas desde el presupuesto vía "Nuevo
+      // concepto", no solo las fijas de fábrica.
+      poblarPanelConcepto("mov-concepto-ingreso", "panel-concepto-ingreso", FUENTES_INGRESO);
     } else {
       placeholder.classList.remove("hidden");
     }
   }
 }
 
-// Abre el picker nativo del <select>, o la lista del datalist del <input>,
-// a propósito -- se llama desde el botón ▾ o el doble clic en el campo
+// mov-concepto-variable / mov-concepto-ingreso ya no usan <datalist>
+// nativo -- el de Safari en iOS es poco confiable (a veces no aparece con
+// solo enfocar el campo, a veces ni deja elegir una opción; sigue así
+// hasta iOS 26). Reemplazado por un panel propio, mismo patrón ya probado
+// acá mismo para el selector de Caja (.caja-picker-panel).
+const PANELES_CONCEPTO = {
+  "mov-concepto-variable": "panel-concepto-variable",
+  "mov-concepto-ingreso":  "panel-concepto-ingreso"
+};
+
+function poblarPanelConcepto(inputId, panelId, opciones) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  panel._opciones = opciones;
+  renderPanelConcepto(inputId, panelId);
+}
+
+function renderPanelConcepto(inputId, panelId) {
+  const input = document.getElementById(inputId);
+  const panel = document.getElementById(panelId);
+  if (!input || !panel) return;
+  const opciones = panel._opciones || [];
+  const filtro = input.value.trim().toLowerCase();
+  const filtradas = filtro ? opciones.filter(o => o.toLowerCase().includes(filtro)) : opciones;
+
+  panel.innerHTML = filtradas.length > 0
+    ? filtradas.map(o => `<button type="button" class="caja-picker-option" data-value="${escapeAttr(o)}">${escapeHtml(o)}</button>`).join("")
+    : `<div class="caja-picker-empty">Sin coincidencias</div>`;
+
+  panel.querySelectorAll(".caja-picker-option").forEach(btn => {
+    btn.addEventListener("click", () => {
+      input.value = btn.dataset.value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      panel.classList.add("hidden");
+    });
+  });
+}
+
+// Abre el picker nativo del <select>, o el panel propio del <input>, a
+// propósito -- se llama desde el botón ▾ o el doble clic en el campo
 // (listeners en setupDesplegablesConcepto más abajo).
 function abrirDesplegableConcepto(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  if (el.tagName === "SELECT" && typeof el.showPicker === "function") {
-    try { el.showPicker(); return; } catch {}
+
+  const panelId = PANELES_CONCEPTO[id];
+  if (panelId) {
+    renderPanelConcepto(id, panelId);
+    document.querySelectorAll(".caja-picker-panel").forEach(p => {
+      if (p.id !== panelId) p.classList.add("hidden");
+    });
+    document.getElementById(panelId)?.classList.remove("hidden");
+    el.focus();
+    return;
   }
+
+  if (el.tagName === "SELECT") {
+    el.focus();
+    if (typeof el.showPicker === "function") {
+      try { el.showPicker(); return; } catch {}
+    }
+    // Respaldo para navegadores sin showPicker(): un click sintético sobre
+    // el propio <select>, dentro del mismo gesto del usuario, suele abrir
+    // el picker nativo igual.
+    try { el.click(); } catch {}
+    return;
+  }
+
   el.focus();
 }
 
-// Botón ▾ y doble clic en el campo (select o input+datalist) abren sus
-// opciones a propósito -- ya no se despliegan solas al elegir la categoría.
+// Botón ▾ y doble clic en el campo abren sus opciones a propósito -- ya no
+// se despliegan solas al elegir la categoría. Escribir en los campos con
+// panel propio (variable/ingreso) lo refiltra en vivo, como un autocompletar.
 function setupDesplegablesConcepto() {
   document.querySelectorAll(".btn-desplegar-concepto").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       abrirDesplegableConcepto(btn.dataset.target);
     });
   });
   document.querySelectorAll(".campo-desplegable").forEach(wrap => {
-    wrap.addEventListener("dblclick", () => {
+    wrap.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
       const campo = wrap.querySelector("select, input");
       if (campo) abrirDesplegableConcepto(campo.id);
+    });
+  });
+  Object.keys(PANELES_CONCEPTO).forEach(inputId => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("input", () => {
+      const panelId = PANELES_CONCEPTO[inputId];
+      renderPanelConcepto(inputId, panelId);
+      document.getElementById(panelId)?.classList.remove("hidden");
     });
   });
 }
@@ -2253,6 +2322,8 @@ function limpiarFormMov() {
   document.getElementById("mov-concepto-fijo").value = "";
   document.getElementById("mov-concepto-variable").value = "";
   document.getElementById("mov-concepto-ingreso").value = "";
+  document.getElementById("panel-concepto-variable")?.classList.add("hidden");
+  document.getElementById("panel-concepto-ingreso")?.classList.add("hidden");
   document.getElementById("mov-monto").value = "";
   document.getElementById("mov-caja").value = "";
   document.getElementById("mov-caja-origen").value = "";
