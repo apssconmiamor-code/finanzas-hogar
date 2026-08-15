@@ -459,14 +459,22 @@ input, select, textarea, table {
 .form-group label { font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: -0.1px; }
 .form-row { display: flex; gap: 12px; }
 .form-row .form-group { flex: 1; }
+
+/* Título + fecha chica en la misma línea (modal Nuevo movimiento) --
+   .modal-card ya espacia a todos sus hijos con gap, no hace falta margen. */
+.modal-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.input-fecha-chica {
+  width: auto; max-width: 148px; padding: 6px 8px;
+  font-size: 13px; flex-shrink: 0;
+}
 .label-opcional { color: var(--text-4); font-weight: 400; }
 
-/* Category buttons */
-.cat-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Category buttons — las 4 en una sola fila, mismo ancho cada una */
+.cat-btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .cat-btn {
-  padding: 10px 8px; border: 1.5px solid var(--border-mid);
+  padding: 10px 4px; border: 1.5px solid var(--border-mid);
   border-radius: var(--r-sm); background: var(--bg);
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-size: 12px; font-weight: 500; cursor: pointer;
   font-family: var(--font); color: var(--text-2);
   transition: all 0.15s; text-align: center;
 }
@@ -804,6 +812,10 @@ input, select, textarea, table {
 /* Transferencia form */
 .transferencia-card { background: var(--bg); border-radius: var(--r-md); padding: 16px; border: 1px solid var(--border); }
 .transferencia-row { display: flex; align-items: flex-end; gap: 12px; }
+/* Sin esto, el <select> de destino empuja su .form-group más allá del
+   ancho disponible y se sale del recuadro -- un flex item no se achica
+   por debajo del contenido de su hijo a menos que se le diga que puede. */
+.transferencia-row .form-group { flex: 1; min-width: 0; }
 .transferencia-arrow { font-size: 20px; color: var(--text-4); padding-bottom: 12px; flex-shrink: 0; }
 .label-origen { color: var(--red); font-size: 11px; }
 .label-destino { color: var(--green-dark); font-size: 11px; }
@@ -1162,7 +1174,8 @@ input, select, textarea, table {
   .resumen-valor { font-size: 14px; letter-spacing: -0.2px; }
   .prestamos-resumen { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
-  .cat-btn-group { grid-template-columns: 1fr 1fr; }
+  .cat-btn-group { grid-template-columns: repeat(4, 1fr); }
+  .cat-btn { font-size: 11px; padding: 9px 3px; }
   /* cajas always 2 cols on mobile */
   .cajas-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
@@ -1268,18 +1281,23 @@ input, select, textarea, table {
 }
 .caja-card { user-select: none; }
 
-/* ═══════════════ FOTOS EN MOVIMIENTO ═══════════════ */
+/* ═══════════════ SOPORTE EN MOVIMIENTO (Cámara / Grabar) ═══════════════ */
 .fotos-actions-row {
   display: flex; gap: 8px; margin-bottom: 8px;
 }
 .fotos-btn {
-  cursor: pointer; user-select: none;
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 7px 14px; font-size: 13px; border-radius: 4px;
+  cursor: pointer; user-select: none; flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 10px 8px; font-size: 13px; border-radius: 4px;
   border: 1.5px solid var(--border-mid); background: var(--surface);
   color: var(--text-2); font-weight: 500; white-space: nowrap;
+  font-family: var(--font);
 }
 .fotos-btn:active { opacity: 0.7; }
+.fotos-btn.grabando {
+  background: var(--red-soft); border-color: var(--red); color: var(--red);
+  animation: recordatorioPulso 1s ease-in-out infinite;
+}
 .fotos-preview {
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
 }

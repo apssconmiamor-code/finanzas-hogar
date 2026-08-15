@@ -26,7 +26,7 @@ test.describe('Adjuntar foto/audio sin conexión', () => {
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('500000');
-    await page.locator('#recibo-file').setInputFiles(FOTO_FALSA);
+    await page.locator('#camara-file').setInputFiles(FOTO_FALSA);
     await expect(page.locator('#fotos-preview .foto-thumb')).toHaveCount(1);
 
     await context.setOffline(true);

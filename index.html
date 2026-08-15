@@ -263,10 +263,15 @@
         <!-- Modal movimiento -->
         <div id="modal-movimiento" class="modal hidden">
           <div class="modal-card">
-            <h3 class="modal-title">Nuevo movimiento</h3>
-            <div class="form-group">
-              <label>Fecha</label>
-              <input id="mov-fecha" type="date" class="input"/>
+            <div class="modal-header-row">
+              <h3 class="modal-title">Nuevo movimiento</h3>
+              <input id="mov-fecha" type="date" class="input input-fecha-chica"/>
+            </div>
+            <div class="form-group" id="grupo-monto">
+              <label>Monto</label>
+              <input id="mov-monto" type="text" inputmode="decimal" placeholder="0 ó 4000+5000" class="input"/>
+              <span id="mov-monto-calc" class="mov-saldo-hint hidden"></span>
+              <span id="mov-fondos-warn" class="mov-fondos-warn hidden"></span>
             </div>
             <div class="form-group">
               <label>Categoría</label>
@@ -309,18 +314,10 @@
               </datalist>
               <div id="concepto-placeholder" class="concepto-placeholder">Primero selecciona una categoría</div>
             </div>
-            <div class="form-row" id="row-caja-normal">
-              <div class="form-group">
-                <label>Caja</label>
-                <select id="mov-caja" class="input"><option value="">Selecciona una caja</option></select>
-                <span id="mov-saldo-disponible" class="mov-saldo-hint hidden"></span>
-              </div>
-              <div class="form-group">
-                <label>Monto</label>
-                <input id="mov-monto" type="text" inputmode="decimal" placeholder="0 ó 4000+5000" class="input"/>
-                <span id="mov-monto-calc" class="mov-saldo-hint hidden"></span>
-                <span id="mov-fondos-warn" class="mov-fondos-warn hidden"></span>
-              </div>
+            <div class="form-group" id="row-caja-normal">
+              <label>Caja</label>
+              <select id="mov-caja" class="input"><option value="">Selecciona una caja</option></select>
+              <span id="mov-saldo-disponible" class="mov-saldo-hint hidden"></span>
             </div>
             <div id="row-transferencia" class="hidden">
               <div class="transferencia-card">
@@ -353,12 +350,11 @@
                 class="input" style="resize:none;min-height:60px;font-size:15px;line-height:1.4"></textarea>
             </div>
             <div class="form-group">
-              <label>Fotos <span class="label-opcional">(opcional)</span></label>
+              <label>Soporte <span class="label-opcional">(opcional)</span></label>
               <div class="fotos-actions-row">
-                <label class="btn-secondary btn-sm fotos-btn" for="recibo-file">📎 Galería</label>
-                <input id="recibo-file" type="file" accept="image/*" multiple style="display:none"/>
                 <label class="btn-secondary btn-sm fotos-btn" for="camara-file">📷 Cámara</label>
                 <input id="camara-file" type="file" accept="image/*" capture="environment" style="display:none"/>
+                <button type="button" class="btn-secondary btn-sm fotos-btn" id="btn-mov-audio">🎤 Grabar</button>
               </div>
               <div id="fotos-existentes" class="fotos-preview"></div>
               <div id="fotos-preview" class="fotos-preview"></div>

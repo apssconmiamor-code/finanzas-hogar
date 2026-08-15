@@ -863,12 +863,13 @@ function animarYCerrar(el, cerrarDeVerdad) {
 function cerrarPantallaActual() {
   const modalAbierto = document.querySelector(".modal:not(.hidden)");
   if (modalAbierto) {
-    // El modal de grabar recordatorio necesita apagar el micrófono al cerrarse,
-    // no solo ocultarse — usa su propio cierre en vez del genérico.
+    // Los modales que pueden estar grabando audio necesitan apagar el
+    // micrófono al cerrarse, no solo ocultarse.
     animarYCerrar(modalAbierto, () => {
       if (modalAbierto.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
         cerrarModalCrearRecordatorio();
       } else {
+        if (modalAbierto.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
         modalAbierto.classList.add("hidden");
       }
     });
@@ -1125,6 +1126,7 @@ function actualizarCampoConcepto() {
   const rowNormal    = document.getElementById("row-caja-normal");
   const rowTransfer  = document.getElementById("row-transferencia");
   const grupoConcept = document.getElementById("grupo-concepto");
+  const grupoMonto   = document.getElementById("grupo-monto");
 
   fijo.classList.add("hidden");
   variable.classList.add("hidden");
@@ -1133,6 +1135,7 @@ function actualizarCampoConcepto() {
 
 if (cat === "Transferencia") {
     rowNormal.classList.add("hidden");
+    grupoMonto?.classList.add("hidden");
     rowTransfer.classList.remove("hidden");
     grupoConcept.classList.add("hidden");
   poblarSelectCajas("mov-caja-origen");
@@ -1144,6 +1147,7 @@ setupTipoCambioListeners();
   }
   else {
     rowNormal.classList.remove("hidden");
+    grupoMonto?.classList.remove("hidden");
     rowTransfer.classList.add("hidden");
     grupoConcept.classList.remove("hidden");
   if (cat === "Gasto fijo") {
@@ -1547,7 +1551,7 @@ function renderMovimientos() {
       ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
     const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
     const fotoHTML = primeraFoto
-      ? `<span class="mov-card-foto-icono" title="Tiene foto adjunta" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
+      ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
       : "";
 
     return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
@@ -1605,9 +1609,7 @@ function mostrarResumenMovimiento(id) {
 
   const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
   const fotoHTML = primeraFoto
-    ? `<a class="foto-thumb resumen-mov-foto" href="#" title="Cargando…">
-        <img class="foto-thumb-img" alt="foto del movimiento"/>
-      </a>`
+    ? `<div class="resumen-mov-foto-wrap"><span class="foto-thumb" title="Cargando…"></span></div>`
     : "";
 
   document.getElementById("resumen-mov-titulo").textContent = m.concepto || "Sin concepto";
@@ -1624,14 +1626,20 @@ function mostrarResumenMovimiento(id) {
   document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
 
   if (primeraFoto) {
-    const link = document.querySelector(".resumen-mov-foto");
-    Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(primeraFoto)).then((blobUrl) => {
-      if (!link) return;
-      link.href = blobUrl; link.target = "_blank"; link.rel = "noopener";
-      link.title = "Ver foto completa";
-      link.querySelector("img").src = blobUrl;
+    const slot = document.querySelector(".resumen-mov-foto-wrap .foto-thumb");
+    const fileId = Sheets.idDesdeUrlDrive(primeraFoto);
+    Promise.all([Sheets.obtenerBlobUrlDrive(fileId), _esArchivoDeAudioDrive(fileId)]).then(([blobUrl, esAudio]) => {
+      if (!slot) return;
+      if (esAudio) {
+        slot.outerHTML = `<div class="recordatorio-audio-preview"><audio controls src="${blobUrl}"></audio></div>`;
+      } else {
+        slot.outerHTML = `
+          <a class="foto-thumb resumen-mov-foto" href="${blobUrl}" target="_blank" rel="noopener" title="Ver foto completa">
+            <img class="foto-thumb-img" alt="foto del movimiento" src="${blobUrl}"/>
+          </a>`;
+      }
     }).catch((err) => {
-      if (link) link.title = "No se pudo cargar la foto: " + err.message;
+      if (slot) { slot.title = "No se pudo cargar: " + err.message; slot.textContent = "⚠️"; }
     });
   }
 }
@@ -1732,7 +1740,33 @@ async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExisten
   }
 }
 
+// Si el usuario le da Guardar sin haber tocado "Detener", la grabación se
+// corta y se procesa acá para no perder el audio (mismo patrón que
+// detenerGrabacionYEsperar en recordatorios.js).
+function detenerGrabacionMovYEsperar() {
+  return new Promise((resolve) => {
+    if (!movGrabando || !movMediaRecorder) { resolve(); return; }
+    const recorder = movMediaRecorder;
+    const chunksFinales = movAudioChunks;
+    recorder.onstop = () => {
+      const blob = new Blob(chunksFinales, { type: recorder.mimeType || "audio/webm" });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        pendingFotos.push({ data: e.target.result, type: blob.type });
+        renderFotosPreview();
+        resolve();
+      };
+      reader.readAsDataURL(blob);
+    };
+    movGrabando = false;
+    const btn = document.getElementById("btn-mov-audio");
+    if (btn) { btn.textContent = "🎤 Grabar"; btn.classList.remove("grabando"); }
+    recorder.stop();
+  });
+}
+
 async function guardarMovimiento() {
+  await detenerGrabacionMovYEsperar();
   const editId = document.getElementById("modal-movimiento").dataset.editId;
 
   if (editId) {
@@ -1950,29 +1984,47 @@ async function abrirFotoMovimiento(url) {
   }
 }
 
+// El link de Drive no dice por sí solo si es foto o audio -- se consulta
+// el mimeType real del archivo (metadata liviana, sin bajar el contenido).
+async function _esArchivoDeAudioDrive(fileId) {
+  if (!fileId) return false;
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType`, {
+      headers: { Authorization: `Bearer ${Sheets.token}` }
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return (data.mimeType || "").startsWith("audio/");
+  } catch { return false; }
+}
+
 async function renderFotosExistentes(recibo) {
   const cont = document.getElementById("fotos-existentes");
   if (!cont) return;
   const urls = (recibo || "").split(",").map(u => u.trim()).filter(Boolean);
   if (urls.length === 0) { cont.innerHTML = ""; return; }
 
-  cont.innerHTML = urls.map(() => `
-    <a class="foto-thumb" href="#" title="Cargando…">
-      <img class="foto-thumb-img" alt="foto guardada"/>
-    </a>
-  `).join("");
+  cont.innerHTML = urls.map(() => `<span class="foto-thumb" title="Cargando…"></span>`).join("");
+  const slots = cont.querySelectorAll(".foto-thumb");
 
-  const links = cont.querySelectorAll("a.foto-thumb");
   for (let i = 0; i < urls.length; i++) {
+    const fileId = Sheets.idDesdeUrlDrive(urls[i]);
     try {
-      const blobUrl = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(urls[i]));
-      links[i].href = blobUrl;
-      links[i].target = "_blank";
-      links[i].rel = "noopener";
-      links[i].title = "Ver foto completa";
-      links[i].querySelector("img").src = blobUrl;
+      const [blobUrl, esAudio] = await Promise.all([
+        Sheets.obtenerBlobUrlDrive(fileId),
+        _esArchivoDeAudioDrive(fileId)
+      ]);
+      if (esAudio) {
+        slots[i].outerHTML = `<div class="recordatorio-audio-preview"><audio controls src="${blobUrl}"></audio></div>`;
+      } else {
+        slots[i].outerHTML = `
+          <a class="foto-thumb" href="${blobUrl}" target="_blank" rel="noopener" title="Ver foto completa">
+            <img class="foto-thumb-img" alt="foto guardada" src="${blobUrl}"/>
+          </a>`;
+      }
     } catch (err) {
-      links[i].title = "No se pudo cargar la foto: " + err.message;
+      slots[i].title = "No se pudo cargar: " + err.message;
+      slots[i].textContent = "⚠️";
     }
   }
 }
@@ -2179,12 +2231,11 @@ function limpiarFormMov() {
   refrescarSelectorCaja("mov-caja-origen");
   refrescarSelectorCaja("mov-caja-destino");
 
-  // Limpiar fotos pendientes
+  // Limpiar fotos/audio pendientes
+  detenerMicrofonoMov();
   pendingFotos = [];
   renderFotosPreview();
   renderFotosExistentes("");
-  const reciboFile = document.getElementById("recibo-file");
-  if (reciboFile) reciboFile.value = "";
   const camaraFile = document.getElementById("camara-file");
   if (camaraFile) camaraFile.value = "";
   delete document.getElementById("modal-movimiento").dataset.editId;
@@ -3820,16 +3871,17 @@ function actualizarTopbarTitulo(tab) {
 }
 
 // =============================================
-// FOTOS EN MOVIMIENTOS
+// SOPORTE EN MOVIMIENTOS (fotos + audio) -- comparten el mismo array y el
+// mismo pipeline de subida/offline; solo cambia cómo se previsualiza y
+// renderiza cada uno según pendingFotos[i].type.
 // =============================================
 
 let pendingFotos = [];
 
 function setupFotosListeners() {
-  const fileInput   = document.getElementById("recibo-file");
   const camaraInput = document.getElementById("camara-file");
-  if (fileInput)   fileInput.addEventListener("change",   (e) => agregarFotos(e.target.files));
   if (camaraInput) camaraInput.addEventListener("change", (e) => agregarFotos(e.target.files));
+  document.getElementById("btn-mov-audio")?.addEventListener("click", toggleGrabacionAudioMov);
 }
 
 function agregarFotos(files) {
@@ -3847,16 +3899,27 @@ function renderFotosPreview() {
   const preview = document.getElementById("fotos-preview");
   const status  = document.getElementById("recibo-status");
   if (!preview) return;
-  preview.innerHTML = pendingFotos.map((f, i) => `
-    <div class="foto-thumb">
-      <img src="${f.data}" alt="foto ${i + 1}" class="foto-thumb-img"/>
-      <button class="foto-thumb-remove" type="button" onclick="quitarFoto(${i})">×</button>
-    </div>
-  `).join("");
+  preview.innerHTML = pendingFotos.map((f, i) => {
+    if ((f.type || "").startsWith("audio/")) {
+      return `
+        <div class="recordatorio-audio-preview">
+          <audio controls src="${f.data}"></audio>
+          <button class="foto-thumb-remove" type="button" onclick="quitarFoto(${i})">×</button>
+        </div>`;
+    }
+    return `
+      <div class="foto-thumb">
+        <img src="${f.data}" alt="foto ${i + 1}" class="foto-thumb-img"/>
+        <button class="foto-thumb-remove" type="button" onclick="quitarFoto(${i})">×</button>
+      </div>`;
+  }).join("");
   if (status) {
-    status.textContent = pendingFotos.length > 0
-      ? `${pendingFotos.length} foto${pendingFotos.length !== 1 ? "s" : ""} adjunta${pendingFotos.length !== 1 ? "s" : ""}`
-      : "";
+    const nFotos = pendingFotos.filter(f => !(f.type || "").startsWith("audio/")).length;
+    const nAudio = pendingFotos.length - nFotos;
+    const partes = [];
+    if (nFotos > 0) partes.push(`${nFotos} foto${nFotos !== 1 ? "s" : ""}`);
+    if (nAudio > 0) partes.push(`${nAudio} audio${nAudio !== 1 ? "s" : ""}`);
+    status.textContent = partes.length > 0 ? `${partes.join(" y ")} adjunto${pendingFotos.length !== 1 ? "s" : ""}` : "";
   }
 }
 
@@ -3866,17 +3929,113 @@ window.quitarFoto = function(idx) {
 };
 
 // Guarda las fotos en IndexedDB con nombre Fecha-Concepto-Caja
-// Sube las fotos pendientes a Google Drive y devuelve los links separados por coma
+// Sube las fotos/audios pendientes a Google Drive y devuelve los links separados por coma
 async function subirFotosPendientesADrive(fecha, concepto, caja) {
   if (pendingFotos.length === 0) return "";
   const slug = `${fecha}-${String(concepto).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}-${String(caja).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}`;
   const urls = [];
   for (let i = 0; i < pendingFotos.length; i++) {
     const foto = pendingFotos[i];
-    const ext = foto.type.includes("png") ? "png" : "jpg";
+    const esAudio = (foto.type || "").startsWith("audio/");
+    const ext = esAudio ? "webm" : (foto.type.includes("png") ? "png" : "jpg");
     const { url } = await Sheets.subirArchivoDrive(foto.data, `${slug}-${i + 1}.${ext}`, foto.type);
     urls.push(url);
   }
   return urls.join(",");
+}
+
+// ---- GRABAR AUDIO COMO SOPORTE (mismo patrón que recordatorios.js, con
+// nombres propios para no pisar sus variables globales -- ambos módulos
+// cargan como scripts sueltos en el mismo scope). ----
+let movAudioStream    = null;
+let movMediaRecorder  = null;
+let movAudioChunks    = [];
+let movGrabando       = false;
+
+async function obtenerStreamMicrofonoMov() {
+  const activo = movAudioStream?.getAudioTracks().some(t => t.readyState === "live");
+  if (activo) return movAudioStream;
+
+  try {
+    if (navigator.permissions?.query) {
+      const estado = await navigator.permissions.query({ name: "microphone" });
+      if (estado.state === "denied") {
+        throw Object.assign(new Error("Permiso de micrófono denegado"), { name: "NotAllowedError" });
+      }
+    }
+  } catch (e) {
+    if (e.name === "NotAllowedError") throw e;
+    // Safari/iOS no soporta consultar "microphone" con la Permissions API — seguimos igual
+  }
+
+  movAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  return movAudioStream;
+}
+
+async function toggleGrabacionAudioMov() {
+  const btn = document.getElementById("btn-mov-audio");
+  if (!btn) return;
+
+  if (!movGrabando) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      alert("Este navegador no soporta grabación de audio.");
+      return;
+    }
+    try {
+      await obtenerStreamMicrofonoMov();
+      movAudioChunks = [];
+      movMediaRecorder = new MediaRecorder(movAudioStream);
+      movMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) movAudioChunks.push(e.data); };
+      movMediaRecorder.onstop = () => {
+        const blob = new Blob(movAudioChunks, { type: movMediaRecorder.mimeType || "audio/webm" });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          pendingFotos.push({ data: e.target.result, type: blob.type });
+          renderFotosPreview();
+        };
+        reader.readAsDataURL(blob);
+      };
+      movMediaRecorder.start();
+      movGrabando = true;
+      btn.textContent = "⏹ Detener";
+      btn.classList.add("grabando");
+    } catch (err) {
+      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        alert(
+          "El navegador tiene bloqueado el micrófono para esta página.\n\n" +
+          "En iPhone: toca el ícono \"aA\" en la barra de direcciones → " +
+          "Configuración del sitio web → Micrófono → Permitir. Si no aparece esa opción, " +
+          "ve a Ajustes del iPhone → Safari → Micrófono y revisa que no esté en \"Denegar\".\n\n" +
+          "Luego vuelve a intentar."
+        );
+      } else if (err.name === "NotFoundError") {
+        alert("No se encontró un micrófono disponible en este dispositivo.");
+      } else {
+        alert("No se pudo acceder al micrófono: " + err.message);
+      }
+    }
+  } else {
+    movMediaRecorder.stop();
+    movGrabando = false;
+    btn.textContent = "🎤 Grabar";
+    btn.classList.remove("grabando");
+  }
+}
+
+// Corta el micrófono sin tocar el resto del formulario -- para cuando se
+// cierra/cancela el modal a mitad de una grabación (botón Cancelar, deslizar
+// para volver, etc.), no solo al terminar de grabar normalmente.
+function detenerMicrofonoMov() {
+  if (movGrabando && movMediaRecorder) {
+    movMediaRecorder.onstop = null; // se está cancelando a mitad de grabación -- no guardar un audio a medias
+    try { movMediaRecorder.stop(); } catch {}
+    movGrabando = false;
+    const btn = document.getElementById("btn-mov-audio");
+    if (btn) { btn.textContent = "🎤 Grabar"; btn.classList.remove("grabando"); }
+  }
+  if (movAudioStream) {
+    movAudioStream.getTracks().forEach(t => t.stop());
+    movAudioStream = null;
+  }
 }
 
