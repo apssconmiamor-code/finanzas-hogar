@@ -290,29 +290,36 @@
             </div>
             <div class="form-group" id="grupo-concepto">
               <label>Concepto</label>
-              <select id="mov-concepto-fijo" class="input hidden">
-                <option value="">Selecciona un gasto fijo…</option>
-                <option value="Alquiler">Alquiler</option>
-                <option value="Aporte Préstamo">Aporte Préstamo</option>
-                <option value="Gas">Gas</option>
-                <option value="Emcali">Emcali</option>
-                <option value="Cable e internet">Cable e internet</option>
-                <option value="Celular">Celular</option>
-                <option value="Susc. Adobe">Susc. Adobe</option>
-                <option value="Seguridad Social">Seguridad Social</option>
-                <option value="Transporte">Transporte</option>
-                <option value="Póliza">Póliza</option>
-                <option value="Netflix">Netflix</option>
-                <option value="Transferencia a chini">Transferencia a chini</option>
-                <option value="Rehabilitacion exitosa juli">Rehabilitacion exitosa juli</option>
-              </select>
-              <div class="input-predictivo hidden" id="wrap-concepto-variable">
+              <div class="campo-desplegable hidden" id="wrap-concepto-fijo">
+                <select id="mov-concepto-fijo" class="input">
+                  <option value="">Selecciona un gasto fijo…</option>
+                  <option value="Alquiler">Alquiler</option>
+                  <option value="Aporte Préstamo">Aporte Préstamo</option>
+                  <option value="Gas">Gas</option>
+                  <option value="Emcali">Emcali</option>
+                  <option value="Cable e internet">Cable e internet</option>
+                  <option value="Celular">Celular</option>
+                  <option value="Susc. Adobe">Susc. Adobe</option>
+                  <option value="Seguridad Social">Seguridad Social</option>
+                  <option value="Transporte">Transporte</option>
+                  <option value="Póliza">Póliza</option>
+                  <option value="Netflix">Netflix</option>
+                  <option value="Transferencia a chini">Transferencia a chini</option>
+                  <option value="Rehabilitacion exitosa juli">Rehabilitacion exitosa juli</option>
+                </select>
+                <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-fijo" aria-label="Mostrar opciones">▾</button>
+              </div>
+              <div class="campo-desplegable hidden" id="wrap-concepto-variable">
                 <input id="mov-concepto-variable" type="text" list="lista-variables"
                   placeholder="Escribe o elige un gasto variable…" class="input"/>
                 <datalist id="lista-variables"></datalist>
+                <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-variable" aria-label="Mostrar opciones">▾</button>
               </div>
-              <input id="mov-concepto-ingreso" type="text" list="lista-ingresos"
-                placeholder="Fuente de ingreso…" class="input hidden"/>
+              <div class="campo-desplegable hidden" id="wrap-concepto-ingreso">
+                <input id="mov-concepto-ingreso" type="text" list="lista-ingresos"
+                  placeholder="Fuente de ingreso…" class="input"/>
+                <button type="button" class="btn-desplegar-concepto" data-target="mov-concepto-ingreso" aria-label="Mostrar opciones">▾</button>
+              </div>
               <datalist id="lista-ingresos">
                 <option value="SURA"/><option value="MEDFAN"/>
                 <option value="TATEQUIETO"/><option value="OTRO"/>

@@ -1072,6 +1072,7 @@ document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => 
 
   // Fotos en nuevo movimiento
   setupFotosListeners();
+  setupDesplegablesConcepto();
 
   // Cerrar modal al clic fuera
   document.querySelectorAll(".modal").forEach(modal => {
@@ -1119,9 +1120,9 @@ function poblarSelectGastosFijos() {
 
 function actualizarCampoConcepto() {
   const cat = document.getElementById("mov-categoria").value;
-  const fijo         = document.getElementById("mov-concepto-fijo");
+  const fijo         = document.getElementById("wrap-concepto-fijo");
   const variable     = document.getElementById("wrap-concepto-variable");
-  const ingreso      = document.getElementById("mov-concepto-ingreso");
+  const ingreso      = document.getElementById("wrap-concepto-ingreso");
   const placeholder  = document.getElementById("concepto-placeholder");
   const rowNormal    = document.getElementById("row-caja-normal");
   const rowTransfer  = document.getElementById("row-transferencia");
@@ -1150,31 +1151,62 @@ setupTipoCambioListeners();
     grupoMonto?.classList.remove("hidden");
     rowTransfer.classList.add("hidden");
     grupoConcept.classList.remove("hidden");
+  // Las opciones de cada campo ya NO se despliegan solas al elegir la
+  // categoría (antes hacían .focus() acá mismo, y eso abre el picker
+  // nativo / la lista del datalist de una) -- ahora el usuario las abre a
+  // propósito con doble clic en el campo o con el botón ▾ de al lado (ver
+  // abrirDesplegableConcepto más abajo).
   if (cat === "Gasto fijo") {
       fijo.classList.remove("hidden");
       poblarSelectGastosFijos();
-      fijo.focus();
     }
-    
+
 else if (cat === "Gasto variable") {
   variable.classList.remove("hidden");
   // Poblar datalist con GASTOS_VARIABLES
   const dl = document.getElementById("lista-variables");
   dl.innerHTML = GASTOS_VARIABLES.map(v => `<option value="${v}"/>`).join("");
-  document.getElementById("mov-concepto-variable").focus();
 }
-  
+
   else if (cat === "Ingreso") {
       ingreso.classList.remove("hidden");
       // Poblar datalist con FUENTES_INGRESO (incluye las agregadas desde
       // el presupuesto vía "Nuevo concepto", no solo las fijas de fábrica)
       const dlIngreso = document.getElementById("lista-ingresos");
       dlIngreso.innerHTML = FUENTES_INGRESO.map(f => `<option value="${f}"/>`).join("");
-      ingreso.focus();
     } else {
       placeholder.classList.remove("hidden");
     }
   }
+}
+
+// Abre el picker nativo del <select>, o la lista del datalist del <input>,
+// a propósito -- se llama desde el botón ▾ o el doble clic en el campo
+// (listeners en setupDesplegablesConcepto más abajo).
+function abrirDesplegableConcepto(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.tagName === "SELECT" && typeof el.showPicker === "function") {
+    try { el.showPicker(); return; } catch {}
+  }
+  el.focus();
+}
+
+// Botón ▾ y doble clic en el campo (select o input+datalist) abren sus
+// opciones a propósito -- ya no se despliegan solas al elegir la categoría.
+function setupDesplegablesConcepto() {
+  document.querySelectorAll(".btn-desplegar-concepto").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      abrirDesplegableConcepto(btn.dataset.target);
+    });
+  });
+  document.querySelectorAll(".campo-desplegable").forEach(wrap => {
+    wrap.addEventListener("dblclick", () => {
+      const campo = wrap.querySelector("select, input");
+      if (campo) abrirDesplegableConcepto(campo.id);
+    });
+  });
 }
 
 function getConceptoActivo() {
