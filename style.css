@@ -332,11 +332,6 @@ input, select, textarea, table {
   font-size: 11px; color: var(--text-4); text-align: center;
   padding: 8px 16px 12px; font-family: var(--font);
 }
-.dropdown-version-sync {
-  color: var(--brand); font-weight: 700; font-size: 13px;
-  cursor: pointer;
-}
-.dropdown-version-sync:active { opacity: 0.7; }
 .dropdown-item {
   display: flex; align-items: center; gap: 10px;
   padding: 11px 16px; background: none; border: none; width: 100%;

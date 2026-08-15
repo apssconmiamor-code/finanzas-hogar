@@ -3,9 +3,23 @@
 // =============================================
 
 // ---- REGISTRO DEL SERVICE WORKER ----
+// Se auto-actualiza sola, pero solo en un momento seguro: recién al abrir
+// la app "en frío" (recién se entró desde el ícono, todavía no se tocó
+// nada) — nunca mientras la app ya está abierta y en uso, para no
+// interrumpir algo a medio llenar (ej. un modal de movimiento). Por eso
+// hay dos casos bien distintos más abajo:
+//   1. reg.waiting YA existe apenas se registra el Service Worker -> quedó
+//      lista de una sesión anterior (se cerró la app antes de aplicarla).
+//      Este es el momento seguro: se aplica de una.
+//   2. La versión nueva se instala DURANTE esta sesión (updatefound) -> NO
+//      se aplica ahora aunque técnicamente sea "la misma carga de página",
+//      porque para cuando termina de instalar (unos segundos después) el
+//      usuario ya pudo haber empezado a tocar algo. Se guarda el momento
+//      en que quedó lista y se aplica sola recién la próxima vez que se
+//      abra la app de cero (que entonces cae en el caso 1).
 if ("serviceWorker" in navigator) {
-  // Cuando el SW nuevo toma control (porque el usuario tocó "Sincronizar"),
-  // recarga sola la página para que se vean los archivos actualizados.
+  const CLAVE_TS_LISTA = "sw_actualizacion_lista_en";
+
   let __swRefrescando = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (__swRefrescando) return;
@@ -13,34 +27,20 @@ if ("serviceWorker" in navigator) {
     location.reload();
   });
 
-  let __swEnEspera = null;
-
-  window.__swSincronizarAhora = () => {
-    if (__swEnEspera) __swEnEspera.postMessage({ type: "SKIP_WAITING" });
-  };
-
-  const notificarNuevaVersion = (worker) => {
-    __swEnEspera = worker;
-    if (typeof marcarActualizacionDisponible === "function") marcarActualizacionDisponible();
-  };
-
   window.addEventListener("load", async () => {
     try {
       const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
       console.info("SW registrado:", reg.scope);
 
-      // Si ya había una versión nueva descargada de una visita anterior
-      // (esperando a que el usuario la aplique), avisa de una vez.
       if (reg.waiting && navigator.serviceWorker.controller) {
-        notificarNuevaVersion(reg.waiting);
+        reg.waiting.postMessage({ type: "SKIP_WAITING" });
       }
 
-      // Detecta una versión nueva instalándose ahora
       reg.addEventListener("updatefound", () => {
         const newWorker = reg.installing;
         newWorker.addEventListener("statechange", () => {
           if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            notificarNuevaVersion(newWorker);
+            try { localStorage.setItem(CLAVE_TS_LISTA, String(Date.now())); } catch {}
           }
         });
       });

@@ -72,26 +72,45 @@ function activarCalculoMonto(inputId, hintId) {
 let currentUser = null;
 let cajas = [];
 let movimientos = [];
-let actualizacionDisponible = false; // true cuando el service worker ya descargó una versión nueva
 
-// Cambia "Finanzas Luni-Chuni vX.Y.Z" por "Sincronizar" (y viceversa) en el
-// menú ⋯ — es lo único que se toca, sin tocar el resto de la UI.
+// El Service Worker ahora se auto-actualiza solo (ver sw-register.js) --
+// este texto es puramente informativo, ya no hace falta tocarlo para
+// sincronizar nada.
 function actualizarTextoVersion() {
   const ddVersion = document.getElementById("dropdown-version");
   if (!ddVersion) return;
-  if (actualizacionDisponible) {
-    ddVersion.textContent = "🔄 Sincronizar";
-    ddVersion.classList.add("dropdown-version-sync");
-  } else {
-    ddVersion.textContent = `Finanzas Luni-Chuni v${CONFIG.VERSION}`;
-    ddVersion.classList.remove("dropdown-version-sync");
-  }
+  ddVersion.textContent = `Finanzas Luni-Chuni v${CONFIG.VERSION}`;
 }
 
-// Llamado por sw-register.js cuando detecta una versión nueva ya descargada
-function marcarActualizacionDisponible() {
-  actualizacionDisponible = true;
-  actualizarTextoVersion();
+// Si sw-register.js aplicó una actualización que había quedado lista de
+// una sesión anterior, avisa UNA sola vez cuánto tiempo pasó desde que
+// quedó lista hasta que se aplicó -- después borra la marca, así no vuelve
+// a aparecer en la próxima apertura normal.
+function avisarSiSeActualizoSola() {
+  const CLAVE_TS_LISTA = "sw_actualizacion_lista_en";
+  let ts;
+  try {
+    const raw = localStorage.getItem(CLAVE_TS_LISTA);
+    if (!raw) return;
+    localStorage.removeItem(CLAVE_TS_LISTA);
+    ts = parseInt(raw, 10);
+  } catch { return; }
+  if (!ts || isNaN(ts)) return;
+
+  const minutos = Math.round((Date.now() - ts) / 60000);
+  let transcurrido;
+  if (minutos < 1) transcurrido = "hace unos segundos";
+  else if (minutos === 1) transcurrido = "hace 1 minuto";
+  else if (minutos < 60) transcurrido = `hace ${minutos} minutos`;
+  else {
+    const horas = Math.round(minutos / 60);
+    if (horas < 24) transcurrido = horas === 1 ? "hace 1 hora" : `hace ${horas} horas`;
+    else {
+      const dias = Math.round(horas / 24);
+      transcurrido = dias === 1 ? "hace 1 día" : `hace ${dias} días`;
+    }
+  }
+  if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ Actualizado ${transcurrido}`);
 }
 
 // ---- LISTAS DE CONCEPTOS ----
@@ -768,6 +787,7 @@ async function cargarInicial() {
 async function mostrarApp() {
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
+  avisarSiSeActualizoSola();
   document.getElementById("user-name").textContent = currentUser.name;
   document.getElementById("user-avatar").src = currentUser.picture;
   document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
@@ -3388,19 +3408,10 @@ function setupTopbarMenu() {
   const dropdown = document.getElementById("dropdown-menu");
   const ddLogout = document.getElementById("dd-logout");
   const ddLogin  = document.getElementById("dd-login");
-  const ddVersion = document.getElementById("dropdown-version");
 
   if (!btn) return;
 
   actualizarTextoVersion();
-  if (ddVersion) {
-    ddVersion.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!actualizacionDisponible) return;
-      ddVersion.textContent = "Sincronizando…";
-      if (typeof window.__swSincronizarAhora === "function") window.__swSincronizarAhora();
-    });
-  }
 
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
