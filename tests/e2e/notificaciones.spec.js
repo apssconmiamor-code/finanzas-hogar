@@ -164,6 +164,28 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notif-cancelada-badge')).toBeVisible();
   });
 
+  test('las secciones se pliegan y despliegan tocando el título', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N4', 'Pagar el gas', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    const titulo = page.locator('.notif-seccion-toggle', { hasText: 'Activas' });
+    const items  = titulo.locator('xpath=following-sibling::div[1]');
+
+    await expect(items).toBeVisible();
+    await expect(items).toContainText('Pagar el gas');
+
+    await titulo.click();
+    await expect(items).toBeHidden();
+
+    await titulo.click();
+    await expect(items).toBeVisible();
+  });
+
   test('doble clic abre el detalle de solo lectura; Editar permite modificar', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {

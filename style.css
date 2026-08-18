@@ -1090,6 +1090,13 @@ input, select, textarea, table {
 .prest-desc { font-style: italic; }
 .prestamos-seccion-title { font-size: 12px; font-weight: 700; color: var(--text-3); letter-spacing: 0.5px; text-transform: uppercase; padding: 6px 2px 4px; }
 .pagados-title { margin-top: 8px; }
+/* Secciones de Alertas plegables -- misma etiqueta que arriba
+   (.prestamos-seccion-title), pero como <button> para poder tocarla. */
+.notif-seccion-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; cursor: pointer;
+}
+.notif-seccion-chevron { font-size: 11px; opacity: 0.6; flex-shrink: 0; margin-left: 8px; }
 .prestamo-acciones { display: flex; gap: 8px; margin-top: 10px; }
 .btn-prest-pago { flex: 1; font-size: 14px; }
 .pago-concepto-info { background: var(--bg); border-radius: var(--r-sm); padding: 14px; }

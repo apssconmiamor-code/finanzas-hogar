@@ -323,6 +323,27 @@ function _formatoFechaHoraLocal(iso) {
   return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
+// Recuerda qué secciones quedaron plegadas mientras dure la sesión --
+// vive fuera de renderNotificaciones() para que sobreviva a que la lista
+// se vuelva a pintar entera cada vez que llegan datos nuevos (si no, cada
+// refresco desplegaría todo de nuevo). Todas arrancan desplegadas: si
+// "Canceladas" arrancara plegada, justo cuando revisás algo y pasa a
+// cancelada no verías la confirmación de que se movió ahí.
+const SECCIONES_COLAPSADAS_NOTIF = {
+  porRevisar: false, gastosFijos: false, activas: false, canceladas: false
+};
+
+function renderSeccionNotif(clave, titulo, claseExtra, items, renderItem) {
+  if (items.length === 0) return "";
+  const colapsada = SECCIONES_COLAPSADAS_NOTIF[clave];
+  return `
+    <button type="button" class="prestamos-seccion-title notif-seccion-toggle ${claseExtra || ""}" data-seccion="${clave}">
+      <span>${titulo} (${items.length})</span>
+      <span class="notif-seccion-chevron">${colapsada ? "▸" : "▾"}</span>
+    </button>
+    <div class="notif-seccion-items${colapsada ? " hidden" : ""}">${items.map(renderItem).join("")}</div>`;
+}
+
 function renderNotificaciones() {
   const lista = document.getElementById("notificaciones-list");
   if (!lista) return;
@@ -372,20 +393,23 @@ function renderNotificaciones() {
     </div>`;
 
   let html = "";
-  if (porRevisar.length > 0) {
-    html += `<div class="prestamos-seccion-title">Por revisar (${porRevisar.length})</div>`;
-    html += porRevisar.map(renderItem).join("");
-  }
-  if (gastosFijos.length > 0) {
-    html += `<div class="prestamos-seccion-title">Gastos fijos (${gastosFijos.length})</div>`;
-    html += gastosFijos.map(renderItem).join("");
-  }
-  html += activas.map(renderItem).join("");
-  if (canceladas.length > 0) {
-    html += `<div class="prestamos-seccion-title pagados-title">Canceladas (${canceladas.length})</div>`;
-    html += canceladas.map(renderItem).join("");
-  }
+  html += renderSeccionNotif("porRevisar", "Por revisar", "", porRevisar, renderItem);
+  html += renderSeccionNotif("gastosFijos", "Gastos fijos", "", gastosFijos, renderItem);
+  html += renderSeccionNotif("activas", "Activas", "", activas, renderItem);
+  html += renderSeccionNotif("canceladas", "Canceladas", "pagados-title", canceladas, renderItem);
   lista.innerHTML = html;
+
+  lista.querySelectorAll(".notif-seccion-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const clave    = btn.dataset.seccion;
+      const items    = btn.nextElementSibling;
+      const chevron  = btn.querySelector(".notif-seccion-chevron");
+      const colapsar = !items.classList.contains("hidden");
+      items.classList.toggle("hidden", colapsar);
+      if (chevron) chevron.textContent = colapsar ? "▸" : "▾";
+      SECCIONES_COLAPSADAS_NOTIF[clave] = colapsar;
+    });
+  });
 }
 
 // Notificaciones de una sola vez no se cancelan solas al dispararse (ver
