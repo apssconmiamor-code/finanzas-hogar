@@ -301,9 +301,20 @@ function descripcionRecurrencia(n) {
   return intervalo === 1 ? `Cada ${singular}` : `Cada ${intervalo} ${plural}`;
 }
 
+// La hoja "Notificaciones" es compartida por toda la familia -- una
+// alerta "Solo yo" solo debe verse en la lista de quien la creó. El envío
+// del push ya estaba bien restringido (ver revisarYEnviarNotificaciones
+// en worker/src/push.js), pero la lista de la app mostraba todo sin
+// filtrar (bug real reportado: las de Royer le aparecían a Blanjor y a
+// Yei también). Filtrar acá, al cargar, alcanza para que todo lo que
+// cuelga de "notificaciones" (badge, panel, secciones) respete esto solo.
+function filtrarNotificacionesVisibles(lista) {
+  return lista.filter(n => n.destinatario === "familia" || n.autor === currentUser?.email);
+}
+
 async function cargarNotificaciones() {
   try {
-    notificaciones = await Sheets.getNotificaciones();
+    notificaciones = filtrarNotificacionesVisibles(await Sheets.getNotificaciones());
     localStorage.setItem("cache_notificaciones", JSON.stringify(notificaciones));
   } catch (err) {
     if (err.message === "TOKEN_EXPIRADO") return;

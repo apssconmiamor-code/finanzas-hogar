@@ -144,6 +144,26 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('📌 Alquiler');
   });
 
+  test('una alerta "Solo yo" de otra persona no aparece en mi lista', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        // "Solo yo" de otra persona (Royer) -- NO debe verla prueba@example.com.
+        ['N5', 'Cita médica de Royer', '', 'unica', enUnaHora, '', 'yo', 'royer@example.com', 'activa', ''],
+        // "Solo yo" de la propia sesión -- esta sí debe verse.
+        ['N6', 'Recordatorio propio', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', ''],
+        // "Toda la familia" -- se ve sin importar quién la creó.
+        ['N7', 'Pagar el condominio', '', 'unica', enUnaHora, '', 'familia', 'royer@example.com', 'activa', ''],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.notificacion-item')).toContainText(['Recordatorio propio', 'Pagar el condominio']);
+    await expect(page.locator('#notificaciones-list')).not.toContainText('Cita médica de Royer');
+  });
+
   test('no muestra botón de Cancelar; marcar como revisada mueve a "Canceladas"', async ({ page }) => {
     const haceUnaHora = new Date(Date.now() - 3600000).toISOString();
     await mockGoogleApis(page, {
