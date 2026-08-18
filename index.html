@@ -815,6 +815,11 @@
           <input id="usar-accion-monto" type="text" inputmode="decimal" placeholder="Monto"
             class="input" style="font-size:22px;text-align:center"/>
         </div>
+        <div class="form-group" id="usar-accion-camara-wrap" style="display:none">
+          <input id="usar-accion-camara-file" type="file" accept="image/*" capture="environment" style="display:none"/>
+          <button type="button" class="fotos-btn" id="btn-usar-accion-camara">📷 Cámara</button>
+          <div id="usar-accion-foto-preview" class="fotos-preview"></div>
+        </div>
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-cancelar-usar-accion">Cancelar</button>
           <button class="btn-primary" id="btn-guardar-usar-accion">Guardar</button>
@@ -844,6 +849,12 @@
         </div>
         <div class="form-group">
           <select id="config-accion-caja" class="input"></select>
+        </div>
+        <div class="form-group">
+          <label class="config-accion-camara-label" for="config-accion-camara">
+            <input type="checkbox" id="config-accion-camara"/>
+            <span>Pedir foto con cámara al usar esta acción</span>
+          </label>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-borrar-accion">Borrar</button>

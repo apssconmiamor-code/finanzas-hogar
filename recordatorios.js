@@ -621,6 +621,8 @@ function setupRecordatoriosListeners() {
   document.getElementById("btn-cancelar-config-accion")?.addEventListener("click", cerrarConfigAccion);
   document.getElementById("btn-guardar-usar-accion")?.addEventListener("click", guardarUsarAccion);
   document.getElementById("btn-cancelar-usar-accion")?.addEventListener("click", cerrarUsarAccion);
+  document.getElementById("usar-accion-camara-file")?.addEventListener("change", (e) => cargarFotoAccion(e.target.files[0]));
+  document.getElementById("btn-usar-accion-camara")?.addEventListener("click", () => document.getElementById("usar-accion-camara-file")?.click());
 
   // Cerrar el panel de recordatorios al hacer clic afuera
   document.addEventListener("click", (e) => {
@@ -661,6 +663,7 @@ function guardarAccionesRapidas(acciones) {
 }
 
 let accionSlotActual = null;
+let accionFotoData = null; // { data: dataURL, type: mime } -- foto opcional al usar una acción con cámara activada
 
 function abrirMenuAcciones() {
   renderMenuAcciones();
@@ -751,6 +754,7 @@ function abrirConfigAccion(slot) {
   if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
   if (typeof poblarSelectCajas === "function") poblarSelectCajas("config-accion-caja");
   if (accion?.caja) document.getElementById("config-accion-caja").value = accion.caja;
+  document.getElementById("config-accion-camara").checked = !!accion?.camara;
 
   const btnBorrar = document.getElementById("btn-borrar-accion");
   if (btnBorrar) btnBorrar.style.display = accion ? "" : "none";
@@ -770,6 +774,7 @@ function guardarConfigAccion() {
   const categoria = document.getElementById("config-accion-categoria").value;
   const concepto  = document.getElementById("config-accion-concepto").value;
   const caja      = document.getElementById("config-accion-caja").value;
+  const camara    = document.getElementById("config-accion-camara").checked;
 
   if (!nombre || !categoria || !concepto || !caja) {
     alert("Completa todos los campos");
@@ -777,7 +782,7 @@ function guardarConfigAccion() {
   }
 
   const acciones = obtenerAccionesRapidas();
-  acciones[accionSlotActual] = { nombre, icono, categoria, concepto, caja };
+  acciones[accionSlotActual] = { nombre, icono, categoria, concepto, caja, camara };
   guardarAccionesRapidas(acciones);
   document.getElementById("modal-config-accion")?.classList.add("hidden");
   abrirMenuAcciones();
@@ -797,6 +802,10 @@ function abrirUsarAccion(slot, accion) {
   accionSlotActual = slot;
   document.getElementById("usar-accion-titulo").textContent = `${accion.icono || "⚡"} ${accion.nombre}`;
   document.getElementById("usar-accion-monto").value = "";
+  accionFotoData = null;
+  renderFotoAccionPreview();
+  const wrapCamara = document.getElementById("usar-accion-camara-wrap");
+  if (wrapCamara) wrapCamara.style.display = accion.camara ? "" : "none";
   cerrarMenuAcciones();
   document.getElementById("modal-usar-accion")?.classList.remove("hidden");
   setTimeout(() => document.getElementById("usar-accion-monto")?.focus(), 150);
@@ -805,6 +814,31 @@ function abrirUsarAccion(slot, accion) {
 function cerrarUsarAccion() {
   document.getElementById("modal-usar-accion")?.classList.add("hidden");
 }
+
+function cargarFotoAccion(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    accionFotoData = { data: e.target.result, type: file.type };
+    renderFotoAccionPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderFotoAccionPreview() {
+  const preview = document.getElementById("usar-accion-foto-preview");
+  if (!preview) return;
+  preview.innerHTML = accionFotoData ? `
+    <div class="foto-thumb">
+      <img src="${accionFotoData.data}" alt="foto adjunta" class="foto-thumb-img"/>
+      <button class="foto-thumb-remove" type="button" onclick="quitarFotoAccion()">×</button>
+    </div>` : "";
+}
+
+window.quitarFotoAccion = function() {
+  accionFotoData = null;
+  renderFotoAccionPreview();
+};
 
 async function guardarUsarAccion() {
   const accion = obtenerAccionesRapidas()[accionSlotActual];
@@ -818,10 +852,16 @@ async function guardarUsarAccion() {
   btn.textContent = "Guardando..."; btn.disabled = true;
   try {
     const hoy = new Date().toISOString().split("T")[0];
+    let recibo = "";
+    if (accion.camara && accionFotoData) {
+      const ext = accionFotoData.type.includes("png") ? "png" : "jpg";
+      const { url } = await Sheets.subirArchivoDrive(accionFotoData.data, `accion-${accion.nombre}-${Date.now()}.${ext}`, accionFotoData.type);
+      recibo = url;
+    }
     if (accion.categoria === "Ingreso") {
-      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto);
+      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto, "", recibo);
     } else {
-      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto);
+      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto, "", recibo);
     }
     cerrarUsarAccion();
     if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ ${accion.nombre} registrado`);

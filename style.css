@@ -460,6 +460,16 @@ input, select, textarea, table {
 .form-row { display: flex; gap: 12px; }
 .form-row .form-group { flex: 1; }
 
+/* Checkbox "pedir foto con cámara" al configurar una acción rápida */
+.config-accion-camara-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-2);
+  cursor: pointer;
+}
+.config-accion-camara-label input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--brand); flex-shrink: 0;
+}
+
 /* Título + fecha chica en la misma línea (modal Nuevo movimiento) --
    .modal-card ya espacia a todos sus hijos con gap, no hace falta margen. */
 .modal-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

@@ -7,6 +7,8 @@ const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 const { seleccionarCaja } = require('./helpers/uiHelpers');
 
+const FOTO_FALSA = { name: 'recibo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
+
 test.describe('Acciones rápidas (botón flotante)', () => {
   test.beforeEach(async ({ page }) => {
     await mockGoogleApis(page, {
@@ -57,6 +59,47 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
     await expect(page.locator('#movimientos-list')).toContainText('SURA');
     await expect(page.locator('#movimientos-list')).toContainText('3.000.000');
+  });
+
+  test('acción configurada con "Pedir foto con cámara" muestra el botón de cámara al usarla y sube la foto', async ({ page }) => {
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+
+    await page.locator('#config-accion-nombre').fill('Mercado');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await page.locator('#config-accion-camara').check();
+    await page.locator('#btn-guardar-config-accion').click();
+
+    // Otra acción SIN cámara para confirmar que el botón no aparece cuando no se pidió.
+    await page.locator('.accion-rapida-card[data-slot="1"]').click();
+    await page.locator('#config-accion-nombre').fill('Salud');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Salud');
+    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    await page.locator('.accion-rapida-card[data-slot="1"]').click();
+    await expect(page.locator('#usar-accion-camara-wrap')).toBeHidden();
+    await page.locator('#btn-cancelar-usar-accion').click();
+
+    // La acción con cámara sí muestra el botón, y la foto queda adjunta.
+    await page.locator('#fab-recordatorio').click();
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await slot0.click();
+    await expect(page.locator('#usar-accion-camara-wrap')).toBeVisible();
+    await page.locator('#usar-accion-camara-file').setInputFiles(FOTO_FALSA);
+    await expect(page.locator('#usar-accion-foto-preview .foto-thumb')).toHaveCount(1);
+
+    await page.locator('#usar-accion-monto').fill('50000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    await expect.poll(async () => {
+      const frescos = await page.evaluate(() => Sheets.getMovimientos());
+      return frescos.find((m) => m.concepto === 'Mercado')?.recibo || '';
+    }, { timeout: 10000 }).toContain('drive.google.com');
   });
 
   test('mantener presionada una acción ya configurada la abre para reconfigurar', async ({ page }) => {
