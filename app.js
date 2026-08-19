@@ -939,9 +939,8 @@ function navegarATab(tab) {
     document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
     const sec = document.getElementById(`tab-${tab}`);
     if (sec) sec.classList.remove("hidden");
-    if (tab === "prestamos") cargarPrestamos();
+    if (tab === "compromisos") { cargarPrestamos(); cargarCompras(); }
     if (tab === "notificaciones") cargarNotificaciones();
-    if (tab === "compras") cargarCompras();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
     // update topbar avatar
@@ -4073,8 +4072,8 @@ function renderResumen(mesSeleccionado = null) {
 // =============================================
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
-  prestamos: "Préstamos", notificaciones: "Alertas",
-  compras: "Lista de compras", resumen: "Análisis"
+  compromisos: "Compromisos", notificaciones: "Alertas",
+  resumen: "Análisis"
 };
 
 function actualizarTopbarTitulo(tab) {

@@ -175,14 +175,11 @@
             <button class="dropdown-item" data-tab-nav="resumen">
               <span class="dd-icon">📈</span> Resumen
             </button>
-            <button class="dropdown-item" data-tab-nav="prestamos">
-              <span class="dd-icon">🤝</span> Préstamos
+            <button class="dropdown-item" data-tab-nav="compromisos">
+              <span class="dd-icon">🤝</span> Compromisos
             </button>
             <button class="dropdown-item" data-tab-nav="notificaciones">
               <span class="dd-icon">🔔</span> Alertas
-            </button>
-            <button class="dropdown-item" data-tab-nav="compras">
-              <span class="dd-icon">🛒</span> Lista de compras
             </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="dd-logout">
@@ -451,8 +448,9 @@
         </div>
       </section>
 
-      <!-- ══ TAB: PRÉSTAMOS ══ -->
-      <section id="tab-prestamos" class="tab-section hidden">
+      <!-- ══ TAB: COMPROMISOS (Préstamos + Lista de compras) ══ -->
+      <section id="tab-compromisos" class="tab-section hidden">
+        <div class="resumen-bloque-titulo">🤝 Préstamos</div>
         <div id="planes-panel-prestamos" class="planes-panel">
           <button class="btn-primary btn-franja" id="btn-nuevo-prestamo">+ Nuevo</button>
           <div class="prestamos-resumen">
@@ -461,6 +459,12 @@
             <div class="resumen-item pendiente"><span class="resumen-label">Por pagar</span><span id="prest-total-pendiente" class="resumen-valor">$0</span></div>
           </div>
           <div id="prestamos-grid" class="prestamos-grid"><div class="loading-state">Cargando…</div></div>
+        </div>
+
+        <div class="resumen-bloque-titulo" style="margin-top:24px">🛒 Lista de compras</div>
+        <div id="planes-panel-compras" class="planes-panel">
+          <button class="btn-primary btn-franja" id="btn-nueva-compra">+ Nuevo</button>
+          <div id="compras-list"></div>
         </div>
       </section>
 
@@ -472,14 +476,6 @@
           </div>
           <p class="notif-header-nota">Cada dispositivo (teléfono, computador) necesita activarlas por su cuenta una sola vez.</p>
           <div id="notificaciones-list"><div class="loading-state">Cargando…</div></div>
-        </div>
-      </section>
-
-      <!-- ══ TAB: LISTA DE COMPRAS ══ -->
-      <section id="tab-compras" class="tab-section hidden">
-        <div id="planes-panel-compras" class="planes-panel">
-          <button class="btn-primary btn-franja" id="btn-nueva-compra">+ Nuevo</button>
-          <div id="compras-list"></div>
         </div>
       </section>
 
