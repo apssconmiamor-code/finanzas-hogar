@@ -16,6 +16,7 @@
 //    entrega un access_token fresco usando el refresh_token guardado.
 
 import { handlePushSubscribe, handlePushUnsubscribe, revisarYEnviarNotificaciones } from "./push.js";
+import { archivarMovimientosViejos } from "./archivo.js";
 
 const TOKEN_ENDPOINT     = "https://oauth2.googleapis.com/token";
 const USERINFO_ENDPOINT  = "https://www.googleapis.com/oauth2/v3/userinfo";
@@ -54,10 +55,12 @@ export default {
   },
 
   // Cron Trigger (ver [triggers] en wrangler.toml) — revisa la hoja
-  // "Notificaciones" cada 5 minutos y manda los push que ya vencieron.
-  // No depende de que nadie tenga la app abierta en ese momento.
+  // "Notificaciones" cada 5 minutos y manda los push que ya vencieron, y de
+  // paso archiva los movimientos de más de 3 meses (ver archivo.js). No
+  // depende de que nadie tenga la app abierta en ese momento.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(revisarYEnviarNotificaciones(env));
+    ctx.waitUntil(archivarMovimientosViejos(env));
   }
 };
 

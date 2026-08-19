@@ -1590,8 +1590,14 @@ async function ajustarCaja(nombre) {
   }
 }
 
+// El Worker archiva solo (ver worker/src/archivo.js) los movimientos de más
+// de 3 meses hacia otra hoja, y deja el neto de lo archivado en
+// caja.saldoArchivado -- sumado acá, el saldo sigue exacto sin tener que
+// cargar el historial completo de movimientos.
 function calcularSaldoCaja(nombreCaja) {
-  return movimientos
+  const caja = cajas.find(c => c.nombre === nombreCaja);
+  const base = caja ? (caja.saldoArchivado || 0) : 0;
+  return base + movimientos
     .filter(m => m.caja === nombreCaja)
     .reduce((sum, m) => {
       const esEntrada = m.categoria === "Ingreso" ||
@@ -1642,30 +1648,47 @@ function renderMovimientos() {
 
   const list = document.getElementById("movimientos-list");
   if (filtrados.length === 0) {
+    // El mes elegido no tiene movimientos activos -- puede ser que
+    // simplemente no haya, o que ya se haya archivado (más de 3 meses,
+    // ver worker/src/archivo.js). Solo vale la pena revisar el archivo si
+    // es un mes pasado real, no uno futuro vacío.
+    const mesActual = new Date().toISOString().slice(0, 7);
+    if (filtroM && filtroM < mesActual && !movimientos.some(m => m.fecha.startsWith(filtroM))) {
+      renderMesArchivado(filtroM);
+      return;
+    }
     list.innerHTML = `<div class="empty-state">
       <div class="empty-state-icon">📋</div>
       <div class="empty-state-text">No hay movimientos para este período.</div></div>`;
     return;
   }
 
-  list.innerHTML = filtrados.map(m => {
-    const esIngreso  = m.categoria === "Ingreso";
-    const esTransfer = m.categoria === "Transferencia";
-    const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
-    const cls   = esEntrada ? "ingreso" : "gasto";
-    const signo = esEntrada ? "+" : "-";
-    const icono = ICONOS[m.concepto] || (esIngreso ? "💰" : "📌");
-    const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO",
-      { day: "2-digit", month: "short", year: "numeric" });
-    const catCls = m.categoria.toLowerCase().replace(/ /g,"");
-    const descHTML = m.descripcion
-      ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
-    const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
-    const fotoHTML = primeraFoto
-      ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
-      : "";
+  list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m)).join("");
+}
 
-    return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
+function renderTarjetaMovimiento(m, { soloLectura = false } = {}) {
+  const esIngreso  = m.categoria === "Ingreso";
+  const esTransfer = m.categoria === "Transferencia";
+  const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
+  const cls   = esEntrada ? "ingreso" : "gasto";
+  const signo = esEntrada ? "+" : "-";
+  const icono = ICONOS[m.concepto] || (esIngreso ? "💰" : "📌");
+  const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO",
+    { day: "2-digit", month: "short", year: "numeric" });
+  const catCls = m.categoria.toLowerCase().replace(/ /g,"");
+  const descHTML = m.descripcion
+    ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
+  const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
+  const fotoHTML = primeraFoto
+    ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
+    : "";
+  const accionesHTML = soloLectura ? "" : `
+          <div class="mov-card-actions">
+            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">✏️</button>
+            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">🗑️</button>
+          </div>`;
+
+  return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
@@ -1679,15 +1702,87 @@ function renderMovimientos() {
           </div>
         </div>
         <div class="mov-card-right">
-          <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>
-          <div class="mov-card-actions">
-            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">✏️</button>
-            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">🗑️</button>
-          </div>
+          <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>${accionesHTML}
         </div>
       </div>
     </div>`;
-  }).join("");
+}
+
+// ---- MES ARCHIVADO (más de 3 meses -- ver worker/src/archivo.js) ----
+// Se lee bajo demanda, solo cuando el mes elegido no tiene nada en los
+// movimientos activos, y se guarda en memoria para no repetir la lectura
+// si el usuario va y vuelve entre meses viejos en la misma sesión.
+let movimientosArchivadosCache = null;
+
+async function renderMesArchivado(mes) {
+  const list = document.getElementById("movimientos-list");
+  list.innerHTML = `<div class="empty-state">
+    <div class="empty-state-icon">⏳</div>
+    <div class="empty-state-text">Buscando en el archivo…</div></div>`;
+
+  if (movimientosArchivadosCache === null) {
+    try {
+      movimientosArchivadosCache = await Sheets.getMovimientosArchivados();
+    } catch (err) {
+      movimientosArchivadosCache = [];
+    }
+  }
+
+  // El filtro de mes pudo haber cambiado mientras esperábamos la red.
+  if (document.getElementById("filtro-mes")?.value !== mes) return;
+
+  const movsDelMes = movimientosArchivadosCache
+    .filter(m => m.fecha.startsWith(mes))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  const subEl = document.getElementById("mov-section-sub");
+  if (movsDelMes.length === 0) {
+    if (subEl) subEl.textContent = "0 movimientos";
+    document.getElementById("total-ingresos").textContent = formatMonto(0);
+    document.getElementById("total-gastos").textContent   = formatMonto(0);
+    const balEl = document.getElementById("total-balance");
+    balEl.textContent = formatMonto(0);
+    balEl.style.color = "var(--text)";
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon">📋</div>
+      <div class="empty-state-text">No hay movimientos para este período.</div></div>`;
+    return;
+  }
+
+  let ingresos = 0, gastos = 0;
+  movsDelMes.forEach(m => {
+    const cja = cajas.find(c => c.nombre === m.caja);
+    if (cja && cja.moneda !== "COP") return;
+    if (m.categoria === "Ingreso") ingresos += m.monto;
+    else if (m.categoria !== "Transferencia") gastos += Math.abs(m.monto);
+  });
+  document.getElementById("total-ingresos").textContent = formatMonto(ingresos);
+  document.getElementById("total-gastos").textContent   = formatMonto(gastos);
+  const balance = ingresos - gastos;
+  const balEl = document.getElementById("total-balance");
+  balEl.textContent = formatMonto(balance);
+  balEl.style.color = balance >= 0 ? "var(--green)" : "var(--red)";
+  if (subEl) subEl.textContent = `${movsDelMes.length} movimiento${movsDelMes.length !== 1 ? "s" : ""} · archivado`;
+
+  list.innerHTML = `
+    <div class="mes-archivado-resumen">
+      <span class="mes-archivado-icono">🗄️</span>
+      <span>Este mes ya se archivó para aligerar la app — se ve un resumen; el detalle completo sigue disponible.</span>
+    </div>
+    <button type="button" class="btn-secondary mes-archivado-btn-detalle" id="btn-ver-detalle-archivado">Ver detalle (${movsDelMes.length})</button>
+    <div id="detalle-archivado-lista" class="hidden"></div>`;
+
+  document.getElementById("btn-ver-detalle-archivado")?.addEventListener("click", (e) => {
+    const cont = document.getElementById("detalle-archivado-lista");
+    if (cont.classList.contains("hidden")) {
+      cont.innerHTML = movsDelMes.map(m => renderTarjetaMovimiento(m, { soloLectura: true })).join("");
+      cont.classList.remove("hidden");
+      e.target.textContent = "Ocultar detalle";
+    } else {
+      cont.classList.add("hidden");
+      e.target.textContent = `Ver detalle (${movsDelMes.length})`;
+    }
+  });
 }
 
 // Doble tap/clic manual sobre una tarjeta de movimiento: no se puede usar
@@ -1707,7 +1802,7 @@ function tapMovimiento(id) {
 
 // Resumen de solo lectura de un movimiento (doble clic sobre su tarjeta).
 function mostrarResumenMovimiento(id) {
-  const m = movimientos.find(x => x.id === id);
+  const m = movimientos.find(x => x.id === id) || (movimientosArchivadosCache || []).find(x => x.id === id);
   if (!m) return;
   const caja = cajas.find(c => c.nombre === m.caja);
   const moneda = caja ? caja.moneda : "COP";

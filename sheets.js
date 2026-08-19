@@ -83,16 +83,48 @@ const Sheets = {
   },
 
   // ---- CAJAS ----
+  // Columna E "saldo_archivado": neto (entradas - salidas) de los movimientos
+  // que el Worker ya sacó de "Movimiento de Caja" hacia "Movimiento de Caja
+  // - Archivo" por ser de hace más de 3 meses (ver worker/src/archivo.js).
+  // calcularSaldoCaja() en app.js le suma esto al total de los movimientos
+  // activos para que el saldo siga siendo exacto sin tener que cargar todo
+  // el historial.
   async getCajas() {
-    const rows = await this.leer(`${CONFIG.SHEETS.CAJAS}!A2:D`);
+    const rows = await this.leer(`${CONFIG.SHEETS.CAJAS}!A2:E`);
     return rows.filter(r => r && r[0]).map(r => ({
-      id: r[0] || "", usuario: r[1] || "", nombre: r[2] || "", moneda: r[3] || "COP"
+      id: r[0] || "", usuario: r[1] || "", nombre: r[2] || "", moneda: r[3] || "COP",
+      saldoArchivado: isNaN(parseFloat(r[4])) ? 0 : parseFloat(r[4])
     }));
   },
 
   // ---- MOVIMIENTOS ----
   async getMovimientos() {
     const rows = await this.leer(`${CONFIG.SHEETS.MOVIMIENTOS}!A2:I`);
+    return rows.filter(r => r && r[0]).map(r => ({
+      id:          r[0] || "",
+      fecha:       Sheets._serialToDate(r[1]),
+      autor:       r[2] || "",
+      concepto:    r[3] || "",
+      categoria:   r[4] || "",
+      caja:        r[5] || "",
+      monto:       isNaN(parseFloat(r[6])) ? 0 : parseFloat(r[6]),
+      descripcion: r[7] || "",
+      recibo:      r[8] || ""
+    }));
+  },
+
+  // Movimientos de hace más de 3 meses que el Worker ya archivó (ver
+  // worker/src/archivo.js) — viven en otra hoja para no cargarlos en cada
+  // apertura de la app. Se leen solo bajo demanda (ej. al pedir el detalle
+  // de un mes viejo en la pestaña Movimientos), nunca en cargarTodo().
+  // Si todavía no se archivó nada, la hoja no existe aún -- no es un error.
+  async getMovimientosArchivados() {
+    let rows;
+    try {
+      rows = await this.leer(`${CONFIG.SHEETS.MOVIMIENTOS_ARCHIVO}!A2:I`);
+    } catch (e) {
+      return [];
+    }
     return rows.filter(r => r && r[0]).map(r => ({
       id:          r[0] || "",
       fecha:       Sheets._serialToDate(r[1]),
