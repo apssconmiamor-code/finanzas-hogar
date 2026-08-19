@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v139";
+const CACHE_NAME = "finanzas-v140";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -157,33 +157,62 @@ self.addEventListener("push", (event) => {
   // puede exigir que el badge se actualice en el mismo turno de ejecución
   // que produce la notificación visible, no en una promesa que se resuelve
   // después. El ejemplo oficial de WebKit hace exactamente esto.
-  const tieneBadge = "setAppBadge" in self.navigator;
-  const promesaBadge = tieneBadge ? self.navigator.setAppBadge(1).catch(() => {}) : Promise.resolve();
+  // DIAGNÓSTICO TEMPORAL (agosto 2026): el badge no aparece en iOS pese al
+  // push llegar bien, y sin Mac a mano no hay forma de ver la consola real
+  // del Service Worker. Esto graba qué pasó en cada push (existe
+  // setAppBadge acá, tiró error, qué contó getNotifications...) en Cache
+  // Storage -- que sí es accesible desde el Service Worker sin depender de
+  // que la app esté abierta -- para que sw-register.js lo lea y muestre la
+  // próxima vez que se abra la app. Sacar todo este bloque (y el bloque
+  // espejo en sw-register.js) en cuanto se identifique la causa real.
+  const debug = { ts: Date.now(), tieneBadge: "setAppBadge" in self.navigator };
+
+  const promesaBadge = debug.tieneBadge
+    ? self.navigator.setAppBadge(1).then(
+        () => { debug.badgeInicialOk = true; },
+        (e) => { debug.badgeInicialError = (e && (e.name + ": " + e.message)) || String(e); }
+      )
+    : Promise.resolve();
 
   const promesaNotificacion = self.registration.showNotification(datos.title, {
     body: datos.body,
     icon: "./icono.png",
     badge: "./icono.png",
     tag: datos.tag || undefined
-  });
+  }).then(
+    () => { debug.showNotificationOk = true; },
+    (e) => { debug.showNotificationError = (e && (e.name + ": " + e.message)) || String(e); }
+  );
+
+  // Corrección del número real (puede haber más de una notificación
+  // pendiente) una vez que ya se disparó el badge inicial de arriba.
+  // Encadenada con .then() sobre promesaNotificacion a propósito -- si
+  // getNotifications() corre en paralelo con showNotification() puede
+  // resolver ANTES de que el SO termine de registrar la notificación
+  // recién mostrada, devolviendo el conteo viejo (a veces 0). setAppBadge(0)
+  // equivale a clearAppBadge() según spec, así que esa carrera pisaría el
+  // badge recién puesto con nada.
+  const promesaCorreccion = promesaNotificacion.then(() =>
+    debug.tieneBadge
+      ? self.registration.getNotifications().then(
+          (lista) => {
+            debug.listaLength = lista.length;
+            return self.navigator.setAppBadge(lista.length).then(
+              () => { debug.badgeCorreccionOk = true; },
+              (e) => { debug.badgeCorreccionError = (e && (e.name + ": " + e.message)) || String(e); }
+            );
+          },
+          (e) => { debug.getNotificationsError = (e && (e.name + ": " + e.message)) || String(e); }
+        )
+      : Promise.resolve()
+  );
 
   event.waitUntil(
-    Promise.all([
-      promesaBadge,
-      // Corrección del número real (puede haber más de una notificación
-      // pendiente) una vez que ya se disparó el badge inicial de arriba.
-      // OJO: encadenada con .then() sobre promesaNotificacion a propósito
-      // -- si getNotifications() corre en paralelo con showNotification()
-      // (como estaba antes) puede resolver ANTES de que el SO termine de
-      // registrar la notificación recién mostrada, devolviendo el conteo
-      // viejo (a veces 0). setAppBadge(0) equivale a clearAppBadge() según
-      // spec, así que esa carrera pisaba el badge recién puesto con nada.
-      promesaNotificacion.then(() =>
-        tieneBadge
-          ? self.registration.getNotifications().then((lista) => self.navigator.setAppBadge(lista.length).catch(() => {}))
-          : Promise.resolve()
+    Promise.all([promesaBadge, promesaNotificacion, promesaCorreccion]).then(() =>
+      caches.open(CACHE_NAME).then((cache) =>
+        cache.put("/__badge-debug__", new Response(JSON.stringify(debug), { headers: { "Content-Type": "application/json" } }))
       )
-    ])
+    ).catch(() => {})
   );
 });
 
