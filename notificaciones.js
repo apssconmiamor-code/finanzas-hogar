@@ -371,40 +371,70 @@ function filtrarNotificacionesVisibles(lista) {
 // BLOQUES PERSONALIZADOS (panel de Alertas, estilo "Acciones rápidas")
 // =============================================
 // Cada usuario configura sus propios bloques para agrupar SUS alertas --
-// viven en localStorage con el email en la clave (no en Sheets) para que
-// dos personas que comparten el mismo dispositivo/cuenta de Google (ver
-// conversación: la familia comparte cuentas) no se pisen los bloques. El
-// bloque "Gastos fijos" NO vive acá: es fijo, igual para todos, y sigue
-// funcionando exactamente como antes (n.gastoFijo).
-function _bloquesAlertasKey() {
-  return `alertas_bloques_${currentUser?.email || "anon"}`;
+// se guardan del lado del servidor (Sheets, por email de quien los creó)
+// para que carguen igual en cualquier dispositivo donde ese usuario inicie
+// sesión (antes vivían solo en el localStorage de un dispositivo puntual --
+// bug real reportado). El bloque "Gastos fijos" NO vive acá: es fijo,
+// igual para todos, y sigue funcionando exactamente como antes
+// (n.gastoFijo). Se cachea en memoria + localStorage como respaldo para no
+// depender de la red en cada toque.
+let bloquesAlertas = []; // cache en memoria, la llena cargarBloquesAlertas() al abrir la app
+
+function _bloquesAlertasCacheKey() {
+  return `cache_alertas_bloques_${currentUser?.email || "anon"}`;
 }
 
 // Cada bloque es { nombre, icono }. Los guardados antes de que existiera
 // el ícono elegible quedaron como texto plano (solo el nombre) -- se
-// normalizan acá mismo, al leer, con el 🗂️ de siempre como respaldo.
-function obtenerBloquesAlertas() {
+// normalizan al leer, con el 🗂️ de siempre como respaldo.
+function _normalizarBloquesAlertas(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(b => typeof b === "string" ? { nombre: b, icono: "🗂️" } : b);
+}
+
+async function cargarBloquesAlertas() {
   try {
-    const arr = JSON.parse(localStorage.getItem(_bloquesAlertasKey()) || "[]");
-    if (!Array.isArray(arr)) return [];
-    return arr.map(b => typeof b === "string" ? { nombre: b, icono: "🗂️" } : b);
-  } catch { return []; }
+    let valor = await Sheets.getConfigUsuario(currentUser.email, "alertas_bloques");
+    if (valor === null) {
+      // Migración única desde la clave vieja de localStorage (por email,
+      // pero atada al dispositivo) hacia el servidor, para no perder los
+      // bloques que el usuario ya tenía configurados.
+      const viejo = localStorage.getItem(`alertas_bloques_${currentUser?.email || "anon"}`);
+      if (viejo) {
+        try {
+          const arr = _normalizarBloquesAlertas(JSON.parse(viejo));
+          if (arr.length > 0) { valor = arr; await Sheets.guardarConfigUsuario(currentUser.email, "alertas_bloques", arr); }
+        } catch {}
+      }
+    }
+    bloquesAlertas = _normalizarBloquesAlertas(valor);
+    localStorage.setItem(_bloquesAlertasCacheKey(), JSON.stringify(bloquesAlertas));
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") return;
+    const cache = localStorage.getItem(_bloquesAlertasCacheKey());
+    if (cache) { try { bloquesAlertas = JSON.parse(cache); } catch { bloquesAlertas = []; } }
+  }
 }
 
-function guardarBloquesAlertas(bloques) {
-  localStorage.setItem(_bloquesAlertasKey(), JSON.stringify(bloques));
+function obtenerBloquesAlertas() {
+  return bloquesAlertas;
 }
 
-function agregarBloqueAlerta(nombre, icono) {
+async function _guardarBloquesAlertas(bloques) {
+  bloquesAlertas = bloques;
+  localStorage.setItem(_bloquesAlertasCacheKey(), JSON.stringify(bloques));
+  await Sheets.guardarConfigUsuario(currentUser.email, "alertas_bloques", bloques);
+}
+
+async function agregarBloqueAlerta(nombre, icono) {
   const bloques = obtenerBloquesAlertas();
   if (!nombre || nombre === "Gastos fijos" || bloques.some(b => b.nombre === nombre)) return false;
-  bloques.push({ nombre, icono: icono || "🗂️" });
-  guardarBloquesAlertas(bloques);
+  await _guardarBloquesAlertas([...bloques, { nombre, icono: icono || "🗂️" }]);
   return true;
 }
 
-function borrarBloqueAlerta(nombre) {
-  guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b.nombre !== nombre));
+async function borrarBloqueAlerta(nombre) {
+  await _guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b.nombre !== nombre));
 }
 
 // GASTOS_FIJOS ya tiene su propio select (poblarSelectGastoFijo) -- este
@@ -469,17 +499,23 @@ function _estadoDiaAlarma(fechaODiaISO) {
 // fecha mostrada usan la PRÓXIMA ocurrencia real (_proximaOcurrencia),
 // no el ancla cruda -- si no, una recurrente creada hace tiempo se ve
 // "pasada" para siempre aunque esté funcionando bien.
-function renderItemNotificacion(n) {
+// soloRevisado: true dentro del bloque "Activos" -- ahí no tiene sentido
+// editar/eliminar la alerta del día, solo confirmar que ya se atendió.
+function renderItemNotificacion(n, soloRevisado = false) {
   const proxima = _proximaOcurrencia(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
+  const botones = soloRevisado
+    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅ Revisado</button>
+        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
+    : `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
+        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
+        <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>`;
   return `
     <div class="notificacion-item${claseDia}" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
-        <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
-        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
-        <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>
+        ${botones}
       </div>
     </div>`;
 }
@@ -579,7 +615,7 @@ function renderNotificaciones() {
   if (bloqueAlertaAbierto && !grupos[bloqueAlertaAbierto]) bloqueAlertaAbierto = null; // se borró el bloque que estaba abierto
 
   if (bloqueAlertaAbierto) {
-    renderBloqueAlertaDetalle(lista, grupos[bloqueAlertaAbierto]);
+    renderBloqueAlertaDetalle(lista, grupos[bloqueAlertaAbierto], bloqueAlertaAbierto);
   } else {
     renderBloquesAlertaGrid(lista, grupos);
   }
@@ -618,7 +654,10 @@ function renderBloquesAlertaGrid(lista, grupos) {
 }
 
 // ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
-function renderBloqueAlertaDetalle(lista, grupo) {
+function renderBloqueAlertaDetalle(lista, grupo, clave) {
+  // "Activos" es la lista de lo que le toca justo hoy -- ahí no tiene
+  // sentido editar/eliminar la alerta, solo confirmar que ya se atendió.
+  const esActivos = clave === "activos";
   // De la que se activa más pronto a la que se activa más tarde -- por la
   // PRÓXIMA ocurrencia real, no el ancla cruda (ver _proximaOcurrencia).
   const itemsOrdenados = [...grupo.items].sort((a, b) => {
@@ -630,7 +669,7 @@ function renderBloqueAlertaDetalle(lista, grupo) {
     return fa.getTime() - fb.getTime();
   });
   const itemsHTML = itemsOrdenados.length > 0
-    ? itemsOrdenados.map(renderItemNotificacion).join("")
+    ? itemsOrdenados.map(n => renderItemNotificacion(n, esActivos)).join("")
     : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
 
   lista.innerHTML = `
@@ -645,10 +684,15 @@ function renderBloqueAlertaDetalle(lista, grupo) {
     abrirNuevaNotificacionEnBloque(grupo.valorBloque);
   });
 
-  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => {
+  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", async () => {
     const nombre = grupo.nombreBloque;
     if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
-    borrarBloqueAlerta(nombre);
+    try {
+      await borrarBloqueAlerta(nombre);
+    } catch (err) {
+      alert("Error borrando el bloque: " + err.message);
+      return;
+    }
     bloqueAlertaAbierto = null;
     renderNotificaciones();
   });
@@ -987,14 +1031,24 @@ function setupNotificacionesListeners() {
     });
 
   document.getElementById("btn-guardar-bloque-alerta")
-    ?.addEventListener("click", () => {
+    ?.addEventListener("click", async () => {
       const nombre = document.getElementById("bloque-alerta-nombre").value.trim();
       const icono  = document.getElementById("bloque-alerta-icono").value.trim();
       if (!nombre) { alert("Ponle un nombre al bloque"); return; }
       if (nombre === "Gastos fijos") { alert('"Gastos fijos" ya existe y es fijo -- elige otro nombre.'); return; }
-      if (!agregarBloqueAlerta(nombre, icono)) { alert("Ya existe un bloque con ese nombre"); return; }
-      document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
-      renderNotificaciones();
+      const btn = document.getElementById("btn-guardar-bloque-alerta");
+      const textoOriginal = btn.textContent;
+      btn.disabled = true; btn.textContent = "Guardando...";
+      try {
+        const ok = await agregarBloqueAlerta(nombre, icono);
+        if (!ok) { alert("Ya existe un bloque con ese nombre"); return; }
+        document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
+        renderNotificaciones();
+      } catch (err) {
+        alert("Error guardando el bloque: " + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = textoOriginal;
+      }
     });
 
   document.getElementById("btn-cancelar-bloque-alerta")

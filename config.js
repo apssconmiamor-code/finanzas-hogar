@@ -3,7 +3,7 @@
 // =============================================
 
 const CONFIG = {
-  VERSION: "3.64.0",
+  VERSION: "3.65.0",
   GOOGLE_CLIENT_ID: "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com",
   SPREADSHEET_ID: "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o",
 
@@ -30,6 +30,7 @@ const CONFIG = {
     PROYECCION: "Proyeccion",
     METAS: "Metas",
     RECORDATORIOS: "Recordatorios",
-    NOTIFICACIONES: "Notificaciones"
+    NOTIFICACIONES: "Notificaciones",
+    CONFIG_USUARIO: "ConfigUsuario"
   }
 };

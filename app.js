@@ -1486,7 +1486,9 @@ async function _cargarTodoInterno(reintentando) {
     await Promise.all([
       cargarPresupuesto(),
       cargarProyeccion(),
-      cargarPrestamos()
+      cargarPrestamos(),
+      typeof cargarAccionesRapidas === "function" ? cargarAccionesRapidas() : Promise.resolve(),
+      typeof cargarBloquesAlertas === "function" ? cargarBloquesAlertas() : Promise.resolve()
     ]);
     await verificarYGuardarCronologia();
     await cargarYRenderCronologia();

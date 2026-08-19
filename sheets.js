@@ -517,3 +517,89 @@ Sheets.guardarMetas = async function(metas) {
   if (!writeRes.ok) throw new Error(`Error guardando metas: ${writeRes.status}`);
   return writeRes.json();
 };
+
+// =============================================
+// CONFIGURACIÓN POR USUARIO -- guarda cosas como "acciones rápidas" o los
+// "bloques" de Alertas del lado del servidor en vez de localStorage, así
+// que si alguien (Royer, Yei, Blanjor...) entra desde un dispositivo
+// nuevo, ve exactamente su misma configuración -- antes vivía solo en el
+// localStorage de ESE dispositivo (bug real reportado: activar la app en
+// un dispositivo nuevo no traía nada de lo ya configurado).
+// Hoja "ConfigUsuario": A: id | B: email | C: clave | D: valor (JSON)
+// Una fila por (email, clave) -- "clave" identifica QUÉ se está guardando
+// (ej. "acciones_rapidas", "alertas_bloques"), el valor es libre (JSON).
+// =============================================
+
+Sheets._configUsuarioHojaLista = false;
+
+Sheets._asegurarHojaConfigUsuario = async function () {
+  if (this._configUsuarioHojaLista) return;
+  const metaRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${this.token}` } }
+  );
+  if (!metaRes.ok) throw new Error(`Error obteniendo metadata: ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const existe = meta.sheets.some(s => s.properties.title === CONFIG.SHEETS.CONFIG_USUARIO);
+
+  if (!existe) {
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}:batchUpdate`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: CONFIG.SHEETS.CONFIG_USUARIO } } }] })
+      }
+    );
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.CONFIG_USUARIO + "!A1")}?valueInputOption=RAW`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ values: [["id", "email", "clave", "valor"]] })
+      }
+    );
+  }
+  this._configUsuarioHojaLista = true;
+};
+
+// Devuelve el valor ya parseado (lo que sea que se haya guardado con
+// guardarConfigUsuario), o null si ese usuario todavía no configuró nada
+// bajo esa clave.
+Sheets.getConfigUsuario = async function (email, clave) {
+  await this._asegurarHojaConfigUsuario();
+  const rows = await this.leer(`${CONFIG.SHEETS.CONFIG_USUARIO}!A2:D`);
+  const fila = rows.find(r => r && r[1] === email && r[2] === clave);
+  if (!fila) return null;
+  try { return JSON.parse(fila[3]); } catch { return null; }
+};
+
+// Upsert: si ya había una fila para (email, clave) la reescribe en el
+// mismo lugar, si no la agrega -- así nunca se duplica el mismo usuario+clave.
+Sheets.guardarConfigUsuario = async function (email, clave, valor) {
+  await this._asegurarHojaConfigUsuario();
+  const rows = await this.leer(`${CONFIG.SHEETS.CONFIG_USUARIO}!A2:D`);
+  const rowIndex = rows.findIndex(r => r && r[1] === email && r[2] === clave);
+  const valorJson = JSON.stringify(valor);
+
+  if (rowIndex === -1) {
+    const id = "CFG" + Date.now();
+    await this.agregar(CONFIG.SHEETS.CONFIG_USUARIO, [id, email, clave, valorJson]);
+    return id;
+  }
+
+  const id = rows[rowIndex][0];
+  const sheetRow = rowIndex + 2;
+  const range = `${CONFIG.SHEETS.CONFIG_USUARIO}!A${sheetRow}:D${sheetRow}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[id, email, clave, valorJson]] })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error guardando configuración: ${res.status}`);
+  return id;
+};

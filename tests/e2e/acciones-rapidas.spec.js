@@ -1,7 +1,11 @@
-// El botón flotante abre un menú de pantalla completa con 3 "acciones
-// rápidas" configurables + la opción de siempre "Recordatorio". Una acción
+// El botón flotante abre un menú de pantalla completa con las "acciones
+// rápidas" que el usuario haya configurado (sin límite de cantidad) + un
+// tile fijo "Agregar" + la opción de siempre "Recordatorio". Una acción
 // rápida guarda categoría+concepto+caja; usarla solo pide el monto.
 // Mantener presionada una acción ya configurada la abre para reconfigurarla.
+// Se guardan del lado del servidor (Sheets, hoja ConfigUsuario) por email,
+// así que cargan igual en cualquier dispositivo donde ese usuario inicie
+// sesión.
 
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
@@ -19,21 +23,21 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await esperarAppLista(page);
   });
 
-  test('un toque sin arrastrar abre el menú con 3 slots vacíos + Recordatorio', async ({ page }) => {
+  test('un toque sin arrastrar abre el menú vacío con Agregar + Recordatorio', async ({ page }) => {
     await page.locator('#fab-recordatorio').click();
     await expect(page.locator('#modal-menu-acciones')).toBeVisible();
 
-    const slots = page.locator('.accion-rapida-card[data-slot]');
-    await expect(slots).toHaveCount(3);
-    await expect(page.locator('.accion-rapida-vacia')).toHaveCount(3);
+    await expect(page.locator('.accion-rapida-card[data-slot]')).toHaveCount(0);
+    await expect(page.locator('#btn-agregar-accion')).toBeVisible();
     await expect(page.locator('#accion-recordatorio')).toBeVisible();
   });
 
-  test('configurar una acción rápida y usarla registra el movimiento', async ({ page }) => {
+  test('agregar una acción rápida desde "Agregar" y usarla registra el movimiento', async ({ page }) => {
     await page.locator('#fab-recordatorio').click();
-    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await page.locator('#btn-agregar-accion').click();
 
     await expect(page.locator('#modal-config-accion')).toBeVisible();
+    await expect(page.locator('#btn-borrar-accion')).toBeHidden();
     await page.locator('#config-accion-nombre').fill('Salario');
     await page.locator('#config-accion-icono').fill('💰');
     await page.locator('#config-accion-categoria').selectOption('Ingreso');
@@ -41,11 +45,10 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
     await page.locator('#btn-guardar-config-accion').click();
 
-    // Vuelve al menú y ese slot ya no está vacío.
+    // Vuelve al menú y ya aparece como slot 0.
     await expect(page.locator('#modal-menu-acciones')).toBeVisible();
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
     await expect(slot0).toContainText('Salario');
-    await expect(slot0).not.toHaveClass(/accion-rapida-vacia/);
 
     // Usarla: un toque corto solo pide el monto.
     await slot0.click();
@@ -61,9 +64,31 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#movimientos-list')).toContainText('3.000.000');
   });
 
+  test('se pueden agregar más de 3 acciones rápidas', async ({ page }) => {
+    const nombres = ['Salario', 'Mercado', 'Salud', 'Transporte'];
+    await page.locator('#fab-recordatorio').click();
+    for (const nombre of nombres) {
+      // El menú ya queda abierto tras guardar cada una -- no hace falta
+      // volver a tocar el botón flotante entre acciones.
+      await page.locator('#btn-agregar-accion').click();
+      await page.locator('#config-accion-nombre').fill(nombre);
+      await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+      await page.locator('#config-accion-concepto').selectOption('Mercado');
+      await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+      await page.locator('#btn-guardar-config-accion').click();
+      await expect(page.locator('#modal-menu-acciones')).toBeVisible();
+    }
+
+    await expect(page.locator('.accion-rapida-card[data-slot]')).toHaveCount(4);
+    await expect(page.locator('#btn-agregar-accion')).toBeVisible();
+    for (const nombre of nombres) {
+      await expect(page.locator('.acciones-rapidas-grid')).toContainText(nombre);
+    }
+  });
+
   test('acción configurada con "Pedir foto con cámara" muestra el botón de cámara al usarla y sube la foto', async ({ page }) => {
     await page.locator('#fab-recordatorio').click();
-    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await page.locator('#btn-agregar-accion').click();
 
     await page.locator('#config-accion-nombre').fill('Mercado');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
@@ -73,7 +98,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-guardar-config-accion').click();
 
     // Otra acción SIN cámara para confirmar que el botón no aparece cuando no se pidió.
-    await page.locator('.accion-rapida-card[data-slot="1"]').click();
+    await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Salud');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Salud');
@@ -102,10 +127,9 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     }, { timeout: 10000 }).toContain('drive.google.com');
   });
 
-  test('mantener presionada una acción ya configurada la abre para reconfigurar', async ({ page }) => {
-    // Configura primero el slot 0.
+  test('mantener presionada una acción ya configurada la abre para reconfigurar, y borrarla la quita del menú', async ({ page }) => {
     await page.locator('#fab-recordatorio').click();
-    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Mercado');
     await page.locator('#config-accion-icono').fill('🛒');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
@@ -126,10 +150,13 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-config-accion')).toBeVisible();
     await expect(page.locator('#modal-usar-accion')).toBeHidden();
     await expect(page.locator('#config-accion-nombre')).toHaveValue('Mercado');
+    await expect(page.locator('#btn-borrar-accion')).toBeVisible();
 
-    // Y desde ahí se puede borrar la configuración.
+    // Y desde ahí se puede borrar la configuración -- la tarjeta desaparece
+    // por completo del menú (ya no queda un slot "vacío" en su lugar).
     await page.locator('#btn-borrar-accion').click();
-    await expect(page.locator('.accion-rapida-card[data-slot="0"]')).toHaveClass(/accion-rapida-vacia/);
+    await expect(page.locator('#modal-menu-acciones')).toBeVisible();
+    await expect(page.locator('.accion-rapida-card[data-slot]')).toHaveCount(0);
   });
 
   test('la tarjeta "Recordatorio" abre el flujo de siempre', async ({ page }) => {
@@ -137,5 +164,23 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#accion-recordatorio').click();
     await expect(page.locator('#modal-menu-acciones')).toBeHidden();
     await expect(page.locator('#modal-recordatorio-crear')).toBeVisible();
+  });
+
+  test('una acción rápida configurada en otro dispositivo carga igual acá (sincronizada por Sheets)', async ({ page }) => {
+    // Simula que este usuario ya configuró una acción rápida desde otro
+    // dispositivo: la hoja ConfigUsuario ya trae esa fila, pero ESTE
+    // navegador nunca tuvo nada en su localStorage.
+    const accionGuardada = [{ nombre: 'Mercado', icono: '🛒', categoria: 'Gasto variable', concepto: 'Mercado', caja: 'C1', camara: false }];
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'acciones_rapidas', JSON.stringify(accionGuardada)]],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await expect(slot0).toContainText('Mercado');
   });
 });

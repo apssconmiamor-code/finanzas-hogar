@@ -671,28 +671,60 @@ if (document.readyState === "loading") {
 }
 
 // =============================================
-// ACCIONES RÁPIDAS — hasta 3 movimientos preconfigurados desde el botón
-// flotante (categoría + concepto + caja), que solo piden el monto al
-// usarse. Se guardan en localStorage (preferencia del dispositivo, igual
-// que la posición del botón flotante), no en Sheets.
+// ACCIONES RÁPIDAS — movimientos preconfigurados desde el botón flotante
+// (categoría + concepto + caja), que solo piden el monto al usarse. Se
+// pueden agregar tantas como se quiera (ya no hay tope de 3). Se guardan
+// del lado del servidor (Sheets, ver Sheets.getConfigUsuario/
+// guardarConfigUsuario), por email de quien las creó -- así si Royer las
+// configura en su celular y después abre la app en otro dispositivo, las
+// ve exactamente igual (antes vivían solo en el localStorage de un
+// dispositivo puntual -- bug real reportado). Se cachea en memoria +
+// localStorage como respaldo para no depender de la red en cada toque.
 // =============================================
 
-const ACCIONES_RAPIDAS_KEY = "acciones_rapidas";
+let accionesRapidas = []; // cache en memoria, la llena cargarAccionesRapidas() al abrir la app
+
+function _accionesRapidasCacheKey() {
+  return `cache_acciones_rapidas_${currentUser?.email || "anon"}`;
+}
+
+async function cargarAccionesRapidas() {
+  try {
+    let valor = await Sheets.getConfigUsuario(currentUser.email, "acciones_rapidas");
+    if (valor === null) {
+      // Antes de esta función, las acciones rápidas vivían en localStorage
+      // bajo una clave fija (sin email, sin servidor) -- si hay algo ahí y
+      // Sheets todavía no tiene nada para este usuario, es la primera vez
+      // que corre este código: se migran una sola vez para no perder lo
+      // que la familia ya tenía configurado.
+      const viejo = localStorage.getItem("acciones_rapidas");
+      if (viejo) {
+        try {
+          const arr = JSON.parse(viejo).filter(Boolean);
+          if (arr.length > 0) { valor = arr; await Sheets.guardarConfigUsuario(currentUser.email, "acciones_rapidas", arr); }
+        } catch {}
+      }
+    }
+    accionesRapidas = Array.isArray(valor) ? valor : [];
+    localStorage.setItem(_accionesRapidasCacheKey(), JSON.stringify(accionesRapidas));
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") return;
+    const cache = localStorage.getItem(_accionesRapidasCacheKey());
+    if (cache) { try { accionesRapidas = JSON.parse(cache); } catch { accionesRapidas = []; } }
+  }
+}
 
 function obtenerAccionesRapidas() {
-  try {
-    const raw = localStorage.getItem(ACCIONES_RAPIDAS_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    while (arr.length < 3) arr.push(null);
-    return arr.slice(0, 3);
-  } catch { return [null, null, null]; }
+  return accionesRapidas;
 }
 
-function guardarAccionesRapidas(acciones) {
-  localStorage.setItem(ACCIONES_RAPIDAS_KEY, JSON.stringify(acciones));
+async function _guardarAccionesRapidas(lista) {
+  accionesRapidas = lista;
+  localStorage.setItem(_accionesRapidasCacheKey(), JSON.stringify(lista));
+  await Sheets.guardarConfigUsuario(currentUser.email, "acciones_rapidas", lista);
 }
 
-let accionSlotActual = null;
+let accionSlotActual = null; // índice dentro de accionesRapidas, o -1 = configurando una nueva
 let accionFotoData = null; // { data: dataURL, type: mime } -- foto opcional al usar una acción con cámara activada
 
 function abrirMenuAcciones() {
@@ -709,25 +741,21 @@ function renderMenuAcciones() {
   if (!grid) return;
   const acciones = obtenerAccionesRapidas();
 
-  grid.innerHTML = acciones.map((accion, i) => {
-    if (accion) {
-      return `<button class="accion-rapida-card" data-slot="${i}">
-        <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
-        <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
-      </button>`;
-    }
-    return `<button class="accion-rapida-card accion-rapida-vacia" data-slot="${i}">
+  grid.innerHTML = acciones.map((accion, i) => `
+    <button class="accion-rapida-card" data-slot="${i}">
+      <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
+      <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
+    </button>`).join("") + `
+    <button class="accion-rapida-card accion-rapida-vacia" id="btn-agregar-accion">
       <span class="accion-rapida-icono">➕</span>
-      <span class="accion-rapida-nombre">Configurar</span>
-    </button>`;
-  }).join("") + `
+      <span class="accion-rapida-nombre">Agregar</span>
+    </button>
     <button class="accion-rapida-card" id="accion-recordatorio">
       <span class="accion-rapida-icono">📝</span>
       <span class="accion-rapida-nombre">Recordatorio</span>
     </button>`;
 
-  // Toque corto = usar (o configurar si el slot está vacío);
-  // mantener presionado ~500ms = (re)configurar ese slot.
+  // Toque corto = usar la acción; mantener presionado ~500ms = configurarla.
   grid.querySelectorAll(".accion-rapida-card[data-slot]").forEach((card) => {
     const slot = parseInt(card.dataset.slot, 10);
     let esPressLargo = false;
@@ -748,11 +776,12 @@ function renderMenuAcciones() {
       if (esPressLargo) return;
       const accion = obtenerAccionesRapidas()[slot];
       if (accion) abrirUsarAccion(slot, accion);
-      else abrirConfigAccion(slot);
     });
     card.addEventListener("pointerleave", cancelar);
     card.addEventListener("pointercancel", cancelar);
   });
+
+  document.getElementById("btn-agregar-accion")?.addEventListener("click", () => abrirConfigAccion(-1));
 
   document.getElementById("accion-recordatorio")?.addEventListener("click", () => {
     cerrarMenuAcciones();
@@ -773,9 +802,10 @@ function actualizarConceptoAccion() {
   sel.innerHTML = lista.map(c => `<option value="${c}">${c}</option>`).join("");
 }
 
+// slot: índice a editar dentro de accionesRapidas, o -1 para crear una nueva.
 function abrirConfigAccion(slot) {
   accionSlotActual = slot;
-  const accion = obtenerAccionesRapidas()[slot];
+  const accion = slot >= 0 ? obtenerAccionesRapidas()[slot] : null;
 
   document.getElementById("config-accion-nombre").value = accion?.nombre || "";
   document.getElementById("config-accion-icono").value  = accion?.icono || "";
@@ -798,7 +828,7 @@ function cerrarConfigAccion() {
   abrirMenuAcciones();
 }
 
-function guardarConfigAccion() {
+async function guardarConfigAccion() {
   const nombre    = document.getElementById("config-accion-nombre").value.trim();
   const icono     = document.getElementById("config-accion-icono").value.trim() || "⚡";
   const categoria = document.getElementById("config-accion-categoria").value;
@@ -811,19 +841,36 @@ function guardarConfigAccion() {
     return;
   }
 
-  const acciones = obtenerAccionesRapidas();
-  acciones[accionSlotActual] = { nombre, icono, categoria, concepto, caja, camara };
-  guardarAccionesRapidas(acciones);
-  document.getElementById("modal-config-accion")?.classList.add("hidden");
-  abrirMenuAcciones();
+  const btn = document.getElementById("btn-guardar-config-accion");
+  const textoOriginal = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+
+  try {
+    const acciones = [...obtenerAccionesRapidas()];
+    const nuevaAccion = { nombre, icono, categoria, concepto, caja, camara };
+    if (accionSlotActual >= 0) acciones[accionSlotActual] = nuevaAccion;
+    else acciones.push(nuevaAccion);
+    await _guardarAccionesRapidas(acciones);
+    document.getElementById("modal-config-accion")?.classList.add("hidden");
+    abrirMenuAcciones();
+  } catch (err) {
+    alert("Error guardando la acción: " + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = textoOriginal || "Guardar"; }
+  }
 }
 
-function borrarConfigAccion() {
-  const acciones = obtenerAccionesRapidas();
-  acciones[accionSlotActual] = null;
-  guardarAccionesRapidas(acciones);
-  document.getElementById("modal-config-accion")?.classList.add("hidden");
-  abrirMenuAcciones();
+async function borrarConfigAccion() {
+  if (accionSlotActual === null || accionSlotActual < 0) return;
+  try {
+    const acciones = [...obtenerAccionesRapidas()];
+    acciones.splice(accionSlotActual, 1);
+    await _guardarAccionesRapidas(acciones);
+    document.getElementById("modal-config-accion")?.classList.add("hidden");
+    abrirMenuAcciones();
+  } catch (err) {
+    alert("Error borrando la acción: " + err.message);
+  }
 }
 
 // ---- Usar una acción rápida ya configurada ----
