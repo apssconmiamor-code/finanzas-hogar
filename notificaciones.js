@@ -307,6 +307,55 @@ function descripcionRecurrencia(n) {
   return intervalo === 1 ? `Cada ${singular}` : `Cada ${intervalo} ${plural}`;
 }
 
+// Suma "intervalo" meses a una fecha (UTC), clampeando el día al último
+// del mes destino si no existe (ej. 31 de enero + 1 mes -> 28/29 de
+// febrero, no "3 de marzo" como haría Date normal por desborde) -- mismo
+// criterio que usa el Worker para decidir "¿hoy le toca?" (ver
+// estaVencida en worker/src/push.js), para que acá salga la MISMA fecha
+// que el Worker considera la próxima.
+function _sumarMeses(fecha, mesesASumar) {
+  const totalMeses = fecha.getUTCMonth() + mesesASumar;
+  const nuevoAnio = fecha.getUTCFullYear() + Math.floor(totalMeses / 12);
+  const nuevoMes = ((totalMeses % 12) + 12) % 12;
+  const ultimoDiaNuevoMes = new Date(Date.UTC(nuevoAnio, nuevoMes + 1, 0)).getUTCDate();
+  const nuevoDia = Math.min(fecha.getUTCDate(), ultimoDiaNuevoMes);
+  return new Date(Date.UTC(nuevoAnio, nuevoMes, nuevoDia, fecha.getUTCHours(), fecha.getUTCMinutes(), fecha.getUTCSeconds()));
+}
+
+function _siguienteCiclo(fecha, unidad, intervalo) {
+  if (unidad === "dia")    { const d = new Date(fecha); d.setUTCDate(d.getUTCDate() + intervalo); return d; }
+  if (unidad === "semana") { const d = new Date(fecha); d.setUTCDate(d.getUTCDate() + intervalo * 7); return d; }
+  if (unidad === "mes")    return _sumarMeses(fecha, intervalo);
+  if (unidad === "anio")   return _sumarMeses(fecha, intervalo * 12);
+  return new Date(fecha.getTime() + 86400000);
+}
+
+// n.fechaHora es el ANCLA (cuándo se creó/empezó a repetir la alerta) --
+// para una recurrente queda fija en esa fecha para SIEMPRE, no es "cuándo
+// dispara la próxima vez". Bug real reportado: una alerta recurrente
+// creada hace 2 meses se veía siempre "pasada" (roja) aunque estuviera
+// funcionando perfecto, porque el color comparaba directo contra esa
+// ancla vieja. Esta función calcula la próxima fecha real (hoy si hoy le
+// toca, si no la que sigue), con la misma regla de intervalo+unidad que
+// usa el Worker para decidir si ya le tocaba disparar.
+function _proximaOcurrencia(n, ahora = new Date()) {
+  const ancla = new Date(n.fechaHora);
+  if (isNaN(ancla.getTime())) return null;
+  if (n.tipo === "unica") return ancla;
+
+  const unidad = n.unidad || UNIDAD_LEGADO_NOTIF[n.tipo] || "dia";
+  const intervalo = Math.max(1, parseInt(n.intervalo, 10) || 1);
+  const hoyDia = Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate());
+
+  let candidata = ancla;
+  let guarda = 0; // corta cualquier caso raro en vez de colgar el navegador
+  while (Date.UTC(candidata.getUTCFullYear(), candidata.getUTCMonth(), candidata.getUTCDate()) < hoyDia && guarda < 10000) {
+    candidata = _siguienteCiclo(candidata, unidad, intervalo);
+    guarda++;
+  }
+  return candidata;
+}
+
 // La hoja "Notificaciones" es compartida por toda la familia -- una
 // alerta "Solo yo" solo debe verse en la lista de quien la creó. El envío
 // del push ya estaba bien restringido (ver revisarYEnviarNotificaciones
@@ -402,11 +451,11 @@ function _diaLocal(fechaOIso) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// "hoy" / "pasado" / "futuro" según el día de fechaHora contra hoy en
-// hora local -- usado tanto para el color de la tarjeta como para el
-// contador de "Activos" (solo hoy) en renderNotificaciones().
-function _estadoDiaAlarma(fechaHoraIso) {
-  const dia = _diaLocal(fechaHoraIso);
+// "hoy" / "pasado" / "futuro" según el día de una fecha (Date o ISO)
+// contra hoy en hora local -- usado tanto para el color de la tarjeta
+// como para el contador de "Activos" (solo hoy) en renderNotificaciones().
+function _estadoDiaAlarma(fechaODiaISO) {
+  const dia = _diaLocal(fechaODiaISO);
   if (!dia) return null;
   const hoy = _diaLocal(new Date());
   if (dia === hoy) return "hoy";
@@ -416,18 +465,20 @@ function _estadoDiaAlarma(fechaHoraIso) {
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio +
 // Editar/Eliminar. Todo lo demás (repetición, destinatario, bloque,
-// mensaje, estado...) se ve en el resumen del doble clic. El día de la
-// alarma la tiñe: hoy en verde clarito, pasada en rojo clarito, futura sin
-// tocar.
+// mensaje, estado...) se ve en el resumen del doble clic. El color y la
+// fecha mostrada usan la PRÓXIMA ocurrencia real (_proximaOcurrencia),
+// no el ancla cruda -- si no, una recurrente creada hace tiempo se ve
+// "pasada" para siempre aunque esté funcionando bien.
 function renderItemNotificacion(n) {
-  const estadoDia = _estadoDiaAlarma(n.fechaHora);
+  const proxima = _proximaOcurrencia(n);
+  const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
   return `
     <div class="notificacion-item${claseDia}" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
         <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
-        <span class="notif-card-proximo">🗓️ ${_formatoFechaHoraLocal(n.fechaHora)}</span>
+        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
         <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>
       </div>
     </div>`;
@@ -491,7 +542,12 @@ function renderNotificaciones() {
   // sin importar la fecha) -- las demás siguen viéndose igual, adentro de
   // su bloque de categoría (Gastos fijos/Otros/uno propio).
   const todasActivas = notificaciones.filter(n => n.estado === "activa");
-  const activosHoy    = todasActivas.filter(n => _estadoDiaAlarma(n.fechaHora) === "hoy");
+  // Usa la PRÓXIMA ocurrencia real, no el ancla cruda -- si no, una
+  // recurrente que hoy le toca pero se creó otro día nunca contaría acá.
+  const activosHoy    = todasActivas.filter(n => {
+    const proxima = _proximaOcurrencia(n);
+    return proxima && _estadoDiaAlarma(proxima) === "hoy";
+  });
   const pasados       = notificaciones.filter(n => n.estado === "enviada");
   const canceladas    = notificaciones.filter(n => n.estado === "cancelada");
 
@@ -563,8 +619,16 @@ function renderBloquesAlertaGrid(lista, grupos) {
 
 // ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
 function renderBloqueAlertaDetalle(lista, grupo) {
-  // De la que se activa más pronto a la que se activa más tarde.
-  const itemsOrdenados = [...grupo.items].sort((a, b) => (a.fechaHora || "").localeCompare(b.fechaHora || ""));
+  // De la que se activa más pronto a la que se activa más tarde -- por la
+  // PRÓXIMA ocurrencia real, no el ancla cruda (ver _proximaOcurrencia).
+  const itemsOrdenados = [...grupo.items].sort((a, b) => {
+    const fa = _proximaOcurrencia(a);
+    const fb = _proximaOcurrencia(b);
+    if (!fa && !fb) return 0;
+    if (!fa) return 1;
+    if (!fb) return -1;
+    return fa.getTime() - fb.getTime();
+  });
   const itemsHTML = itemsOrdenados.length > 0
     ? itemsOrdenados.map(renderItemNotificacion).join("")
     : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;

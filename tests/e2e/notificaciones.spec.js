@@ -134,6 +134,35 @@ test.describe('Notificaciones (Web Push)', () => {
     expect(claseFutura).not.toMatch(/notificacion-item-(hoy|pasada)/);
   });
 
+  test('una alerta recurrente usa la PRÓXIMA ocurrencia real para el color, no el ancla vieja (bug real: se veía roja para siempre)', async ({ page }) => {
+    // Ancla: mismo día del mes que hoy, pero hace 2 meses -- con "cada 1
+    // mes" la próxima ocurrencia real cae justo hoy. El ancla en sí (hace
+    // 2 meses) es una fecha PASADA, así que si el color comparara contra
+    // el ancla cruda (el bug reportado) se vería roja para siempre.
+    const hoy = new Date();
+    const ancla = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 2, hoy.getUTCDate(), 10, 0, 0)).toISOString();
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N1', 'Pago mensual', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'mes'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    // Le toca hoy -> cuenta en "Activos", NO en "Pasados" (no se disparó,
+    // sigue "activa" -- "Pasados" es solo lo que ya se envió y no se revisó).
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Pasados' }).locator('.alerta-bloque-cantidad')).toHaveCount(0);
+
+    await abrirBloqueAlerta(page, 'Otros');
+    const tarjeta = page.locator('.notificacion-item');
+    await expect(tarjeta).toContainText('Pago mensual');
+    await expect(tarjeta).toHaveClass(/notificacion-item-hoy/);
+    await expect(tarjeta).not.toHaveClass(/notificacion-item-pasada/);
+  });
+
   test('la tarjeta de una alarma solo muestra nombre, próximo recordatorio, Editar y Eliminar', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
