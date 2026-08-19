@@ -3259,7 +3259,7 @@ function renderTablaComparacion(movsDelMes) {
     // patrón que Alertas y Movimientos, ver tapConcepto más abajo).
     const conceptoJs  = f.concepto.replace(/'/g, "\\'");
     const categoriaJs = f.categoria.replace(/'/g, "\\'");
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" onclick="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
       <td>
         <div class="proy-cell-concepto">
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
@@ -3277,7 +3277,12 @@ function renderTablaComparacion(movsDelMes) {
 // Modificar/Eliminar en vez de esa lista. No se puede usar ondblclick -- el
 // bloqueo de zoom (touchend -> preventDefault en index.html) suprime la
 // síntesis nativa de dblclick en iOS Safari real (mismo bug ya resuelto
-// para Alertas y Movimientos, ver tapNotificacion/tapMovimiento).
+// para Alertas y Movimientos, ver tapNotificacion/tapMovimiento). Tampoco
+// alcanza con onclick: ese mismo preventDefault() en el touchend del
+// SEGUNDO toque también suprime la síntesis del click de ESE toque puntual
+// -- por eso la fila usa onpointerup, no onclick (bug real reportado: con
+// onclick, el segundo toque nunca llegaba a registrarse en el celular
+// real, así que siempre caía en el toque simple).
 //
 // A diferencia de esos dos casos, acá el toque "simple" SÍ abre un modal
 // (los movimientos reales) -- si se abriera de inmediato, ese modal
