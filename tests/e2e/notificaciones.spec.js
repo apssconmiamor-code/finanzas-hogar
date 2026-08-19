@@ -55,7 +55,13 @@ async function deslizarParaVolver(page) {
 async function mockPushManager(page) {
   await page.addInitScript(() => {
     window.Notification = window.Notification || {};
-    Notification.permission = 'default';
+    // Notification.permission es un getter de solo lectura en el navegador
+    // real (y en Chromium headless suele arrancar en "denied", no
+    // "default") -- una asignación directa no tiene efecto, hay que
+    // redefinirla como escribible para que requestPermission() de abajo sí
+    // pueda cambiarla (mismo problema ya resuelto en el test de "si el
+    // dispositivo ya está activado" más abajo).
+    Object.defineProperty(window.Notification, 'permission', { value: 'default', writable: true, configurable: true });
     Notification.requestPermission = async () => { Notification.permission = 'granted'; return 'granted'; };
 
     const fakeSubscription = {
@@ -63,10 +69,14 @@ async function mockPushManager(page) {
       keys: { p256dh: 'FAKE_P256DH', auth: 'FAKE_AUTH' },
       toJSON() { return { endpoint: this.endpoint, keys: this.keys }; }
     };
+    // Con estado -- igual que el PushManager real, una vez que subscribe()
+    // corrió, getSubscription() tiene que devolver esa misma suscripción
+    // (si no, la app nunca detecta que este dispositivo ya quedó activado).
+    let suscripcionActual = null;
     const fakeRegistration = {
       pushManager: {
-        getSubscription: async () => null,
-        subscribe: async () => fakeSubscription
+        getSubscription: async () => suscripcionActual,
+        subscribe: async () => { suscripcionActual = fakeSubscription; return fakeSubscription; }
       }
     };
     Object.defineProperty(navigator, 'serviceWorker', {
@@ -528,11 +538,18 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    await expect(page.locator('#notif-header-nota')).toBeVisible();
+
     await page.locator('#btn-activar-push').click();
     await expect.poll(() => cuerpoRecibido).not.toBeNull();
 
     expect(cuerpoRecibido.subscription.endpoint).toBe('https://fcm.googleapis.com/fake/endpoint123');
     expect(cuerpoRecibido.subscription.keys.p256dh).toBe('FAKE_P256DH');
+
+    // Ya quedó activada en este dispositivo -- la explicación de "cada
+    // dispositivo necesita activarlas" deja de tener sentido y desaparece
+    // sola, sin esperar a un recargue.
+    await expect(page.locator('#notif-header-nota')).toBeHidden();
   });
 
   test('si el dispositivo ya está activado, no muestra "Activar en este dispositivo"', async ({ page, browserName }) => {
@@ -563,5 +580,8 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await expect(page.locator('#btn-activar-push')).toBeHidden();
+    // La explicación de "cada dispositivo necesita activarlas" tampoco
+    // tiene sentido si este dispositivo ya las activó.
+    await expect(page.locator('#notif-header-nota')).toBeHidden();
   });
 });

@@ -274,12 +274,16 @@ async function activarNotificacionesPush() {
 }
 
 // Este dispositivo ya tiene el permiso + la suscripción push activa -- no
-// tiene sentido seguir ofreciendo el botón para activarlas de nuevo.
+// tiene sentido seguir ofreciendo el botón para activarlas de nuevo, ni la
+// explicación de por qué hace falta activarlas (ya se activaron acá).
 async function actualizarBotonActivarPush() {
-  const btn = document.getElementById("btn-activar-push");
-  if (!btn) return;
+  const btn  = document.getElementById("btn-activar-push");
+  const nota = document.getElementById("notif-header-nota");
+  if (!btn && !nota) return;
   const estado = await estadoSuscripcionPush();
-  btn.classList.toggle("hidden", estado === "activo");
+  const yaActivo = estado === "activo";
+  if (btn)  btn.classList.toggle("hidden", yaActivo);
+  if (nota) nota.classList.toggle("hidden", yaActivo);
 }
 
 // =============================================
