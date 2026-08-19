@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v138";
+const CACHE_NAME = "finanzas-v139";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -160,20 +160,29 @@ self.addEventListener("push", (event) => {
   const tieneBadge = "setAppBadge" in self.navigator;
   const promesaBadge = tieneBadge ? self.navigator.setAppBadge(1).catch(() => {}) : Promise.resolve();
 
+  const promesaNotificacion = self.registration.showNotification(datos.title, {
+    body: datos.body,
+    icon: "./icono.png",
+    badge: "./icono.png",
+    tag: datos.tag || undefined
+  });
+
   event.waitUntil(
     Promise.all([
-      self.registration.showNotification(datos.title, {
-        body: datos.body,
-        icon: "./icono.png",
-        badge: "./icono.png",
-        tag: datos.tag || undefined
-      }),
       promesaBadge,
       // Corrección del número real (puede haber más de una notificación
       // pendiente) una vez que ya se disparó el badge inicial de arriba.
-      tieneBadge
-        ? self.registration.getNotifications().then((lista) => self.navigator.setAppBadge(lista.length).catch(() => {}))
-        : Promise.resolve()
+      // OJO: encadenada con .then() sobre promesaNotificacion a propósito
+      // -- si getNotifications() corre en paralelo con showNotification()
+      // (como estaba antes) puede resolver ANTES de que el SO termine de
+      // registrar la notificación recién mostrada, devolviendo el conteo
+      // viejo (a veces 0). setAppBadge(0) equivale a clearAppBadge() según
+      // spec, así que esa carrera pisaba el badge recién puesto con nada.
+      promesaNotificacion.then(() =>
+        tieneBadge
+          ? self.registration.getNotifications().then((lista) => self.navigator.setAppBadge(lista.length).catch(() => {}))
+          : Promise.resolve()
+      )
     ])
   );
 });
