@@ -741,18 +741,21 @@ function renderMenuAcciones() {
   if (!grid) return;
   const acciones = obtenerAccionesRapidas();
 
+  // "Agregar" siempre va al final -- de nada sirve como referencia de
+  // posición fija si las acciones ya configuradas lo van corriendo cada
+  // vez que se agrega una nueva (pedido explícito del usuario).
   grid.innerHTML = acciones.map((accion, i) => `
     <button class="accion-rapida-card" data-slot="${i}">
       <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
       <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
     </button>`).join("") + `
-    <button class="accion-rapida-card accion-rapida-vacia" id="btn-agregar-accion">
-      <span class="accion-rapida-icono">➕</span>
-      <span class="accion-rapida-nombre">Agregar</span>
-    </button>
     <button class="accion-rapida-card" id="accion-recordatorio">
       <span class="accion-rapida-icono">📝</span>
       <span class="accion-rapida-nombre">Recordatorio</span>
+    </button>
+    <button class="accion-rapida-card accion-rapida-vacia" id="btn-agregar-accion">
+      <span class="accion-rapida-icono">➕</span>
+      <span class="accion-rapida-nombre">Agregar</span>
     </button>`;
 
   // Toque corto = usar la acción; mantener presionado ~500ms = configurarla.

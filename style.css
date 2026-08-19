@@ -589,15 +589,23 @@ input, select, textarea, table {
 .modal-card-presupuesto { max-height: 90vh; }
 .modal-card-fullscreen {
   width: 100%; height: 100%; max-width: 100%; max-height: 100%;
-  border-radius: 0; justify-content: center;
+  border-radius: 0; justify-content: flex-start;
 }
 .modal-card-fullscreen::before { display: none; }
 
+/* Sin alto fijo -- antes quedaba encerrada en 50vh con scroll propio, así
+   que con pocas acciones sobraba media pantalla en blanco y con muchas (ya
+   no hay tope de 3) se veía cortada con una barra de desplazamiento
+   angosta en vez de usar el alto real disponible (bug real reportado).
+   min-height:100% + "safe center" la centra lindo cuando entran todas (usa
+   el área completa en vez de quedar pegada arriba), pero si no entran cae
+   sola a alinearse arriba -- así nunca tapa la primera fila con el borde
+   de la pantalla (lo que "center" a secas sí haría). El scroll, si hace
+   falta, lo maneja .modal-card (ver overflow-y:auto ahí). */
 .acciones-rapidas-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-  align-content: center; justify-content: center;
   max-width: 420px; width: 100%; margin: 0 auto;
-  height: 50vh; overflow-y: auto;
+  min-height: 100%; align-content: safe center;
 }
 .accion-rapida-card {
   aspect-ratio: 1 / 1; width: 100%;

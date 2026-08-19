@@ -84,6 +84,12 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     for (const nombre of nombres) {
       await expect(page.locator('.acciones-rapidas-grid')).toContainText(nombre);
     }
+
+    // "Agregar" siempre al final, después de las acciones configuradas Y
+    // después de "Recordatorio" -- no se corre de lugar a medida que se
+    // agregan más acciones.
+    const ultimaTarjeta = page.locator('.acciones-rapidas-grid > *').last();
+    await expect(ultimaTarjeta).toHaveId('btn-agregar-accion');
   });
 
   test('acción configurada con "Pedir foto con cámara" muestra el botón de cámara al usarla y sube la foto', async ({ page }) => {
