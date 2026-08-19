@@ -984,6 +984,21 @@ input, select, textarea, table {
 .proy-cell-concepto { display: flex; align-items: center; gap: 6px; }
 .proy-concepto-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
 .proy-cell-num { text-align: right; font-size: 13px; font-family: var(--font-display); font-weight: 600; color: var(--text-2); letter-spacing: -0.2px; }
+/* Estimado/Real quedaban pegados (dos columnas angostas, ambas alineadas a
+   la derecha, una al lado de la otra) -- un poco de padding extra entre
+   ellas para separarlas visualmente sin tocar el ancho de las columnas.
+   Especificidad ".proy-tabla-row td.___" a propósito -- tiene que ganarle
+   al padding corto de ".proy-tabla-row td" de arriba. */
+.proy-tabla-row td.proy-cell-estimado { padding-right: 20px; }
+.proy-tabla-row td.proy-cell-real { padding-left: 20px; }
+/* Separador sutil entre Ingresos/Fijos/Variables en la tabla de detalle:
+   solo una etiqueta chica y tenue, sin línea ni fondo fuerte (pedido
+   explícito del usuario: "la separación debe ser sutil"). */
+.proy-grupo-row td {
+  padding: 14px 12px 4px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-4);
+}
+.proy-grupo-row:first-child td { padding-top: 4px; }
 /* Legacy compat */
 .proy-fila td, .proy-fila-2 td { padding: 0; }
 /* Cronología mensual reusa .proy-tabla/.proy-fila por el estilo base de

@@ -3205,15 +3205,22 @@ function renderTablaComparacion(movsDelMes) {
     return;
   }
 
+  // Se agrupa primero por categoría (Ingresos / Fijos / Variables) -- antes
+  // el "tiene estimado" pesaba más que la categoría en el orden, así que un
+  // gasto fijo sin presupuesto ese mes se mezclaba entre los variables.
+  // Dentro de cada grupo, los que sí tienen estimado van primero.
+  const ORDEN_CATEGORIA = { "Ingreso": 0, "Gasto fijo": 1, "Gasto variable": 2 };
+  const ETIQUETA_GRUPO  = { "Ingreso": "Ingresos", "Gasto fijo": "Fijos", "Gasto variable": "Variables" };
   filas.sort((a, b) => {
-    const aIngreso = a.categoria === "Ingreso";
-    const bIngreso = b.categoria === "Ingreso";
-    if (aIngreso !== bIngreso) return aIngreso ? -1 : 1;
+    const catA = ORDEN_CATEGORIA[a.categoria] ?? 3;
+    const catB = ORDEN_CATEGORIA[b.categoria] ?? 3;
+    if (catA !== catB) return catA - catB;
     if (a.estimado > 0 && b.estimado === 0) return -1;
     if (a.estimado === 0 && b.estimado > 0) return 1;
-    return a.categoria.localeCompare(b.categoria);
+    return a.concepto.localeCompare(b.concepto);
   });
 
+  let categoriaAnterior = null;
   tbody.innerHTML = filas.map(f => {
     // Gastos: rojo si te pasaste de lo estimado. Ingresos: al revés — rojo
     // si no llegaste a lo estimado (la meta de ingreso no se cumplió).
@@ -3221,17 +3228,22 @@ function renderTablaComparacion(movsDelMes) {
       ? f.real < f.estimado
       : f.real > f.estimado;
 
-    return `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${f.concepto.replace(/"/g, "&quot;")}" data-categoria="${f.categoria.replace(/"/g, "&quot;")}" ${f.esOtros ? 'data-es-otros="1"' : ""}>
+    // Separador sutil entre Ingresos/Fijos/Variables -- solo el nombre del
+    // grupo, sin línea ni fondo fuerte (pedido explícito: "la separación
+    // debe ser sutil").
+    const cabeceraGrupo = f.categoria !== categoriaAnterior
+      ? `<tr class="proy-grupo-row"><td colspan="4">${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td></tr>`
+      : "";
+    categoriaAnterior = f.categoria;
+
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${f.concepto.replace(/"/g, "&quot;")}" data-categoria="${f.categoria.replace(/"/g, "&quot;")}" ${f.esOtros ? 'data-es-otros="1"' : ""}>
       <td>
         <div class="proy-cell-concepto">
-          <span class="cat-badge cat-${f.categoria.toLowerCase().replace(/ /g,'')}">
-            ${f.categoria === "Gasto fijo" ? "F" : f.categoria === "Gasto variable" ? "V" : f.categoria.charAt(0)}
-          </span>
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
         </div>
       </td>
-      <td class="proy-cell-num">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
-      <td class="proy-cell-num">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
+      <td class="proy-cell-num proy-cell-estimado">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
+      <td class="proy-cell-num proy-cell-real">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
       <td>
         <div class="proy-cell-acciones">
           ${f.esOtros ? "" : `<button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>`}
