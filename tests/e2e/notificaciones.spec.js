@@ -3,10 +3,11 @@
 // worker/src/push.test.mjs para la lógica de fechas) — acá se prueba lo
 // que sí vive en el navegador: crear (solo se puede desde dentro de un
 // bloque)/revisar/editar/borrar, la cuadrícula de bloques y agrupaciones
-// (y su pantalla de detalle), y que "Activar en este dispositivo" registre
-// la suscripción en el Worker con los datos correctos. No se puede probar
-// la entrega real de un push en un test headless (necesitaría un servicio
-// de push real).
+// (con su pantalla de detalle, a la que se vuelve con el gesto de deslizar
+// -- sin botón), el resumen de una alarma (doble clic), y que "Activar en
+// este dispositivo" registre la suscripción en el Worker con los datos
+// correctos. No se puede probar la entrega real de un push en un test
+// headless (necesitaría un servicio de push real).
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
@@ -29,6 +30,22 @@ async function abrirBloqueAlerta(page, nombre) {
 async function nuevaAlertaEnBloque(page, nombreBloque) {
   await abrirBloqueAlerta(page, nombreBloque);
   await page.locator('#btn-nueva-notificacion-bloque').click();
+}
+
+// La pantalla de detalle de un bloque no tiene botón de "Volver" -- se
+// cierra con el gesto de iPhone (deslizar desde el borde izquierdo hacia
+// la derecha, ver setupGestoVolver en app.js). Se simulan los mismos
+// TouchEvent que esa función escucha, en vez de usar el touchscreen de
+// Playwright (que requeriría habilitar hasTouch en todo el navegador).
+async function deslizarParaVolver(page) {
+  await page.evaluate(() => {
+    const crearToque = (x, y) => new Touch({ identifier: Date.now(), target: document.body, clientX: x, clientY: y });
+    const inicio = crearToque(10, 300);
+    document.dispatchEvent(new TouchEvent('touchstart', { touches: [inicio], changedTouches: [inicio], bubbles: true, cancelable: true }));
+    const fin = crearToque(160, 300);
+    document.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [fin], bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(250); // ANIM_CIERRE_MS (180ms) + margen
 }
 
 // Simula soporte de Push completo: Notification.requestPermission(),
@@ -79,6 +96,41 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(5);
   });
 
+  test('la tarjeta de una alarma solo muestra nombre, próximo recordatorio, Editar y Eliminar', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N9', 'Pagar seguro', 'Un mensaje cualquiera', 'mensual', enUnaHora, '', 'familia', 'prueba@example.com', 'activa', '', '1', 'mes']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Otros');
+    const tarjeta = page.locator('.notificacion-item');
+    await expect(tarjeta).toContainText('Pagar seguro');
+    await expect(tarjeta.locator('button')).toHaveCount(2); // Editar + Eliminar, nada más
+    await expect(tarjeta.locator('button').nth(0)).toContainText('Editar');
+    await expect(tarjeta.locator('button').nth(1)).toContainText('Eliminar');
+    // El resto de la info (mensaje, destinatario, repetición...) va solo en el resumen.
+    await expect(tarjeta).not.toContainText('Un mensaje cualquiera');
+    await expect(tarjeta).not.toContainText('Toda la familia');
+    await expect(tarjeta).not.toContainText('Cada mes');
+  });
+
+  test('para volver de un bloque a la cuadrícula no hay botón -- se hace con el gesto de deslizar desde el borde', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Otros');
+    await expect(page.locator('.alerta-bloque-detalle-titulo')).toContainText('Otros');
+    await expect(page.locator('#btn-volver-bloque')).toHaveCount(0);
+
+    await deslizarParaVolver(page);
+    await expect(page.locator('.alertas-bloques-grid')).toBeVisible();
+  });
+
   test('crear una notificación nueva sin bloque (desde "Otros") cae ahí', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
@@ -103,8 +155,12 @@ test.describe('Notificaciones (Web Push)', () => {
 
     // Sigue dentro de la pantalla de "Otros" -- no hace falta volver a entrar.
     await expect(page.locator('.notificacion-item')).toContainText('Pagar arriendo');
-    await expect(page.locator('.notificacion-item')).toContainText('Cada mes');
-    await expect(page.locator('.notificacion-item')).toContainText('Familia');
+
+    // Repetición/destinatario ya no van en la tarjeta -- se ven en el resumen.
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Cada mes');
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Toda la familia');
   });
 
   test('repetición personalizada (cada N unidad, estilo Recordatorios de iPhone)', async ({ page }) => {
@@ -123,9 +179,10 @@ test.describe('Notificaciones (Web Push)', () => {
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
     await expect(page.locator('#modal-notificacion')).toBeHidden();
-
     await expect(page.locator('.notificacion-item')).toContainText('Regar las plantas');
-    await expect(page.locator('.notificacion-item')).toContainText('Cada 3 semanas');
+
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Cada 3 semanas');
   });
 
   test('"recordar de nuevo en X días" está disponible tanto para "No se repite" como para recurrentes', async ({ page }) => {
@@ -149,9 +206,10 @@ test.describe('Notificaciones (Web Push)', () => {
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
     await expect(page.locator('#modal-notificacion')).toBeHidden();
-
     await expect(page.locator('.notificacion-item')).toContainText('Pagar la luz');
-    await expect(page.locator('.notificacion-item')).toContainText('Insiste cada 3 días');
+
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('3 día(s)');
   });
 
   test('crear desde "Gastos fijos": no se ve el selector de bloque, y elegir un gasto fijo pre-llena texto/destinatario/repetición', async ({ page }) => {
@@ -172,11 +230,12 @@ test.describe('Notificaciones (Web Push)', () => {
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
     await expect(page.locator('#modal-notificacion')).toBeHidden();
-
     await expect(page.locator('.notificacion-item')).toContainText('Pagar Alquiler');
-    await expect(page.locator('.notificacion-item')).toContainText('📌 Alquiler');
     // Bloque fijo: no tiene botón de borrar en su pantalla de detalle.
     await expect(page.locator('.notif-btn-borrar-bloque')).toHaveCount(0);
+
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Gastos fijos (Alquiler)');
   });
 
   test('una alerta "Solo yo" de otra persona no aparece en mi lista', async ({ page }) => {
@@ -204,7 +263,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notificaciones-list')).not.toContainText('Cita médica de Royer');
   });
 
-  test('no muestra botón de Cancelar; marcar como revisada mueve de "Pasados" a "Canceladas"', async ({ page }) => {
+  test('no muestra botón de Cancelar; marcar como revisada (desde el resumen) mueve de "Pasados" a "Canceladas"', async ({ page }) => {
     const haceUnaHora = new Date(Date.now() - 3600000).toISOString();
     await mockGoogleApis(page, {
       // estado "enviada": simula una que ya disparó y está por revisar.
@@ -216,20 +275,25 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await abrirBloqueAlerta(page, 'Pasados');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
-    await expect(page.locator('.notif-acciones')).not.toContainText('Cancelar');
     // "Pasados" es una agrupación, no un bloque -- no se puede crear desde acá.
     await expect(page.locator('#btn-nueva-notificacion-bloque')).toHaveCount(0);
 
-    await page.locator('.notif-btn-ancho', { hasText: 'Revisado' }).click();
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
+    await page.locator('#btn-resumen-revisado').click();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
     await expect(page.locator('.notificacion-item')).toHaveCount(0);
 
-    await page.locator('#btn-volver-bloque').click();
+    await deslizarParaVolver(page);
     await abrirBloqueAlerta(page, 'Canceladas');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
-    await expect(page.locator('.notif-cancelada-badge')).toBeVisible();
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Cancelada');
+    await expect(page.locator('#btn-resumen-revisado')).toBeHidden();
   });
 
-  test('doble clic en una alarma abre "Nuevo recordatorio" con su texto y bloque pre-llenados', async ({ page }) => {
+  test('doble clic en una alarma abre un resumen, con un botón para crear un recordatorio en su bloque', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
       // Fila con gasto_fijo (columna M) puesto -- vive en el bloque fijo "Gastos fijos".
@@ -243,6 +307,12 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet');
 
     await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    await expect(page.locator('#resumen-notificacion-titulo')).toHaveText('Pagar internet');
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Gastos fijos');
+
+    await page.locator('#btn-resumen-crear-recordatorio').click();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
     await expect(page.locator('#modal-recordatorio-crear')).toBeVisible();
     await expect(page.locator('#recordatorio-texto')).toHaveValue('Pagar internet');
     await expect(page.locator('#recordatorio-categoria-badge')).toContainText('Gastos fijos');
@@ -267,7 +337,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await abrirBloqueAlerta(page, 'Otros');
-    await page.locator('.notif-acciones-fila button', { hasText: 'Editar' }).click();
+    await page.locator('.notificacion-item button', { hasText: 'Editar' }).click();
     await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
     await expect(page.locator('#notif-bloque-row')).toBeVisible();
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');

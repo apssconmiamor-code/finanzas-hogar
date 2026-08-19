@@ -393,39 +393,57 @@ function _formatoFechaHoraLocal(iso) {
   return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
-// Tarjeta de una alerta (usada tanto en la pantalla de detalle de un
-// bloque como, antes, dentro de las secciones) -- factorizada aparte para
-// no repetirla.
+// Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
+// bloque) -- a propósito minimalista, solo nombre + próximo recordatorio +
+// Editar/Eliminar. Todo lo demás (repetición, destinatario, bloque,
+// mensaje, estado...) se ve en el resumen del doble clic.
 function renderItemNotificacion(n) {
   return `
-    <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirRecordatorioDesdeAlerta('${n.id}')">
-      <div class="notif-body">
-        <div class="notif-top">
-          <div class="notif-info">
-            <span class="notif-titulo">${escapeHtml(n.titulo)}</span>
-            <span class="notif-tipo-badge">${descripcionRecurrencia(n)}</span>
-            <span class="notif-dest-badge">${n.destinatario === "familia" ? "👨‍👩‍👧 Familia" : "👤 Solo yo"}</span>
-            ${n.gastoFijo ? `<span class="notif-dest-badge">📌 ${escapeHtml(n.gastoFijo)}</span>` : ""}
-            ${n.recordarEnDias ? `<span class="notif-dest-badge">🔁 Insiste cada ${n.recordarEnDias} día${n.recordarEnDias == 1 ? "" : "s"}</span>` : ""}
-            ${n.estado === "enviada" ? `<span class="notif-dest-badge notif-enviada-badge">📩 Por revisar</span>` : ""}
-            ${n.estado === "cancelada" ? `<span class="notif-dest-badge notif-cancelada-badge">Cancelada</span>` : ""}
-          </div>
-        </div>
-        ${n.mensaje ? `<div class="notif-mensaje">${escapeHtml(n.mensaje)}</div>` : ""}
-        <div class="notif-fechas">
-          <span>🗓️ ${n.tipo === "unica" ? "Dispara" : "Empieza"}: ${_formatoFechaHoraLocal(n.fechaHora)}</span>
-          ${n.fechaLimite ? `<span>⏳ Hasta: ${escapeHtml(n.fechaLimite)}</span>` : ""}
-          ${n.ultimoEnvio ? `<span>✅ Último envío: ${_formatoFechaHoraLocal(n.ultimoEnvio)}</span>` : ""}
-        </div>
-        <div class="notif-acciones">
-          ${n.estado === "enviada" ? `<button class="btn-primary notif-btn-ancho" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅ Revisado</button>` : ""}
-          <div class="notif-acciones-fila">
-            <button class="btn-secondary" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
-            <button class="btn-secondary notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>
-          </div>
-        </div>
+    <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
+      <div class="notif-card-grid">
+        <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
+        <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
+        <span class="notif-card-proximo">🗓️ ${_formatoFechaHoraLocal(n.fechaHora)}</span>
+        <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>
       </div>
     </div>`;
+}
+
+// ---- Resumen de una alerta (doble clic sobre su tarjeta) ----
+function abrirResumenNotificacion(id) {
+  const n = notificaciones.find(x => x.id === id);
+  if (!n) return;
+
+  const ESTADOS = { activa: "Activa", enviada: "Por revisar", cancelada: "Cancelada" };
+  const bloqueLabel = n.gastoFijo ? `📌 Gastos fijos (${n.gastoFijo})` : (n.categoria ? `🗂️ ${n.categoria}` : "🔖 Otros");
+  const filas = [];
+  if (n.mensaje) filas.push(["Mensaje", n.mensaje]);
+  filas.push(
+    ["Bloque", bloqueLabel],
+    ["Repetición", descripcionRecurrencia(n)],
+    ["Fecha y hora", _formatoFechaHoraLocal(n.fechaHora)],
+    ["Repetir hasta", n.fechaLimite || "—"],
+    ["Destinatario", n.destinatario === "familia" ? "Toda la familia" : "Solo yo"],
+    ["Si no se revisa, recuerda de nuevo en", n.recordarEnDias ? `${n.recordarEnDias} día(s)` : "—"],
+    ["Estado", ESTADOS[n.estado] || n.estado],
+    ["Último envío", n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : "—"]
+  );
+
+  document.getElementById("resumen-notificacion-titulo").textContent = n.titulo;
+  const cuerpo = document.getElementById("resumen-notificacion-cuerpo");
+  if (cuerpo) {
+    cuerpo.innerHTML = filas.map(([label, valor]) => `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">${escapeHtml(label)}</span>
+        <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
+      </div>`).join("");
+  }
+
+  document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", n.estado !== "enviada");
+
+  const modal = document.getElementById("modal-resumen-notificacion");
+  if (modal) modal.dataset.id = id;
+  modal?.classList.remove("hidden");
 }
 
 // clave del bloque cuya pantalla de detalle está abierta -- null = se ve
@@ -523,17 +541,11 @@ function renderBloqueAlertaDetalle(lista, grupo) {
 
   lista.innerHTML = `
     <div class="alerta-bloque-detalle-header">
-      <button type="button" class="btn-volver-bloque" id="btn-volver-bloque">← Volver</button>
       <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
       ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque">🗑️</button>` : ""}
     </div>
     ${grupo.esBloque ? `<button type="button" class="btn-primary btn-franja" id="btn-nueva-notificacion-bloque">+ Nueva</button>` : ""}
     ${itemsHTML}`;
-
-  document.getElementById("btn-volver-bloque")?.addEventListener("click", () => {
-    bloqueAlertaAbierto = null;
-    renderNotificaciones();
-  });
 
   document.getElementById("btn-nueva-notificacion-bloque")?.addEventListener("click", () => {
     abrirNuevaNotificacionEnBloque(grupo.valorBloque);
@@ -900,6 +912,32 @@ function setupNotificacionesListeners() {
     ?.addEventListener("click", (e) => {
       if (e.target === document.getElementById("modal-bloque-alerta")) {
         document.getElementById("modal-bloque-alerta").classList.add("hidden");
+      }
+    });
+
+  document.getElementById("btn-resumen-revisado")
+    ?.addEventListener("click", () => {
+      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
+      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
+      if (id) marcarNotificacionRevisada(id);
+    });
+
+  document.getElementById("btn-resumen-crear-recordatorio")
+    ?.addEventListener("click", () => {
+      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
+      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
+      if (id) abrirRecordatorioDesdeAlerta(id);
+    });
+
+  document.getElementById("btn-cerrar-resumen-notificacion")
+    ?.addEventListener("click", () => {
+      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
+    });
+
+  document.getElementById("modal-resumen-notificacion")
+    ?.addEventListener("click", (e) => {
+      if (e.target === document.getElementById("modal-resumen-notificacion")) {
+        document.getElementById("modal-resumen-notificacion").classList.add("hidden");
       }
     });
 }

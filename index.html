@@ -744,6 +744,19 @@
       </div>
     </div>
 
+    <!-- Modal: resumen de una alerta (doble clic sobre su tarjeta) -->
+    <div id="modal-resumen-notificacion" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title" id="resumen-notificacion-titulo"></h3>
+        <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
+        <button type="button" class="btn-primary notif-btn-ancho hidden" id="btn-resumen-revisado">✅ Marcar como revisada</button>
+        <button type="button" class="btn-secondary btn-franja" id="btn-resumen-crear-recordatorio">📝 Crear recordatorio</button>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cerrar-resumen-notificacion">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal pago rápido -->
     <div id="modal-pago-rapido" class="modal hidden">
       <div class="modal-card">

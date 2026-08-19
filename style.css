@@ -1045,28 +1045,35 @@ input, select, textarea, table {
   box-shadow: var(--shadow-sm); transition: box-shadow .15s;
 }
 .notificacion-item:hover { box-shadow: var(--shadow-md); }
-.notif-body { padding: 14px 16px; }
-.notif-top { display: flex; align-items: center; margin-bottom: 6px; }
-.notif-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.notif-titulo { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
-.notif-tipo-badge, .notif-dest-badge {
+/* Tarjeta a propósito minimalista -- 2 filas x 2 columnas: nombre/editar
+   arriba, próximo recordatorio/eliminar abajo. El resto de la info vive
+   en el resumen (doble clic), no acá. */
+.notif-card-grid {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: 8px 12px; padding: 14px 16px;
+}
+.notif-card-nombre { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+.notif-card-proximo { font-size: 12.5px; color: var(--text-3); }
+.notif-card-btn { font-size: 12.5px; padding: 6px 10px; white-space: nowrap; }
+.notif-btn-ancho { width: 100%; }
+.notif-btn-eliminar { color: var(--red); border-color: var(--red); }
+.notif-btn-eliminar:hover { background: var(--red-soft); }
+.notif-dest-badge {
   font-size: 11px; font-weight: 600; color: var(--text-4);
   background: var(--bg); padding: 2px 8px; border-radius: 4px;
 }
-.notif-cancelada-badge { color: var(--red); background: var(--red-soft); }
-.notif-enviada-badge { color: var(--brand); background: var(--brand-soft); }
 #recordatorio-categoria-badge { align-self: flex-start; }
-.notif-mensaje { font-size: 13px; color: var(--text-3); margin-bottom: 8px; }
-.notif-fechas {
-  display: flex; flex-wrap: wrap; gap: 4px 14px;
-  font-size: 12.5px; color: var(--text-3); margin-bottom: 10px;
+
+/* Resumen de una alerta (doble clic) -- mismo patrón de fila
+   etiqueta/valor que otros resúmenes de solo lectura de la app. */
+.detalle-notif-cuerpo { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.detalle-notif-fila {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
 }
-.notif-acciones { display: flex; flex-direction: column; gap: 8px; }
-.notif-btn-ancho { width: 100%; }
-.notif-acciones-fila { display: flex; gap: 8px; }
-.notif-acciones-fila button { flex: 1; }
-.notif-btn-eliminar { color: var(--red); border-color: var(--red); }
-.notif-btn-eliminar:hover { background: var(--red-soft); }
+.detalle-notif-label { color: var(--text-4); }
+.detalle-notif-valor { color: var(--text); font-weight: 600; text-align: right; }
 
 /* Cuadrícula de bloques del panel de Alertas -- mismo espíritu que
    .acciones-rapidas-grid/.accion-rapida-card (2 columnas, ícono + nombre),
@@ -1103,11 +1110,6 @@ input, select, textarea, table {
 .alerta-bloque-detalle-header {
   display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
 }
-.btn-volver-bloque {
-  flex-shrink: 0; border: none; background: none; cursor: pointer;
-  font-size: 14px; font-weight: 600; color: var(--brand); padding: 6px 0;
-}
-.btn-volver-bloque:active { opacity: 0.7; }
 .alerta-bloque-detalle-titulo {
   flex: 1; font-family: var(--font-display); font-size: 17px; font-weight: 700;
   letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

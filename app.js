@@ -890,6 +890,19 @@ function cerrarPantallaActual() {
     animarYCerrar(notifPanel, () => notifPanel.classList.add("hidden"));
     return true;
   }
+  // Pantalla de detalle de un bloque de Alertas (ver notificaciones.js) --
+  // no tiene modal ni panel propio, solo cambia lo que hay adentro de
+  // #notificaciones-list, así que se anima y se cierra igual que los demás.
+  if (typeof bloqueAlertaAbierto !== "undefined" && bloqueAlertaAbierto) {
+    const listaNotif = document.getElementById("notificaciones-list");
+    if (listaNotif) {
+      animarYCerrar(listaNotif, () => {
+        bloqueAlertaAbierto = null;
+        if (typeof renderNotificaciones === "function") renderNotificaciones();
+      });
+      return true;
+    }
+  }
   return false;
 }
 
