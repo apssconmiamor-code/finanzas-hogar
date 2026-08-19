@@ -393,13 +393,37 @@ function _formatoFechaHoraLocal(iso) {
   return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
+// Compara por DÍA en hora local (no la hora exacta) -- "hoy"/"pasado"
+// deben coincidir con el día que ve el usuario en su reloj, no con el
+// corte UTC en el que se guarda fechaHora.
+function _diaLocal(fechaOIso) {
+  const d = fechaOIso instanceof Date ? fechaOIso : new Date(fechaOIso);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// "hoy" / "pasado" / "futuro" según el día de fechaHora contra hoy en
+// hora local -- usado tanto para el color de la tarjeta como para el
+// contador de "Activos" (solo hoy) en renderNotificaciones().
+function _estadoDiaAlarma(fechaHoraIso) {
+  const dia = _diaLocal(fechaHoraIso);
+  if (!dia) return null;
+  const hoy = _diaLocal(new Date());
+  if (dia === hoy) return "hoy";
+  return dia < hoy ? "pasado" : "futuro";
+}
+
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio +
 // Editar/Eliminar. Todo lo demás (repetición, destinatario, bloque,
-// mensaje, estado...) se ve en el resumen del doble clic.
+// mensaje, estado...) se ve en el resumen del doble clic. El día de la
+// alarma la tiñe: hoy en verde clarito, pasada en rojo clarito, futura sin
+// tocar.
 function renderItemNotificacion(n) {
+  const estadoDia = _estadoDiaAlarma(n.fechaHora);
+  const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
   return `
-    <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
+    <div class="notificacion-item${claseDia}" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
         <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
@@ -463,15 +487,19 @@ function renderNotificaciones() {
   //  - Agrupaciones (Activos/Pasados): por ESTADO, cruzan todos los bloques.
   //  - Bloques (Gastos fijos/Otros/los del usuario): por CATEGORÍA -- acá
   //    (y solo acá) se puede crear una alerta nueva.
-  const activosTodos = notificaciones.filter(n => n.estado === "activa");
+  // "Activos" en particular solo cuenta las de HOY (no todo lo pendiente
+  // sin importar la fecha) -- las demás siguen viéndose igual, adentro de
+  // su bloque de categoría (Gastos fijos/Otros/uno propio).
+  const todasActivas = notificaciones.filter(n => n.estado === "activa");
+  const activosHoy    = todasActivas.filter(n => _estadoDiaAlarma(n.fechaHora) === "hoy");
   const pasados       = notificaciones.filter(n => n.estado === "enviada");
   const canceladas    = notificaciones.filter(n => n.estado === "cancelada");
 
-  const gastosFijos = activosTodos.filter(n => n.gastoFijo);
+  const gastosFijos = todasActivas.filter(n => n.gastoFijo);
   const porBloque = {};
   bloquesPersonalizados.forEach(b => { porBloque[b.nombre] = []; });
   const otros = [];
-  activosTodos
+  todasActivas
     .filter(n => !n.gastoFijo)
     .forEach(n => {
       if (n.categoria && porBloque[n.categoria]) porBloque[n.categoria].push(n);
@@ -483,7 +511,7 @@ function renderNotificaciones() {
   // bloques (Gastos fijos y Otros fijos, los del usuario después), y por
   // último Canceladas (solo si hay alguna).
   const grupos = {};
-  grupos.activos = { titulo: "Activos", icono: "🔔", items: activosTodos, esBloque: false, eliminable: false, esAgrupacion: true };
+  grupos.activos = { titulo: "Activos", icono: "🔔", items: activosHoy, esBloque: false, eliminable: false, esAgrupacion: true };
   grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false, esAgrupacion: true };
   grupos.gastosFijos = { titulo: "Gastos fijos", icono: "📌", items: gastosFijos, esBloque: true, eliminable: false, valorBloque: "__gastos_fijos__" };
   grupos.otros = { titulo: "Otros", icono: "🔖", items: otros, esBloque: true, eliminable: false, valorBloque: "" };
@@ -535,8 +563,10 @@ function renderBloquesAlertaGrid(lista, grupos) {
 
 // ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
 function renderBloqueAlertaDetalle(lista, grupo) {
-  const itemsHTML = grupo.items.length > 0
-    ? grupo.items.map(renderItemNotificacion).join("")
+  // De la que se activa más pronto a la que se activa más tarde.
+  const itemsOrdenados = [...grupo.items].sort((a, b) => (a.fechaHora || "").localeCompare(b.fechaHora || ""));
+  const itemsHTML = itemsOrdenados.length > 0
+    ? itemsOrdenados.map(renderItemNotificacion).join("")
     : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
 
   lista.innerHTML = `

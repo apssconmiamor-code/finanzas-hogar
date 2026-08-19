@@ -96,6 +96,44 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(5);
   });
 
+  test('"Activos" solo cuenta las de hoy; dentro de un bloque se ordena por fecha y se tiñe según hoy/pasada/futura', async ({ page }) => {
+    const hoy    = new Date(Date.now() + 3600000).toISOString();      // en 1 hora, sigue siendo hoy
+    const pasada = new Date(Date.now() - 3 * 86400000).toISOString(); // hace 3 días
+    const futura = new Date(Date.now() + 5 * 86400000).toISOString(); // en 5 días
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N1', 'Alarma futura', '', 'unica', futura, '', 'yo', 'prueba@example.com', 'activa', ''],
+        ['N2', 'Alarma de hoy', '', 'unica', hoy, '', 'yo', 'prueba@example.com', 'activa', ''],
+        ['N3', 'Alarma pasada', '', 'unica', pasada, '', 'yo', 'prueba@example.com', 'activa', ''],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    // "Activos" solo cuenta la de hoy -- la futura y la pasada no entran ahí.
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await abrirBloqueAlerta(page, 'Activos');
+    await expect(page.locator('.notificacion-item')).toHaveCount(1);
+    await expect(page.locator('.notificacion-item')).toContainText('Alarma de hoy');
+
+    // Las tres siguen viviendo en "Otros" (ninguna tiene bloque asignado),
+    // ordenadas de la que se activa antes a la que se activa después, cada
+    // una teñida según su día.
+    await deslizarParaVolver(page);
+    await abrirBloqueAlerta(page, 'Otros');
+    const items = page.locator('.notificacion-item');
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0)).toContainText('Alarma pasada');
+    await expect(items.nth(0)).toHaveClass(/notificacion-item-pasada/);
+    await expect(items.nth(1)).toContainText('Alarma de hoy');
+    await expect(items.nth(1)).toHaveClass(/notificacion-item-hoy/);
+    await expect(items.nth(2)).toContainText('Alarma futura');
+    const claseFutura = await items.nth(2).getAttribute('class');
+    expect(claseFutura).not.toMatch(/notificacion-item-(hoy|pasada)/);
+  });
+
   test('la tarjeta de una alarma solo muestra nombre, próximo recordatorio, Editar y Eliminar', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {

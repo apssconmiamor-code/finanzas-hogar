@@ -1045,6 +1045,12 @@ input, select, textarea, table {
   box-shadow: var(--shadow-sm); transition: box-shadow .15s;
 }
 .notificacion-item:hover { box-shadow: var(--shadow-md); }
+/* Según el día de la alarma contra hoy (ver _estadoDiaAlarma en
+   notificaciones.js): hoy en verde crema clarito, ya pasada en rojo crema
+   clarito, futura sin teñir -- mismo estilo de tinte transparente que
+   .alerta-bloque-card-agrupacion. */
+.notificacion-item.notificacion-item-hoy { background: rgba(52, 199, 89, 0.08); border-color: rgba(52, 199, 89, 0.3); }
+.notificacion-item.notificacion-item-pasada { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.3); }
 /* Tarjeta a propósito minimalista -- 2 filas x 2 columnas: nombre/editar
    arriba, próximo recordatorio/eliminar abajo. El resto de la info vive
    en el resumen (doble clic), no acá. */
