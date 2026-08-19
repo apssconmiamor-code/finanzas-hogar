@@ -290,11 +290,15 @@ test.describe('Notificaciones (Web Push)', () => {
     // Otros y "Agregar bloque".
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(5);
 
-    // Crea el bloque "Servicios".
+    // Crea el bloque "Servicios" con un ícono elegido por el usuario -- no
+    // debe quedar con el 🗂️ de respaldo.
     await page.locator('.alerta-bloque-card', { hasText: 'Agregar bloque' }).click();
     await page.locator('#bloque-alerta-nombre').fill('Servicios');
+    await page.locator('#bloque-alerta-icono').fill('🧾');
     await page.locator('#btn-guardar-bloque-alerta').click();
-    await expect(page.locator('.alerta-bloque-card', { hasText: 'Servicios' })).toBeVisible();
+    const tarjetaServicios = page.locator('.alerta-bloque-card', { hasText: 'Servicios' });
+    await expect(tarjetaServicios).toBeVisible();
+    await expect(tarjetaServicios.locator('.alerta-bloque-icono')).toHaveText('🧾');
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(6);
 
     // Crea una alerta DESDE ese bloque (no hace falta elegirlo, ya viene puesto).

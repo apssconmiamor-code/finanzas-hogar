@@ -331,10 +331,14 @@ function _bloquesAlertasKey() {
   return `alertas_bloques_${currentUser?.email || "anon"}`;
 }
 
+// Cada bloque es { nombre, icono }. Los guardados antes de que existiera
+// el ícono elegible quedaron como texto plano (solo el nombre) -- se
+// normalizan acá mismo, al leer, con el 🗂️ de siempre como respaldo.
 function obtenerBloquesAlertas() {
   try {
     const arr = JSON.parse(localStorage.getItem(_bloquesAlertasKey()) || "[]");
-    return Array.isArray(arr) ? arr : [];
+    if (!Array.isArray(arr)) return [];
+    return arr.map(b => typeof b === "string" ? { nombre: b, icono: "🗂️" } : b);
   } catch { return []; }
 }
 
@@ -342,16 +346,16 @@ function guardarBloquesAlertas(bloques) {
   localStorage.setItem(_bloquesAlertasKey(), JSON.stringify(bloques));
 }
 
-function agregarBloqueAlerta(nombre) {
+function agregarBloqueAlerta(nombre, icono) {
   const bloques = obtenerBloquesAlertas();
-  if (!nombre || nombre === "Gastos fijos" || bloques.includes(nombre)) return false;
-  bloques.push(nombre);
+  if (!nombre || nombre === "Gastos fijos" || bloques.some(b => b.nombre === nombre)) return false;
+  bloques.push({ nombre, icono: icono || "🗂️" });
   guardarBloquesAlertas(bloques);
   return true;
 }
 
 function borrarBloqueAlerta(nombre) {
-  guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b !== nombre));
+  guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b.nombre !== nombre));
 }
 
 // GASTOS_FIJOS ya tiene su propio select (poblarSelectGastoFijo) -- este
@@ -363,8 +367,8 @@ function poblarSelectBloque() {
   const valorActual = sel.value;
   const bloques = obtenerBloquesAlertas();
   sel.innerHTML = `<option value="">🔖 Otros</option><option value="__gastos_fijos__">📌 Gastos fijos</option>` +
-    bloques.map(b => `<option value="${escapeAttr(b)}">${escapeHtml(b)}</option>`).join("");
-  sel.value = ["", "__gastos_fijos__", ...bloques].includes(valorActual) ? valorActual : "";
+    bloques.map(b => `<option value="${escapeAttr(b.nombre)}">${escapeHtml(b.icono)} ${escapeHtml(b.nombre)}</option>`).join("");
+  sel.value = ["", "__gastos_fijos__", ...bloques.map(b => b.nombre)].includes(valorActual) ? valorActual : "";
 }
 
 async function cargarNotificaciones() {
@@ -447,7 +451,7 @@ function renderNotificaciones() {
 
   const gastosFijos = activosTodos.filter(n => n.gastoFijo);
   const porBloque = {};
-  bloquesPersonalizados.forEach(b => { porBloque[b] = []; });
+  bloquesPersonalizados.forEach(b => { porBloque[b.nombre] = []; });
   const otros = [];
   activosTodos
     .filter(n => !n.gastoFijo)
@@ -461,12 +465,12 @@ function renderNotificaciones() {
   // bloques (Gastos fijos y Otros fijos, los del usuario después), y por
   // último Canceladas (solo si hay alguna).
   const grupos = {};
-  grupos.activos = { titulo: "Activos", icono: "🔔", items: activosTodos, esBloque: false, eliminable: false };
-  grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false };
+  grupos.activos = { titulo: "Activos", icono: "🔔", items: activosTodos, esBloque: false, eliminable: false, esAgrupacion: true };
+  grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false, esAgrupacion: true };
   grupos.gastosFijos = { titulo: "Gastos fijos", icono: "📌", items: gastosFijos, esBloque: true, eliminable: false, valorBloque: "__gastos_fijos__" };
   grupos.otros = { titulo: "Otros", icono: "🔖", items: otros, esBloque: true, eliminable: false, valorBloque: "" };
-  bloquesPersonalizados.forEach((nombre, i) => {
-    grupos[`bloque_${i}`] = { titulo: nombre, icono: "🗂️", items: porBloque[nombre] || [], esBloque: true, eliminable: true, nombreBloque: nombre, valorBloque: nombre };
+  bloquesPersonalizados.forEach((b, i) => {
+    grupos[`bloque_${i}`] = { titulo: b.nombre, icono: b.icono, items: porBloque[b.nombre] || [], esBloque: true, eliminable: true, nombreBloque: b.nombre, valorBloque: b.nombre };
   });
   if (canceladas.length > 0) grupos.canceladas = { titulo: "Canceladas", icono: "🗄️", items: canceladas, esBloque: false, eliminable: false };
 
@@ -482,7 +486,7 @@ function renderNotificaciones() {
 // ---- Cuadrícula de bloques (2 columnas, estilo Acciones rápidas) ----
 function renderBloquesAlertaGrid(lista, grupos) {
   const tarjetas = Object.entries(grupos).map(([clave, g]) => `
-    <button type="button" class="alerta-bloque-card" data-clave="${clave}">
+    <button type="button" class="alerta-bloque-card${g.esAgrupacion ? " alerta-bloque-card-agrupacion" : ""}" data-clave="${clave}">
       ${g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
       <span class="alerta-bloque-icono">${g.icono}</span>
       <span class="alerta-bloque-nombre">${escapeHtml(g.titulo)}</span>
@@ -506,6 +510,7 @@ function renderBloquesAlertaGrid(lista, grupos) {
 
   document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
     document.getElementById("bloque-alerta-nombre").value = "";
+    document.getElementById("bloque-alerta-icono").value = "";
     document.getElementById("modal-bloque-alerta")?.classList.remove("hidden");
   });
 }
@@ -878,9 +883,10 @@ function setupNotificacionesListeners() {
   document.getElementById("btn-guardar-bloque-alerta")
     ?.addEventListener("click", () => {
       const nombre = document.getElementById("bloque-alerta-nombre").value.trim();
+      const icono  = document.getElementById("bloque-alerta-icono").value.trim();
       if (!nombre) { alert("Ponle un nombre al bloque"); return; }
       if (nombre === "Gastos fijos") { alert('"Gastos fijos" ya existe y es fijo -- elige otro nombre.'); return; }
-      if (!agregarBloqueAlerta(nombre)) { alert("Ya existe un bloque con ese nombre"); return; }
+      if (!agregarBloqueAlerta(nombre, icono)) { alert("Ya existe un bloque con ese nombre"); return; }
       document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
       renderNotificaciones();
     });

@@ -1086,6 +1086,10 @@ input, select, textarea, table {
 }
 .alerta-bloque-card:active { opacity: 0.7; }
 .alerta-bloque-agregar { border-style: dashed; color: var(--text-4); box-shadow: none; }
+/* Activos/Pasados son agrupaciones por estado (cruzan todos los bloques),
+   no un bloque en sí -- un crema clarito y transparente las distingue de
+   un vistazo de las tarjetas de bloque (blancas). */
+.alerta-bloque-card-agrupacion { background: rgba(255, 159, 10, 0.08); border-color: rgba(255, 159, 10, 0.25); }
 .alerta-bloque-icono { font-size: 26px; line-height: 1; }
 .alerta-bloque-nombre { font-size: 13px; font-weight: 600; color: var(--text-2); text-align: center; }
 .alerta-bloque-cantidad {
