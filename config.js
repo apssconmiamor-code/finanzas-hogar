@@ -3,7 +3,7 @@
 // =============================================
 
 const CONFIG = {
-  VERSION: "3.51.0",
+  VERSION: "3.52.0",
   GOOGLE_CLIENT_ID: "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com",
   SPREADSHEET_ID: "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o",
 
@@ -22,6 +22,7 @@ const CONFIG = {
   SHEETS: {
     CAJAS: "Cajas",
     MOVIMIENTOS: "Movimiento de Caja",
+    MOVIMIENTOS_ARCHIVO: "Movimiento de Caja - Archivo",
   PRESUPUESTO: "Presupuesto",
     CRONOLOGIA: "Cronologia",
     PRESTAMO: "Prestamo",

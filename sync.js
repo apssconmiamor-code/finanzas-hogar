@@ -210,7 +210,7 @@ const SyncManager = (() => {
         const { imageUrl, audioUrl } = op.mediaPendiente
           ? await subirMediaPendienteRecordatorio(op.mediaPendiente, op.id)
           : { imageUrl: op.imageUrl || "", audioUrl: op.audioUrl || "" };
-        return Sheets.agregarRecordatorio(op.id, op.autor, op.fecha, op.texto, imageUrl, audioUrl);
+        return Sheets.agregarRecordatorio(op.id, op.autor, op.fecha, op.texto, imageUrl, audioUrl, null, op.categoria || "");
       }
       default:
         throw new Error("Tipo de operación desconocido: " + op.tipo);

@@ -1055,6 +1055,7 @@ input, select, textarea, table {
 }
 .notif-cancelada-badge { color: var(--red); background: var(--red-soft); }
 .notif-enviada-badge { color: var(--brand); background: var(--brand-soft); }
+#recordatorio-categoria-badge { align-self: flex-start; }
 .notif-mensaje { font-size: 13px; color: var(--text-3); margin-bottom: 8px; }
 .notif-fechas {
   display: flex; flex-wrap: wrap; gap: 4px 14px;
@@ -1067,14 +1068,17 @@ input, select, textarea, table {
 .notif-btn-eliminar { color: var(--red); border-color: var(--red); }
 .notif-btn-eliminar:hover { background: var(--red-soft); }
 
-.detalle-notif-cuerpo { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
-.detalle-notif-fila {
-  display: flex; justify-content: space-between; gap: 12px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--border);
-  font-size: 13.5px;
+/* Bloques personalizados del panel de Alertas (estilo Acciones rápidas) */
+.notif-seccion-bloque-header { display: flex; align-items: center; gap: 6px; }
+.notif-seccion-bloque-header .notif-seccion-toggle { flex: 1; }
+.notif-btn-borrar-bloque {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 4px;
+  border: 1.5px solid var(--border-mid); background: var(--surface);
+  cursor: pointer; font-size: 14px;
 }
-.detalle-notif-label { color: var(--text-4); }
-.detalle-notif-valor { color: var(--text); font-weight: 600; text-align: right; }
+.notif-btn-borrar-bloque:active { opacity: 0.7; }
+.notif-bloque-vacio { font-size: 12.5px; color: var(--text-4); padding: 8px 2px 14px; }
+.notif-btn-nuevo-bloque { width: 100%; margin-top: 4px; }
 
 /* ═══════════════ PRÉSTAMOS ═══════════════ */
 .prestamos-resumen { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
@@ -1350,6 +1354,18 @@ input, select, textarea, table {
 .fotos-preview {
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;
 }
+
+/* Resumen de un mes ya archivado (pestaña Movimientos, más de 3 meses) */
+.mes-archivado-resumen {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--brand-soft); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 10px;
+  font-size: 13px; color: var(--text-2); line-height: 1.4;
+}
+.mes-archivado-icono { font-size: 18px; flex-shrink: 0; }
+.mes-archivado-btn-detalle { width: 100%; }
+#detalle-archivado-lista { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+#detalle-archivado-lista.hidden { display: none; }
 
 /* Adjuntar foto/audio en "Nuevo recordatorio" — dos columnas cuadradas,
    solo con ícono (distinto de .fotos-btn, que también usa el formulario

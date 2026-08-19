@@ -694,6 +694,13 @@
           </div>
         </div>
         <div class="form-group">
+          <label>Bloque <span class="label-opcional">(opcional)</span></label>
+          <select id="notif-bloque" class="input">
+            <option value="">— Ninguno —</option>
+            <option value="__gastos_fijos__">📌 Gastos fijos</option>
+          </select>
+        </div>
+        <div class="form-group" id="notif-gasto-fijo-row">
           <label>Gasto fijo <span class="label-opcional">(opcional)</span></label>
           <select id="notif-gasto-fijo" class="input">
             <option value="">— Ninguno —</option>
@@ -720,13 +727,17 @@
       </div>
     </div>
 
-    <!-- Modal detalle de notificación (solo lectura, doble clic en un ítem) -->
-    <div id="modal-notificacion-detalle" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Detalle de la alerta</h3>
-        <div id="detalle-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
+    <!-- Modal: nuevo bloque de Alertas (categoría personalizada, por usuario) -->
+    <div id="modal-bloque-alerta" class="modal hidden">
+      <div class="modal-card" style="max-width:380px">
+        <h3 class="modal-title">Nuevo bloque</h3>
+        <p class="modal-subtitle">Agrupa tus alertas como quieras — solo lo ves vos en este dispositivo.</p>
+        <div class="form-group">
+          <input id="bloque-alerta-nombre" type="text" placeholder="Ej: Servicios, Cumpleaños…" class="input" maxlength="30"/>
+        </div>
         <div class="modal-actions">
-          <button class="btn-primary" id="btn-cerrar-detalle-notificacion">Cerrar</button>
+          <button class="btn-secondary" id="btn-cancelar-bloque-alerta">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-bloque-alerta">Guardar</button>
         </div>
       </div>
     </div>
@@ -867,6 +878,7 @@
     <!-- Modal: crear recordatorio (texto / imagen / audio) -->
     <div id="modal-recordatorio-crear" class="modal hidden">
       <div class="modal-card">
+        <span id="recordatorio-categoria-badge" class="notif-dest-badge hidden"></span>
         <div class="form-group">
           <div class="recordatorio-adjuntar-grid">
             <label class="recordatorio-adjuntar-btn" for="recordatorio-foto-file">📷</label>

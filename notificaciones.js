@@ -9,6 +9,10 @@
 // F: fecha_limite (YYYY-MM-DD, opcional — solo aplica a las recurrentes)
 // G: destinatario ("yo" | "familia") | H: autor | I: estado (activa/cancelada)
 // J: ultimo_envio (ISO UTC, lo actualiza el Worker — no se toca desde acá)
+// P: categoria — nombre del "bloque" personalizado al que pertenece esta
+//    alerta (ver BLOQUES_ALERTAS_KEY más abajo). Vacío = sin bloque (cae en
+//    "Activas"). Si la alerta tiene gasto_fijo, ese manda y esto se ignora
+//    -- una alerta no puede estar en "Gastos fijos" Y en un bloque a la vez.
 //
 // El envío real lo hace el Cron Trigger del Worker (worker/src/push.js),
 // no el navegador — esta app solo crea/edita/borra los recordatorios y
@@ -42,7 +46,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en"]] })
+        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria"]] })
       }
     );
   } else {
@@ -50,14 +54,14 @@ Sheets._asegurarHojaNotificaciones = async function () {
     // columnas no las tienen en el encabezado -- se agregan solas, sin
     // tocar las filas existentes (que igual siguen funcionando por
     // compatibilidad hacia atrás, ver UNIDAD_LEGADO en worker/src/push.js).
-    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:O1`);
-    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2] || !encabezado[0][3] || !encabezado[0][4]) {
+    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:P1`);
+    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2] || !encabezado[0][3] || !encabezado[0][4] || !encabezado[0][5]) {
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:O1")}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:P1")}?valueInputOption=RAW`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en"]] })
+          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria"]] })
         }
       );
     }
@@ -67,7 +71,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
 
 Sheets.getNotificaciones = async function () {
   await this._asegurarHojaNotificaciones();
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:O`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:P`);
   return rows.filter(r => r && r[0]).map(r => ({
     id:            r[0] || "",
     titulo:        r[1] || "",
@@ -83,7 +87,8 @@ Sheets.getNotificaciones = async function () {
     unidad:        r[11] || "",
     gastoFijo:     r[12] || "",
     recordarEnDias: r[13] || "",
-    revisadoEn:    r[14] || ""
+    revisadoEn:    r[14] || "",
+    categoria:     r[15] || ""
   }));
 };
 
@@ -97,15 +102,15 @@ Sheets.getNotificaciones = async function () {
 // "recordarEnDias" (opcional, solo aplica a "unica"): si nadie la marca
 // como revisada, el Worker la vuelve a mandar cada esos días (ver
 // tocaRecordatorioDeSeguimiento en worker/src/push.js).
-Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo, recordarEnDias) {
+Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo, recordarEnDias, categoria) {
   await this._asegurarHojaNotificaciones();
   const id = "N" + Date.now();
-  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || "", recordarEnDias || "", ""]);
+  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || "", recordarEnDias || "", "", categoria || ""]);
   return id;
 };
 
 Sheets._escribirFilaNotificacion = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:O`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:P`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Notificación no encontrada");
   const sheetRow = rowIndex + 2;
@@ -125,9 +130,10 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     campos.unidad ?? actual[11] ?? "",
     campos.gastoFijo ?? actual[12] ?? "",
     campos.recordarEnDias ?? actual[13] ?? "",
-    campos.revisadoEn ?? actual[14] ?? ""
+    campos.revisadoEn ?? actual[14] ?? "",
+    campos.categoria ?? actual[15] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:O${sheetRow}`;
+  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:P${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -312,6 +318,55 @@ function filtrarNotificacionesVisibles(lista) {
   return lista.filter(n => n.destinatario === "familia" || n.autor === currentUser?.email);
 }
 
+// =============================================
+// BLOQUES PERSONALIZADOS (panel de Alertas, estilo "Acciones rápidas")
+// =============================================
+// Cada usuario configura sus propios bloques para agrupar SUS alertas --
+// viven en localStorage con el email en la clave (no en Sheets) para que
+// dos personas que comparten el mismo dispositivo/cuenta de Google (ver
+// conversación: la familia comparte cuentas) no se pisen los bloques. El
+// bloque "Gastos fijos" NO vive acá: es fijo, igual para todos, y sigue
+// funcionando exactamente como antes (n.gastoFijo).
+function _bloquesAlertasKey() {
+  return `alertas_bloques_${currentUser?.email || "anon"}`;
+}
+
+function obtenerBloquesAlertas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(_bloquesAlertasKey()) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+
+function guardarBloquesAlertas(bloques) {
+  localStorage.setItem(_bloquesAlertasKey(), JSON.stringify(bloques));
+}
+
+function agregarBloqueAlerta(nombre) {
+  const bloques = obtenerBloquesAlertas();
+  if (!nombre || nombre === "Gastos fijos" || bloques.includes(nombre)) return false;
+  bloques.push(nombre);
+  guardarBloquesAlertas(bloques);
+  return true;
+}
+
+function borrarBloqueAlerta(nombre) {
+  guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b !== nombre));
+}
+
+// GASTOS_FIJOS ya tiene su propio select (poblarSelectGastoFijo) -- este
+// puebla el select de "a qué bloque pertenece esta alerta", que incluye el
+// fijo "Gastos fijos" + los personalizados del usuario logueado.
+function poblarSelectBloque() {
+  const sel = document.getElementById("notif-bloque");
+  if (!sel) return;
+  const valorActual = sel.value;
+  const bloques = obtenerBloquesAlertas();
+  sel.innerHTML = `<option value="">— Ninguno —</option><option value="__gastos_fijos__">📌 Gastos fijos</option>` +
+    bloques.map(b => `<option value="${escapeAttr(b)}">${escapeHtml(b)}</option>`).join("");
+  sel.value = ["", "__gastos_fijos__", ...bloques].includes(valorActual) ? valorActual : "";
+}
+
 async function cargarNotificaciones() {
   try {
     notificaciones = filtrarNotificacionesVisibles(await Sheets.getNotificaciones());
@@ -352,29 +407,49 @@ function renderSeccionNotif(clave, titulo, claseExtra, items, renderItem) {
       <span>${titulo} (${items.length})</span>
       <span class="notif-seccion-chevron">${colapsada ? "▸" : "▾"}</span>
     </button>
-    <div class="notif-seccion-items${colapsada ? " hidden" : ""}">${items.map(renderItem).join("")}</div>`;
+    <div id="notif-seccion-items-${clave}" class="notif-seccion-items${colapsada ? " hidden" : ""}">${items.map(renderItem).join("")}</div>`;
+}
+
+// Los bloques personalizados, a diferencia de las secciones fijas, se
+// muestran aunque estén vacíos (recién creados) -- si no, crear uno y no
+// ver nada pasaría por "no funcionó". También llevan su propio botón de
+// borrar en el título, que las secciones fijas no tienen.
+function renderSeccionNotifBloque(clave, nombre, items, renderItem) {
+  const colapsada = SECCIONES_COLAPSADAS_NOTIF[clave] || false;
+  return `
+    <div class="notif-seccion-bloque-header">
+      <button type="button" class="prestamos-seccion-title notif-seccion-toggle" data-seccion="${clave}">
+        <span>${escapeHtml(nombre)} (${items.length})</span>
+        <span class="notif-seccion-chevron">${colapsada ? "▸" : "▾"}</span>
+      </button>
+      <button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque" data-bloque="${escapeAttr(nombre)}">🗑️</button>
+    </div>
+    <div id="notif-seccion-items-${clave}" class="notif-seccion-items${colapsada ? " hidden" : ""}">${
+      items.length ? items.map(renderItem).join("") : `<div class="notif-bloque-vacio">Sin alertas en este bloque todavía.</div>`
+    }</div>`;
 }
 
 function renderNotificaciones() {
   const lista = document.getElementById("notificaciones-list");
   if (!lista) return;
 
-  const porRevisar     = notificaciones.filter(n => n.estado === "enviada");
-  const gastosFijos    = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
-  const activas        = notificaciones.filter(n => n.estado === "activa" && !n.gastoFijo);
-  const canceladas     = notificaciones.filter(n => n.estado === "cancelada");
+  const bloques = obtenerBloquesAlertas();
 
-  if (notificaciones.length === 0) {
-    lista.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🔔</div>
-        <div class="empty-state-text">No tienes alertas programadas. Crea una para que te avise aunque la app esté cerrada.</div>
-      </div>`;
-    return;
-  }
+  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
+  const gastosFijos = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
+  const porBloque = {};
+  bloques.forEach(b => { porBloque[b] = []; });
+  const activas = [];
+  notificaciones
+    .filter(n => n.estado === "activa" && !n.gastoFijo)
+    .forEach(n => {
+      if (n.categoria && porBloque[n.categoria]) porBloque[n.categoria].push(n);
+      else activas.push(n);
+    });
+  const canceladas = notificaciones.filter(n => n.estado === "cancelada");
 
   const renderItem = (n) => `
-    <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirDetalleNotificacion('${n.id}')">
+    <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirRecordatorioDesdeAlerta('${n.id}')">
       <div class="notif-body">
         <div class="notif-top">
           <div class="notif-info">
@@ -404,22 +479,50 @@ function renderNotificaciones() {
     </div>`;
 
   let html = "";
-  html += renderSeccionNotif("porRevisar", "Por revisar", "", porRevisar, renderItem);
-  html += renderSeccionNotif("gastosFijos", "Gastos fijos", "", gastosFijos, renderItem);
-  html += renderSeccionNotif("activas", "Activas", "", activas, renderItem);
-  html += renderSeccionNotif("canceladas", "Canceladas", "pagados-title", canceladas, renderItem);
+  if (notificaciones.length === 0 && bloques.length === 0) {
+    html += `
+      <div class="empty-state">
+        <div class="empty-state-icon">🔔</div>
+        <div class="empty-state-text">No tienes alertas programadas. Crea una para que te avise aunque la app esté cerrada.</div>
+      </div>`;
+  } else {
+    html += renderSeccionNotif("porRevisar", "Por revisar", "", porRevisar, renderItem);
+    html += renderSeccionNotif("gastosFijos", "📌 Gastos fijos", "", gastosFijos, renderItem);
+    bloques.forEach((nombre, i) => {
+      html += renderSeccionNotifBloque(`bloque_${i}`, nombre, porBloque[nombre] || [], renderItem);
+    });
+    html += renderSeccionNotif("activas", "Activas", "", activas, renderItem);
+    html += renderSeccionNotif("canceladas", "Canceladas", "pagados-title", canceladas, renderItem);
+  }
+  html += `<button type="button" class="btn-secondary notif-btn-nuevo-bloque" id="btn-nuevo-bloque">+ Agregar bloque</button>`;
   lista.innerHTML = html;
 
   lista.querySelectorAll(".notif-seccion-toggle").forEach(btn => {
     btn.addEventListener("click", () => {
-      const clave    = btn.dataset.seccion;
-      const items    = btn.nextElementSibling;
+      const clave = btn.dataset.seccion;
+      const items = document.getElementById("notif-seccion-items-" + clave);
+      if (!items) return;
       const chevron  = btn.querySelector(".notif-seccion-chevron");
       const colapsar = !items.classList.contains("hidden");
       items.classList.toggle("hidden", colapsar);
       if (chevron) chevron.textContent = colapsar ? "▸" : "▾";
       SECCIONES_COLAPSADAS_NOTIF[clave] = colapsar;
     });
+  });
+
+  lista.querySelectorAll(".notif-btn-borrar-bloque").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const nombre = btn.dataset.bloque;
+      if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
+      borrarBloqueAlerta(nombre);
+      renderNotificaciones();
+    });
+  });
+
+  document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
+    document.getElementById("bloque-alerta-nombre").value = "";
+    document.getElementById("modal-bloque-alerta")?.classList.remove("hidden");
   });
 }
 
@@ -487,6 +590,9 @@ function limpiarFormNotificacion() {
   document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
   document.getElementById("notif-recordar-dias").value = "";
   document.getElementById("notif-destinatario").value = "yo";
+  poblarSelectBloque();
+  document.getElementById("notif-bloque").value = "";
+  document.getElementById("notif-gasto-fijo-row")?.classList.add("hidden");
   poblarSelectGastoFijo();
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
   document.getElementById("notif-fecha-hora").value = ahora.toISOString().slice(0, 16);
@@ -540,6 +646,11 @@ function abrirEditarNotificacion(id) {
     }
   }
 
+  poblarSelectBloque();
+  const bloqueValor = n.gastoFijo ? "__gastos_fijos__" : (n.categoria || "");
+  document.getElementById("notif-bloque").value = bloqueValor;
+  document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", bloqueValor !== "__gastos_fijos__");
+
   poblarSelectGastoFijo();
   const selGastoFijo = document.getElementById("notif-gasto-fijo");
   if (selGastoFijo) selGastoFijo.value = n.gastoFijo || "";
@@ -551,34 +662,14 @@ function abrirEditarNotificacion(id) {
   modal.classList.remove("hidden");
 }
 
-// ---- Detalle de solo lectura (doble clic en un ítem) ----
-function abrirDetalleNotificacion(id) {
+// ---- Doble clic en una alarma: crea un recordatorio en su mismo bloque ----
+// (reemplaza el detalle de solo lectura que había antes -- casi todo lo que
+// mostraba ya está a la vista en la tarjeta misma).
+function abrirRecordatorioDesdeAlerta(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
-
-  const ESTADOS = { activa: "Activa", enviada: "Por revisar", cancelada: "Cancelada" };
-  const filas = [
-    ["Texto", n.titulo],
-    ["Repetición", descripcionRecurrencia(n)],
-    ["Fecha y hora", _formatoFechaHoraLocal(n.fechaHora)],
-    ["Repetir hasta", n.fechaLimite || "—"],
-    ["Destinatario", n.destinatario === "familia" ? "Toda la familia" : "Solo yo"],
-    ["Gasto fijo", n.gastoFijo || "—"],
-    ["Si no se revisa, recuerda de nuevo en", n.recordarEnDias ? `${n.recordarEnDias} día(s)` : "—"],
-    ["Estado", ESTADOS[n.estado] || n.estado],
-    ["Último envío", n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : "—"],
-    ["Revisada el", n.revisadoEn ? _formatoFechaHoraLocal(n.revisadoEn) : "—"]
-  ];
-
-  const cuerpo = document.getElementById("detalle-notificacion-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = filas.map(([label, valor]) => `
-      <div class="detalle-notif-fila">
-        <span class="detalle-notif-label">${escapeHtml(label)}</span>
-        <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
-      </div>`).join("");
-  }
-  document.getElementById("modal-notificacion-detalle")?.classList.remove("hidden");
+  const categoria = n.gastoFijo ? "Gastos fijos" : (n.categoria || "");
+  abrirModalCrearRecordatorio({ texto: n.titulo, categoria });
 }
 
 // Traduce el picker "Repetir" (presets + Personalizado, mismo patrón que
@@ -601,7 +692,9 @@ async function guardarNotificacion() {
   const fechaHoraLocal  = document.getElementById("notif-fecha-hora").value;
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
   const destinatario    = document.getElementById("notif-destinatario").value;
-  const gastoFijo       = document.getElementById("notif-gasto-fijo")?.value || "";
+  const bloqueSel       = document.getElementById("notif-bloque")?.value || "";
+  const gastoFijo       = bloqueSel === "__gastos_fijos__" ? (document.getElementById("notif-gasto-fijo")?.value || "") : "";
+  const categoria       = (bloqueSel && bloqueSel !== "__gastos_fijos__") ? bloqueSel : "";
   const recordarEnDias  = parseInt(document.getElementById("notif-recordar-dias")?.value, 10) || "";
 
   if (!texto || !fechaHoraLocal) {
@@ -628,10 +721,10 @@ async function guardarNotificacion() {
     if (editId) {
       await Sheets.editarNotificacion(editId, {
         titulo: texto, tipo, fechaHora: fechaHoraISO, fechaLimite,
-        destinatario, intervalo, unidad, gastoFijo, recordarEnDias
+        destinatario, intervalo, unidad, gastoFijo, recordarEnDias, categoria
       });
     } else {
-      await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias);
+      await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias, categoria);
     }
     modal.classList.add("hidden");
     limpiarFormNotificacion();
@@ -721,6 +814,11 @@ function setupNotificacionesListeners() {
       document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
     });
 
+  document.getElementById("notif-bloque")
+    ?.addEventListener("change", (e) => {
+      document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", e.target.value !== "__gastos_fijos__");
+    });
+
   // Elegir un gasto fijo pre-llena texto/destinatario/repetición con
   // valores sensatos (mensual, familia) -- todo sigue siendo editable
   // después, esto es solo para no partir de un formulario en blanco.
@@ -749,15 +847,25 @@ function setupNotificacionesListeners() {
       }
     });
 
-  document.getElementById("btn-cerrar-detalle-notificacion")
+  document.getElementById("btn-guardar-bloque-alerta")
     ?.addEventListener("click", () => {
-      document.getElementById("modal-notificacion-detalle")?.classList.add("hidden");
+      const nombre = document.getElementById("bloque-alerta-nombre").value.trim();
+      if (!nombre) { alert("Ponle un nombre al bloque"); return; }
+      if (nombre === "Gastos fijos") { alert('"Gastos fijos" ya existe y es fijo -- elige otro nombre.'); return; }
+      if (!agregarBloqueAlerta(nombre)) { alert("Ya existe un bloque con ese nombre"); return; }
+      document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
+      renderNotificaciones();
     });
 
-  document.getElementById("modal-notificacion-detalle")
+  document.getElementById("btn-cancelar-bloque-alerta")
+    ?.addEventListener("click", () => {
+      document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
+    });
+
+  document.getElementById("modal-bloque-alerta")
     ?.addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-notificacion-detalle")) {
-        document.getElementById("modal-notificacion-detalle").classList.add("hidden");
+      if (e.target === document.getElementById("modal-bloque-alerta")) {
+        document.getElementById("modal-bloque-alerta").classList.add("hidden");
       }
     });
 }

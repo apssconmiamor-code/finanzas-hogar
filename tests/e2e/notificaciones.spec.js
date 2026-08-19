@@ -129,6 +129,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await page.locator('#btn-nueva-notificacion').click();
+    await page.locator('#notif-bloque').selectOption('__gastos_fijos__');
     await page.locator('#notif-gasto-fijo').selectOption('Alquiler');
 
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar Alquiler');
@@ -206,10 +207,11 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(items).toBeVisible();
   });
 
-  test('doble clic abre el detalle de solo lectura; Editar permite modificar', async ({ page }) => {
+  test('doble clic en una alarma abre "Nuevo recordatorio" con su texto y bloque pre-llenados', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
-      Notificaciones: [['N3', 'Pagar internet', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+      // Fila con gasto_fijo (columna M) puesto -- vive en el bloque fijo "Gastos fijos".
+      Notificaciones: [['N3', 'Pagar internet', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '', '', '', 'Internet']],
     });
     await page.goto('/index.html');
     await esperarAppLista(page);
@@ -218,10 +220,28 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet');
 
     await page.locator('.notificacion-item').dblclick();
-    await expect(page.locator('#modal-notificacion-detalle')).toBeVisible();
-    await expect(page.locator('#detalle-notificacion-cuerpo')).toContainText('Pagar internet');
-    await page.locator('#btn-cerrar-detalle-notificacion').click();
-    await expect(page.locator('#modal-notificacion-detalle')).toBeHidden();
+    await expect(page.locator('#modal-recordatorio-crear')).toBeVisible();
+    await expect(page.locator('#recordatorio-texto')).toHaveValue('Pagar internet');
+    await expect(page.locator('#recordatorio-categoria-badge')).toContainText('Gastos fijos');
+
+    await page.locator('#btn-guardar-recordatorio-crear').click();
+    await expect(page.locator('#modal-recordatorio-crear')).toBeHidden();
+
+    const categoriaGuardada = await page.evaluate(async () => {
+      const lista = await Sheets.getRecordatorios();
+      return lista.find(r => r.texto === 'Pagar internet')?.categoria;
+    });
+    expect(categoriaGuardada).toBe('Gastos fijos');
+  });
+
+  test('Editar sigue funcionando desde el botón de la tarjeta (independiente del doble clic)', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N3b', 'Pagar internet', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
 
     await page.locator('.notif-acciones-fila button', { hasText: 'Editar' }).click();
     await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
@@ -232,6 +252,44 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await expect(page.locator('#modal-notificacion')).toBeHidden();
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet fibra');
+  });
+
+  test('bloques personalizados: crear uno, agrupa la alerta, y borrarlo la vuelve a "Activas"', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    // Crea el bloque "Servicios".
+    await page.locator('#btn-nuevo-bloque').click();
+    await page.locator('#bloque-alerta-nombre').fill('Servicios');
+    await page.locator('#btn-guardar-bloque-alerta').click();
+    await expect(page.locator('.notif-seccion-bloque-header')).toContainText('Servicios');
+
+    // Crea una alerta y la asigna a ese bloque.
+    await page.locator('#btn-nueva-notificacion').click();
+    await page.locator('#notif-texto').fill('Pagar Netflix');
+    await page.locator('#notif-bloque').selectOption('Servicios');
+    // El sub-select "Gasto fijo" es solo para el bloque fijo -- no debe verse acá.
+    await expect(page.locator('#notif-gasto-fijo-row')).toBeHidden();
+    page.once('dialog', (d) => d.dismiss());
+    await page.locator('#btn-guardar-notificacion').click();
+
+    const seccionServicios = page.locator('.notif-seccion-bloque-header', { hasText: 'Servicios' })
+      .locator('xpath=following-sibling::div[1]');
+    await expect(seccionServicios).toContainText('Pagar Netflix');
+
+    // "Gastos fijos" sigue siendo fijo: el único botón de borrar bloque que
+    // existe es el de "Servicios" (el personalizado).
+    await expect(page.locator('.notif-btn-borrar-bloque')).toHaveCount(1);
+    await expect(page.locator('.notif-btn-borrar-bloque')).toHaveAttribute('data-bloque', 'Servicios');
+
+    // Borrar el bloque -- la alerta no se pierde, cae en "Activas".
+    page.once('dialog', (d) => d.accept());
+    await page.locator('.notif-btn-borrar-bloque').click();
+    await expect(page.locator('.notif-seccion-bloque-header')).toHaveCount(0);
+    await expect(page.locator('.notif-seccion-toggle', { hasText: 'Activas' }).locator('xpath=following-sibling::div[1]'))
+      .toContainText('Pagar Netflix');
   });
 
   test('borrar una notificación la quita de la lista', async ({ page }) => {

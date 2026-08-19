@@ -3,6 +3,9 @@
 // =============================================
 // Hoja "Recordatorios" en Google Sheets:
 // A: id | B: fecha | C: autor | D: texto | E: imageUrl | F: audioUrl
+// G: categoria (opcional) — cuando el recordatorio nace de un doble clic
+//    sobre una alerta (ver abrirRecordatorioDesdeAlerta en notificaciones.js),
+//    guarda el bloque de esa alerta ("Gastos fijos" o el bloque personalizado).
 // Un recordatorio puede tener foto Y audio al mismo tiempo (no son excluyentes).
 // La foto/audio en sí se sube a Google Drive (Sheets no soporta binarios);
 // en la hoja solo quedan los links. El archivo en Drive queda con permiso
@@ -37,23 +40,38 @@ Sheets._asegurarHojaRecordatorios = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "fecha", "autor", "texto", "imageUrl", "audioUrl"]] })
+        body: JSON.stringify({ values: [["id", "fecha", "autor", "texto", "imageUrl", "audioUrl", "categoria"]] })
       }
     );
+  } else {
+    // Migración liviana (mismo patrón que Notificaciones): hojas creadas
+    // antes de que existiera "categoria" no la tienen en el encabezado.
+    const encabezado = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!G1`);
+    if (!encabezado[0] || !encabezado[0][0]) {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.RECORDATORIOS + "!G1")}?valueInputOption=RAW`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ values: [["categoria"]] })
+        }
+      );
+    }
   }
   this._recordatoriosHojaLista = true;
 };
 
 Sheets.getRecordatorios = async function () {
   await this._asegurarHojaRecordatorios();
-  const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:F`);
+  const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:G`);
   return rows.filter(r => r && r[0]).map(r => ({
     id:       r[0] || "",
     fecha:    Sheets._serialToDate(r[1]),
     autor:    r[2] || "",
     texto:    r[3] || "",
     imageUrl: r[4] || "",
-    audioUrl: r[5] || ""
+    audioUrl: r[5] || "",
+    categoria: r[6] || ""
   }));
 };
 
@@ -63,9 +81,9 @@ Sheets.getRecordatorios = async function () {
 // sistema de cola offline. Se corrige acá (no en sheets-offline.js) porque
 // ese archivo carga ANTES que este en index.html — Sheets.agregarRecordatorio
 // todavía no existiría para parchear en ese momento.
-Sheets._agregarRecordatorioDirecto = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "") {
+Sheets._agregarRecordatorioDirecto = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "", categoria = "") {
   await this._asegurarHojaRecordatorios();
-  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, texto, imageUrl, audioUrl]);
+  await this.agregar(CONFIG.SHEETS.RECORDATORIOS, [id, fecha, autor, texto, imageUrl, audioUrl, categoria]);
   return id;
 };
 
@@ -74,10 +92,10 @@ Sheets._agregarRecordatorioDirecto = async function (id, autor, fecha, texto, im
 // que con movimientos, se guardan en la cola de IndexedDB tal cual
 // (dataURL) y sync.js las sube de verdad cuando vuelve la conexión, antes
 // de escribir la fila (ver ejecutarOperacion en sync.js).
-Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "", mediaPendiente = null) {
+Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl = "", audioUrl = "", mediaPendiente = null, categoria = "") {
   return Sheets._intentarOEncolar(
-    () => Sheets._agregarRecordatorioDirecto(id, autor, fecha, texto, imageUrl, audioUrl),
-    { tipo: "AGREGAR_RECORDATORIO", id, autor, fecha, texto, imageUrl, audioUrl, mediaPendiente }
+    () => Sheets._agregarRecordatorioDirecto(id, autor, fecha, texto, imageUrl, audioUrl, categoria),
+    { tipo: "AGREGAR_RECORDATORIO", id, autor, fecha, texto, imageUrl, audioUrl, mediaPendiente, categoria }
   );
 };
 
@@ -217,15 +235,25 @@ let recMediaRecorder = null;
 let recAudioChunks = [];
 let recGrabando = false;
 let recAudioStream = null; // se reutiliza mientras el modal está abierto para no repetir el permiso
+let recordatorioCategoriaActual = ""; // set por abrirRecordatorioDesdeAlerta() en notificaciones.js
 
-function abrirModalCrearRecordatorio() {
-  document.getElementById("recordatorio-texto").value = "";
+// { texto, categoria } opcionales -- los usa abrirRecordatorioDesdeAlerta()
+// en notificaciones.js (doble clic sobre una alerta) para pre-llenar el
+// recordatorio con el bloque de esa alerta.
+function abrirModalCrearRecordatorio({ texto = "", categoria = "" } = {}) {
+  document.getElementById("recordatorio-texto").value = texto;
   recordatorioFotoData  = null;
   recordatorioAudioData = null;
+  recordatorioCategoriaActual = categoria;
   renderRecordatorioMediaPreview();
   const status = document.getElementById("recordatorio-audio-status");
   if (status) status.textContent = "";
   resetBotonAudio();
+  const badge = document.getElementById("recordatorio-categoria-badge");
+  if (badge) {
+    badge.textContent = categoria ? `🏷️ ${categoria}` : "";
+    badge.classList.toggle("hidden", !categoria);
+  }
   document.getElementById("modal-recordatorio-crear")?.classList.remove("hidden");
 }
 
@@ -280,6 +308,7 @@ function cerrarModalCrearRecordatorio() {
     recAudioStream.getTracks().forEach(t => t.stop());
     recAudioStream = null;
   }
+  recordatorioCategoriaActual = "";
   document.getElementById("modal-recordatorio-crear")?.classList.add("hidden");
 }
 
@@ -447,9 +476,10 @@ async function guardarRecordatorio() {
         audioUrl = url;
       }
     }
-    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl, mediaPendiente);
+    const categoria = recordatorioCategoriaActual;
+    await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl, mediaPendiente, categoria);
 
-    recordatorios.unshift({ id, fecha, autor: currentUser.email, texto, imageUrl, audioUrl });
+    recordatorios.unshift({ id, fecha, autor: currentUser.email, texto, imageUrl, audioUrl, categoria });
     localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
 
     cerrarModalCrearRecordatorio();

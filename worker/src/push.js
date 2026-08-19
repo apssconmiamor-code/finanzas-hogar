@@ -281,7 +281,7 @@ export function estaVencida(fila, ahora) {
 
 // ---- Consigue un access_token sin depender de ningún usuario conectado
 // en ese momento — prueba los refresh_token guardados hasta que uno sirva. ----
-async function obtenerAccessTokenAutonomo(env) {
+export async function obtenerAccessTokenAutonomo(env) {
   const lista = await env.REFRESH_TOKENS.list();
   for (const clave of lista.keys) {
     const refreshToken = await env.REFRESH_TOKENS.get(clave.name);
@@ -308,7 +308,7 @@ async function obtenerAccessTokenAutonomo(env) {
 // acceso a sheets.js del frontend, así que repite las llamadas mínimas). ----
 async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:O")}?valueRenderOption=UNFORMATTED_VALUE`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:P")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!res.ok) throw new Error(`Error leyendo Notificaciones: ${res.status}`);
@@ -319,7 +319,7 @@ async function leerNotificaciones(accessToken, env) {
     fecha_hora: r[4] || "", fecha_limite: r[5] || "", destinatario: r[6] || "yo",
     autor: r[7] || "", estado: r[8] || "activa", ultimo_envio: r[9] || "",
     intervalo: r[10] || "", unidad: r[11] || "", gasto_fijo: r[12] || "",
-    recordar_en_dias: r[13] || "", revisado_en: r[14] || "",
+    recordar_en_dias: r[13] || "", revisado_en: r[14] || "", categoria: r[15] || "",
     _fila: rows.indexOf(r)
   }));
 }
@@ -331,10 +331,11 @@ async function actualizarNotificacion(accessToken, env, fila, cambios) {
     fila.destinatario, fila.autor,
     cambios.estado ?? fila.estado,
     cambios.ultimo_envio ?? fila.ultimo_envio,
-    fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias, fila.revisado_en
+    fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias, fila.revisado_en,
+    fila.categoria
   ];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:O${sheetRow}`)}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:P${sheetRow}`)}?valueInputOption=RAW`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
