@@ -1068,9 +1068,46 @@ input, select, textarea, table {
 .notif-btn-eliminar { color: var(--red); border-color: var(--red); }
 .notif-btn-eliminar:hover { background: var(--red-soft); }
 
-/* Bloques personalizados del panel de Alertas (estilo Acciones rápidas) */
-.notif-seccion-bloque-header { display: flex; align-items: center; gap: 6px; }
-.notif-seccion-bloque-header .notif-seccion-toggle { flex: 1; }
+/* Cuadrícula de bloques del panel de Alertas -- mismo espíritu que
+   .acciones-rapidas-grid/.accion-rapida-card (2 columnas, ícono + nombre),
+   pero con tarjetas de alto fijo en vez de cuadradas: acá van inline al
+   principio de la pestaña (que puede ser bien ancha en pantallas grandes),
+   no centradas en un modal chico -- con aspect-ratio 1:1 quedaban gigantes. */
+.alertas-bloques-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  max-width: 480px;
+}
+.alerta-bloque-card {
+  position: relative; width: 100%; min-height: 96px; padding: 16px 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  border-radius: var(--r-md); border: 1.5px solid var(--border-mid);
+  background: var(--surface); cursor: pointer; user-select: none;
+  font-family: var(--font); box-shadow: var(--shadow-sm); box-sizing: border-box;
+}
+.alerta-bloque-card:active { opacity: 0.7; }
+.alerta-bloque-agregar { border-style: dashed; color: var(--text-4); box-shadow: none; }
+.alerta-bloque-icono { font-size: 26px; line-height: 1; }
+.alerta-bloque-nombre { font-size: 13px; font-weight: 600; color: var(--text-2); text-align: center; }
+.alerta-bloque-cantidad {
+  position: absolute; top: 8px; right: 8px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--brand); color: #fff; border-radius: 4px;
+  font-size: 10.5px; font-weight: 700; line-height: 18px; text-align: center;
+}
+
+/* Pantalla de detalle de un bloque (se abre al tocar su tarjeta) */
+.alerta-bloque-detalle-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.btn-volver-bloque {
+  flex-shrink: 0; border: none; background: none; cursor: pointer;
+  font-size: 14px; font-weight: 600; color: var(--brand); padding: 6px 0;
+}
+.btn-volver-bloque:active { opacity: 0.7; }
+.alerta-bloque-detalle-titulo {
+  flex: 1; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .notif-btn-borrar-bloque {
   flex-shrink: 0; width: 32px; height: 32px; border-radius: 4px;
   border: 1.5px solid var(--border-mid); background: var(--surface);
@@ -1078,7 +1115,6 @@ input, select, textarea, table {
 }
 .notif-btn-borrar-bloque:active { opacity: 0.7; }
 .notif-bloque-vacio { font-size: 12.5px; color: var(--text-4); padding: 8px 2px 14px; }
-.notif-btn-nuevo-bloque { width: 100%; margin-top: 4px; }
 
 /* ═══════════════ PRÉSTAMOS ═══════════════ */
 .prestamos-resumen { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }

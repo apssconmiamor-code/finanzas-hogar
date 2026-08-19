@@ -1,11 +1,11 @@
 // Módulo Notificaciones: recordatorios que avisan por Web Push aunque la
 // app esté cerrada. El envío real lo hace el Cron Trigger del Worker (ver
 // worker/src/push.test.mjs para la lógica de fechas) — acá se prueba lo
-// que sí vive en el navegador: crear/revisar/editar/borrar, el detalle de
-// solo lectura, y que "Activar en este dispositivo" registre la
-// suscripción en el Worker con los datos correctos. No se puede probar la
-// entrega real de un push en un test headless (necesitaría un servicio de
-// push real).
+// que sí vive en el navegador: crear/revisar/editar/borrar, la cuadrícula
+// de bloques (y su pantalla de detalle), y que "Activar en este
+// dispositivo" registre la suscripción en el Worker con los datos
+// correctos. No se puede probar la entrega real de un push en un test
+// headless (necesitaría un servicio de push real).
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
@@ -14,6 +14,13 @@ async function abrirNotificaciones(page) {
   await btnMenu.click();
   await page.locator('[data-tab-nav="notificaciones"]').click();
   await expect(page.locator('#tab-notificaciones')).toBeVisible();
+}
+
+// La cuadrícula muestra tarjetas (Por revisar / Gastos fijos / bloques
+// propios / Activas / Canceladas); tocar una abre su pantalla de detalle
+// con la lista de esas alertas.
+async function abrirBloqueAlerta(page, nombre) {
+  await page.locator('.alerta-bloque-card', { hasText: nombre }).click();
 }
 
 // Simula soporte de Push completo: Notification.requestPermission(),
@@ -50,7 +57,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await iniciarSesionFalsa(page);
   });
 
-  test('crear una notificación nueva la muestra en la lista', async ({ page }) => {
+  test('crear una notificación nueva sin bloque cae en "Activas"', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
@@ -68,8 +75,9 @@ test.describe('Notificaciones (Web Push)', () => {
     // — debe poder guardar igual, solo con una confirmación.
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
-
     await expect(page.locator('#modal-notificacion')).toBeHidden();
+
+    await abrirBloqueAlerta(page, 'Activas');
     await expect(page.locator('.notificacion-item')).toContainText('Pagar arriendo');
     await expect(page.locator('.notificacion-item')).toContainText('Cada mes');
     await expect(page.locator('.notificacion-item')).toContainText('Familia');
@@ -90,8 +98,9 @@ test.describe('Notificaciones (Web Push)', () => {
 
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
-
     await expect(page.locator('#modal-notificacion')).toBeHidden();
+
+    await abrirBloqueAlerta(page, 'Activas');
     await expect(page.locator('.notificacion-item')).toContainText('Regar las plantas');
     await expect(page.locator('.notificacion-item')).toContainText('Cada 3 semanas');
   });
@@ -116,8 +125,9 @@ test.describe('Notificaciones (Web Push)', () => {
 
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
-
     await expect(page.locator('#modal-notificacion')).toBeHidden();
+
+    await abrirBloqueAlerta(page, 'Activas');
     await expect(page.locator('.notificacion-item')).toContainText('Pagar la luz');
     await expect(page.locator('.notificacion-item')).toContainText('Insiste cada 3 días');
   });
@@ -138,11 +148,16 @@ test.describe('Notificaciones (Web Push)', () => {
 
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
-
     await expect(page.locator('#modal-notificacion')).toBeHidden();
-    await expect(page.locator('.prestamos-seccion-title')).toContainText('Gastos fijos');
+
+    // La tarjeta de "Gastos fijos" ya muestra la cantidad (1).
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Gastos fijos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+
+    await abrirBloqueAlerta(page, 'Gastos fijos');
     await expect(page.locator('.notificacion-item')).toContainText('Pagar Alquiler');
     await expect(page.locator('.notificacion-item')).toContainText('📌 Alquiler');
+    // Bloque fijo: no tiene botón de borrar en su pantalla de detalle.
+    await expect(page.locator('.notif-btn-borrar-bloque')).toHaveCount(0);
   });
 
   test('una alerta "Solo yo" de otra persona no aparece en mi lista', async ({ page }) => {
@@ -161,6 +176,9 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    // Ninguna de las dos visibles tiene bloque -> ambas caen en "Activas".
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activas' }).locator('.alerta-bloque-cantidad')).toHaveText('2');
+    await abrirBloqueAlerta(page, 'Activas');
     await expect(page.locator('.notificacion-item')).toContainText(['Recordatorio propio', 'Pagar el condominio']);
     await expect(page.locator('#notificaciones-list')).not.toContainText('Cita médica de Royer');
   });
@@ -175,36 +193,19 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    await abrirBloqueAlerta(page, 'Por revisar');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
-    await expect(page.locator('.prestamos-seccion-title')).toContainText('Por revisar');
     await expect(page.locator('.notif-acciones')).not.toContainText('Cancelar');
 
     await page.locator('.notif-btn-ancho', { hasText: 'Revisado' }).click();
 
-    await expect(page.locator('.prestamos-seccion-title')).toContainText('Canceladas');
+    // "Por revisar" quedó vacío -> ya no es una tarjeta de la cuadrícula
+    // (deja de existir un bloque abierto, vuelve solo a la cuadrícula).
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Por revisar' })).toHaveCount(0);
+
+    await abrirBloqueAlerta(page, 'Canceladas');
+    await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
     await expect(page.locator('.notif-cancelada-badge')).toBeVisible();
-  });
-
-  test('las secciones se pliegan y despliegan tocando el título', async ({ page }) => {
-    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
-    await mockGoogleApis(page, {
-      Notificaciones: [['N4', 'Pagar el gas', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
-    });
-    await page.goto('/index.html');
-    await esperarAppLista(page);
-    await abrirNotificaciones(page);
-
-    const titulo = page.locator('.notif-seccion-toggle', { hasText: 'Activas' });
-    const items  = titulo.locator('xpath=following-sibling::div[1]');
-
-    await expect(items).toBeVisible();
-    await expect(items).toContainText('Pagar el gas');
-
-    await titulo.click();
-    await expect(items).toBeHidden();
-
-    await titulo.click();
-    await expect(items).toBeVisible();
   });
 
   test('doble clic en una alarma abre "Nuevo recordatorio" con su texto y bloque pre-llenados', async ({ page }) => {
@@ -217,6 +218,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    await abrirBloqueAlerta(page, 'Gastos fijos');
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet');
 
     await page.locator('.notificacion-item').dblclick();
@@ -243,28 +245,35 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    await abrirBloqueAlerta(page, 'Activas');
     await page.locator('.notif-acciones-fila button', { hasText: 'Editar' }).click();
     await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');
 
     await page.locator('#notif-texto').fill('Pagar internet fibra');
     await page.locator('#btn-guardar-notificacion').click();
-
     await expect(page.locator('#modal-notificacion')).toBeHidden();
+
+    // Sigue dentro de la pantalla de "Activas" (recargar no te saca de ahí).
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet fibra');
   });
 
-  test('bloques personalizados: crear uno, agrupa la alerta, y borrarlo la vuelve a "Activas"', async ({ page }) => {
+  test('bloques personalizados: se ven como tarjetas en la cuadrícula, agrupan la alerta, y borrarlos la vuelve a "Activas"', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    // Antes de crear ningún bloque propio, la cuadrícula ya trae "Gastos
+    // fijos" y "Activas" fijos, más la tarjeta de "Agregar bloque".
+    await expect(page.locator('.alerta-bloque-card')).toHaveCount(3);
+
     // Crea el bloque "Servicios".
     await page.locator('#btn-nuevo-bloque').click();
     await page.locator('#bloque-alerta-nombre').fill('Servicios');
     await page.locator('#btn-guardar-bloque-alerta').click();
-    await expect(page.locator('.notif-seccion-bloque-header')).toContainText('Servicios');
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Servicios' })).toBeVisible();
+    await expect(page.locator('.alerta-bloque-card')).toHaveCount(4);
 
     // Crea una alerta y la asigna a ese bloque.
     await page.locator('#btn-nueva-notificacion').click();
@@ -274,22 +283,23 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notif-gasto-fijo-row')).toBeHidden();
     page.once('dialog', (d) => d.dismiss());
     await page.locator('#btn-guardar-notificacion').click();
+    await expect(page.locator('#modal-notificacion')).toBeHidden();
 
-    const seccionServicios = page.locator('.notif-seccion-bloque-header', { hasText: 'Servicios' })
-      .locator('xpath=following-sibling::div[1]');
-    await expect(seccionServicios).toContainText('Pagar Netflix');
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Servicios' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await abrirBloqueAlerta(page, 'Servicios');
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar Netflix');
 
-    // "Gastos fijos" sigue siendo fijo: el único botón de borrar bloque que
-    // existe es el de "Servicios" (el personalizado).
+    // Bloque personalizado: sí tiene botón de borrar en su pantalla de detalle.
     await expect(page.locator('.notif-btn-borrar-bloque')).toHaveCount(1);
-    await expect(page.locator('.notif-btn-borrar-bloque')).toHaveAttribute('data-bloque', 'Servicios');
 
-    // Borrar el bloque -- la alerta no se pierde, cae en "Activas".
+    // Borrar el bloque -- la alerta no se pierde, cae en "Activas", y
+    // vuelve solo a la cuadrícula (el bloque abierto ya no existe).
     page.once('dialog', (d) => d.accept());
     await page.locator('.notif-btn-borrar-bloque').click();
-    await expect(page.locator('.notif-seccion-bloque-header')).toHaveCount(0);
-    await expect(page.locator('.notif-seccion-toggle', { hasText: 'Activas' }).locator('xpath=following-sibling::div[1]'))
-      .toContainText('Pagar Netflix');
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Servicios' })).toHaveCount(0);
+
+    await abrirBloqueAlerta(page, 'Activas');
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar Netflix');
   });
 
   test('borrar una notificación la quita de la lista', async ({ page }) => {
@@ -301,6 +311,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
+    await abrirBloqueAlerta(page, 'Activas');
     await expect(page.locator('.notificacion-item')).toContainText('Revisar el correo');
     page.once('dialog', (d) => d.accept());
     await page.locator('.notif-btn-eliminar').click();

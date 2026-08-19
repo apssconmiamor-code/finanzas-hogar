@@ -389,66 +389,11 @@ function _formatoFechaHoraLocal(iso) {
   return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 }
 
-// Recuerda qué secciones quedaron plegadas mientras dure la sesión --
-// vive fuera de renderNotificaciones() para que sobreviva a que la lista
-// se vuelva a pintar entera cada vez que llegan datos nuevos (si no, cada
-// refresco desplegaría todo de nuevo). Todas arrancan desplegadas: si
-// "Canceladas" arrancara plegada, justo cuando revisás algo y pasa a
-// cancelada no verías la confirmación de que se movió ahí.
-const SECCIONES_COLAPSADAS_NOTIF = {
-  porRevisar: false, gastosFijos: false, activas: false, canceladas: false
-};
-
-function renderSeccionNotif(clave, titulo, claseExtra, items, renderItem) {
-  if (items.length === 0) return "";
-  const colapsada = SECCIONES_COLAPSADAS_NOTIF[clave];
+// Tarjeta de una alerta (usada tanto en la pantalla de detalle de un
+// bloque como, antes, dentro de las secciones) -- factorizada aparte para
+// no repetirla.
+function renderItemNotificacion(n) {
   return `
-    <button type="button" class="prestamos-seccion-title notif-seccion-toggle ${claseExtra || ""}" data-seccion="${clave}">
-      <span>${titulo} (${items.length})</span>
-      <span class="notif-seccion-chevron">${colapsada ? "▸" : "▾"}</span>
-    </button>
-    <div id="notif-seccion-items-${clave}" class="notif-seccion-items${colapsada ? " hidden" : ""}">${items.map(renderItem).join("")}</div>`;
-}
-
-// Los bloques personalizados, a diferencia de las secciones fijas, se
-// muestran aunque estén vacíos (recién creados) -- si no, crear uno y no
-// ver nada pasaría por "no funcionó". También llevan su propio botón de
-// borrar en el título, que las secciones fijas no tienen.
-function renderSeccionNotifBloque(clave, nombre, items, renderItem) {
-  const colapsada = SECCIONES_COLAPSADAS_NOTIF[clave] || false;
-  return `
-    <div class="notif-seccion-bloque-header">
-      <button type="button" class="prestamos-seccion-title notif-seccion-toggle" data-seccion="${clave}">
-        <span>${escapeHtml(nombre)} (${items.length})</span>
-        <span class="notif-seccion-chevron">${colapsada ? "▸" : "▾"}</span>
-      </button>
-      <button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque" data-bloque="${escapeAttr(nombre)}">🗑️</button>
-    </div>
-    <div id="notif-seccion-items-${clave}" class="notif-seccion-items${colapsada ? " hidden" : ""}">${
-      items.length ? items.map(renderItem).join("") : `<div class="notif-bloque-vacio">Sin alertas en este bloque todavía.</div>`
-    }</div>`;
-}
-
-function renderNotificaciones() {
-  const lista = document.getElementById("notificaciones-list");
-  if (!lista) return;
-
-  const bloques = obtenerBloquesAlertas();
-
-  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
-  const gastosFijos = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
-  const porBloque = {};
-  bloques.forEach(b => { porBloque[b] = []; });
-  const activas = [];
-  notificaciones
-    .filter(n => n.estado === "activa" && !n.gastoFijo)
-    .forEach(n => {
-      if (n.categoria && porBloque[n.categoria]) porBloque[n.categoria].push(n);
-      else activas.push(n);
-    });
-  const canceladas = notificaciones.filter(n => n.estado === "cancelada");
-
-  const renderItem = (n) => `
     <div class="notificacion-item" data-id="${n.id}" ondblclick="abrirRecordatorioDesdeAlerta('${n.id}')">
       <div class="notif-body">
         <div class="notif-top">
@@ -477,45 +422,76 @@ function renderNotificaciones() {
         </div>
       </div>
     </div>`;
+}
 
-  let html = "";
-  if (notificaciones.length === 0 && bloques.length === 0) {
-    html += `
-      <div class="empty-state">
-        <div class="empty-state-icon">🔔</div>
-        <div class="empty-state-text">No tienes alertas programadas. Crea una para que te avise aunque la app esté cerrada.</div>
-      </div>`;
-  } else {
-    html += renderSeccionNotif("porRevisar", "Por revisar", "", porRevisar, renderItem);
-    html += renderSeccionNotif("gastosFijos", "📌 Gastos fijos", "", gastosFijos, renderItem);
-    bloques.forEach((nombre, i) => {
-      html += renderSeccionNotifBloque(`bloque_${i}`, nombre, porBloque[nombre] || [], renderItem);
-    });
-    html += renderSeccionNotif("activas", "Activas", "", activas, renderItem);
-    html += renderSeccionNotif("canceladas", "Canceladas", "pagados-title", canceladas, renderItem);
-  }
-  html += `<button type="button" class="btn-secondary notif-btn-nuevo-bloque" id="btn-nuevo-bloque">+ Agregar bloque</button>`;
-  lista.innerHTML = html;
+// clave del bloque cuya pantalla de detalle está abierta -- null = se ve
+// la cuadrícula. Vive fuera de renderNotificaciones() para sobrevivir a
+// que la lista se repinte entera cada vez que llegan datos nuevos (si no,
+// cualquier acción -- editar, borrar, marcar revisada -- te devolvería de
+// golpe a la cuadrícula).
+let bloqueAlertaAbierto = null;
 
-  lista.querySelectorAll(".notif-seccion-toggle").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const clave = btn.dataset.seccion;
-      const items = document.getElementById("notif-seccion-items-" + clave);
-      if (!items) return;
-      const chevron  = btn.querySelector(".notif-seccion-chevron");
-      const colapsar = !items.classList.contains("hidden");
-      items.classList.toggle("hidden", colapsar);
-      if (chevron) chevron.textContent = colapsar ? "▸" : "▾";
-      SECCIONES_COLAPSADAS_NOTIF[clave] = colapsar;
+function renderNotificaciones() {
+  const lista = document.getElementById("notificaciones-list");
+  if (!lista) return;
+
+  const bloquesPersonalizados = obtenerBloquesAlertas();
+
+  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
+  const gastosFijos = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
+  const porBloque = {};
+  bloquesPersonalizados.forEach(b => { porBloque[b] = []; });
+  const activas = [];
+  notificaciones
+    .filter(n => n.estado === "activa" && !n.gastoFijo)
+    .forEach(n => {
+      if (n.categoria && porBloque[n.categoria]) porBloque[n.categoria].push(n);
+      else activas.push(n);
     });
+  const canceladas = notificaciones.filter(n => n.estado === "cancelada");
+
+  // Mapa clave -> bloque a mostrar como tarjeta. "Por revisar" y
+  // "Canceladas" solo aparecen si tienen algo (no son bloques del usuario,
+  // son estados de paso); Gastos fijos y Activas son fijos y siempre están.
+  const grupos = {};
+  if (porRevisar.length > 0) grupos.porRevisar = { titulo: "Por revisar", icono: "📩", items: porRevisar, eliminable: false };
+  grupos.gastosFijos = { titulo: "Gastos fijos", icono: "📌", items: gastosFijos, eliminable: false };
+  bloquesPersonalizados.forEach((nombre, i) => {
+    grupos[`bloque_${i}`] = { titulo: nombre, icono: "🗂️", items: porBloque[nombre] || [], eliminable: true, nombreBloque: nombre };
   });
+  grupos.activas = { titulo: "Activas", icono: "🔔", items: activas, eliminable: false };
+  if (canceladas.length > 0) grupos.canceladas = { titulo: "Canceladas", icono: "🗄️", items: canceladas, eliminable: false };
 
-  lista.querySelectorAll(".notif-btn-borrar-bloque").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const nombre = btn.dataset.bloque;
-      if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
-      borrarBloqueAlerta(nombre);
+  if (bloqueAlertaAbierto && !grupos[bloqueAlertaAbierto]) bloqueAlertaAbierto = null; // se borró el bloque que estaba abierto
+
+  if (bloqueAlertaAbierto) {
+    renderBloqueAlertaDetalle(lista, grupos[bloqueAlertaAbierto]);
+  } else {
+    renderBloquesAlertaGrid(lista, grupos);
+  }
+}
+
+// ---- Cuadrícula de bloques (2 columnas, estilo Acciones rápidas) ----
+function renderBloquesAlertaGrid(lista, grupos) {
+  const tarjetas = Object.entries(grupos).map(([clave, g]) => `
+    <button type="button" class="alerta-bloque-card" data-clave="${clave}">
+      ${g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
+      <span class="alerta-bloque-icono">${g.icono}</span>
+      <span class="alerta-bloque-nombre">${escapeHtml(g.titulo)}</span>
+    </button>`).join("");
+
+  lista.innerHTML = `
+    <div class="alertas-bloques-grid">
+      ${tarjetas}
+      <button type="button" class="alerta-bloque-card alerta-bloque-agregar" id="btn-nuevo-bloque">
+        <span class="alerta-bloque-icono">➕</span>
+        <span class="alerta-bloque-nombre">Agregar bloque</span>
+      </button>
+    </div>`;
+
+  lista.querySelectorAll(".alerta-bloque-card[data-clave]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      bloqueAlertaAbierto = btn.dataset.clave;
       renderNotificaciones();
     });
   });
@@ -523,6 +499,34 @@ function renderNotificaciones() {
   document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
     document.getElementById("bloque-alerta-nombre").value = "";
     document.getElementById("modal-bloque-alerta")?.classList.remove("hidden");
+  });
+}
+
+// ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
+function renderBloqueAlertaDetalle(lista, grupo) {
+  const itemsHTML = grupo.items.length > 0
+    ? grupo.items.map(renderItemNotificacion).join("")
+    : `<div class="notif-bloque-vacio">Sin alertas en este bloque todavía.</div>`;
+
+  lista.innerHTML = `
+    <div class="alerta-bloque-detalle-header">
+      <button type="button" class="btn-volver-bloque" id="btn-volver-bloque">← Volver</button>
+      <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
+      ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque">🗑️</button>` : ""}
+    </div>
+    ${itemsHTML}`;
+
+  document.getElementById("btn-volver-bloque")?.addEventListener("click", () => {
+    bloqueAlertaAbierto = null;
+    renderNotificaciones();
+  });
+
+  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => {
+    const nombre = grupo.nombreBloque;
+    if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
+    borrarBloqueAlerta(nombre);
+    bloqueAlertaAbierto = null;
+    renderNotificaciones();
   });
 }
 
