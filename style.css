@@ -1167,6 +1167,12 @@ input, select, textarea, table {
   margin: 20px 0 10px;
 }
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 10px; }
+/* "Salud del mes" siempre en 2 columnas -- a diferencia de .kpi-grid
+   normal (que colapsa a 1 columna en pantallas angostas, ver media
+   queries más abajo), acá 6 tarjetas cortas SIEMPRE entran de a 2 por
+   fila sin quedar apretadas. La combinación de clases pesa más que
+   .kpi-grid sola en cualquier media query, así que gana sin !important. */
+.kpi-grid.kpi-grid-2col { grid-template-columns: 1fr 1fr; }
 .kpi-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-md); padding: 16px;

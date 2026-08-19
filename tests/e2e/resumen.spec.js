@@ -1,10 +1,12 @@
 // Pestaña Resumen: "Salud del mes" y la tabla de Cronología mensual.
 // Cronología se cierra sola (verificarYGuardarCronologia en app.js) para
 // cualquier mes anterior al actual que tenga movimientos y todavía no
-// tenga fila -- estos tests seedean movimientos de "el mes pasado" para
-// que ese cierre pase de verdad al abrir la app, y verifican los 5 datos
-// pedidos (ingreso total, gasto fijo, gasto variable, asertividad
-// mensual, balance de cierre) más los 6 bloques de "Salud del mes".
+// tenga fila completa -- estos tests seedean movimientos de "el mes
+// pasado" para que ese cierre pase de verdad al abrir la app, y verifican
+// los 5 datos pedidos (ingreso total, gasto fijo, gasto variable,
+// asertividad mensual, balance de cierre -- saldo acumulado de las cajas
+// COP hasta el cierre de ese mes, no el neto del mes solo) más los 6
+// bloques de "Salud del mes".
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
@@ -47,10 +49,23 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
     await expect(fila).toContainText('800.000');   // gasto fijo
     await expect(fila).toContainText('300.000');   // gasto variable
     await expect(fila).toContainText('105%');      // asertividad mensual: 1.100.000/1.050.000
-    await expect(fila).toContainText('900.000');   // balance de cierre: 2.000.000 - 1.100.000
+    // Balance de cierre = saldo acumulado de la caja hasta fin de ese mes.
+    // Como no hay movimientos antes ni saldo archivado, acá coincide con
+    // el neto del mes (2.000.000 - 1.100.000), pero es un cálculo distinto
+    // (ver el segundo test: si hubiera movimientos de un mes posterior no
+    // deberían sumarse acá).
+    await expect(fila).toContainText('900.000');
 
     // "Salud del mes" toma esos mismos datos del mes ya cerrado -- no
-    // depende de qué mes esté eligiendo el selector de arriba.
+    // depende de qué mes esté eligiendo el selector de arriba. El título
+    // del bloque muestra el nombre de ese mes.
+    const nombreMesPasado = mesPasado.toLocaleDateString('es-CO', { month: 'long' });
+    const nombreMesPasadoCap = nombreMesPasado[0].toUpperCase() + nombreMesPasado.slice(1);
+    await expect(page.locator('#salud-mes-titulo')).toContainText(nombreMesPasadoCap);
+    // Siempre 2 columnas, ni importa el ancho de pantalla (bug real
+    // reportado: en algunos celulares se veía apilado en 1 sola columna).
+    await expect(page.locator('#salud-mes-titulo + .kpi-grid')).toHaveClass(/kpi-grid-2col/);
+
     await expect(page.locator('#kpi-asertividad-val')).toHaveText('105%');
     await expect(page.locator('#kpi-balance-neto-val')).toContainText('900.000');
     await expect(page.locator('#kpi-gasto-fijo-val')).toContainText('800.000');
@@ -64,5 +79,43 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
 
     // La tendencia de ahorro se quitó -- no debe quedar rastro en la pestaña.
     await expect(page.locator('#tab-resumen')).not.toContainText('Tendencia');
+  });
+
+  test('pone al día una fila vieja de Cronología (de antes de ingresoTotal/balanceCierre) en vez de dejarla en 0 para siempre', async ({ page }) => {
+    const hoy = new Date();
+    const mesPasado = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 10);
+    const fechaMesPasado = mesPasado.toISOString().slice(0, 10);
+    const mesPasadoStr = fechaMesPasado.slice(0, 7);
+
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [
+        ['M1', fechaMesPasado, 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 2000000, '', ''],
+        ['M2', fechaMesPasado, 'prueba@example.com', 'Alquiler', 'Gasto fijo', 'Efectivo', 800000, '', ''],
+      ],
+      Presupuesto: [
+        ['Gasto fijo', 'Alquiler', 800000, 0, ''],
+      ],
+      // Fila "vieja": solo tiene las 6 columnas de antes de este cambio --
+      // sin ingresoTotal/asertividadMensual/balanceCierre/etc. (columnas
+      // G en adelante vacías, ni siquiera "0").
+      Cronologia: [['CR1', mesPasadoStr, 0, 0, 0, 0]],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirResumen(page);
+    await expect(page.locator('#cronologia-wrap table')).toBeVisible({ timeout: 10000 });
+
+    // Se actualizó la MISMA fila (mismo id, no se duplicó el mes) con los
+    // datos reales -- no se quedó en 0 para siempre.
+    const cronologia = await page.evaluate(() => Sheets.getCronologia());
+    expect(cronologia).toHaveLength(1);
+    expect(cronologia[0].id).toBe('CR1');
+    expect(cronologia[0].ingresoTotal).toBe(2000000);
+    expect(cronologia[0].gastoFijo).toBe(800000);
+    expect(cronologia[0].completa).toBe(true);
+
+    await expect(page.locator('#kpi-asertividad-val')).not.toHaveText('0%');
   });
 });

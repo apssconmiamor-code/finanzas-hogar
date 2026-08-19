@@ -3455,11 +3455,112 @@ async function guardarPresupuesto() {
 // CRONOLOGÍA MENSUAL
 // =============================================
 
+// Saldo acumulado de todas las cajas COP hasta el último día de mesStr
+// (inclusive) -- NO el neto de ese mes solo. Es el mismo cálculo que
+// calcularSaldoCaja() (saldoArchivado + entradas/salidas), pero cortando
+// los movimientos justo al cierre de ese mes en vez de sumar todo hasta
+// hoy, para que el "balance de cierre" de un mes viejo no incluya
+// movimientos de meses posteriores.
+function calcularBalanceCierreHastaMes(mesStr) {
+  const [anio, mes] = mesStr.split("-").map(Number);
+  const primerDiaMesSiguiente = new Date(Date.UTC(anio, mes, 1)).toISOString().slice(0, 10);
+
+  return cajas
+    .filter(c => c.moneda === "COP")
+    .reduce((total, c) => {
+      const saldoHastaElMes = movimientos
+        .filter(m => m.caja === c.nombre && m.fecha < primerDiaMesSiguiente)
+        .reduce((s, m) => {
+          const esEntrada = m.categoria === "Ingreso" ||
+            (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"));
+          return s + (esEntrada ? m.monto : -Math.abs(m.monto));
+        }, 0);
+      return total + (c.saldoArchivado || 0) + saldoHastaElMes;
+    }, 0);
+}
+
+// Todos los números de un mes cerrado para Cronología -- factorizado
+// aparte porque se necesita tanto para meses nuevos (INSERT) como para
+// filas viejas que quedaron incompletas de antes de que existieran
+// ingresoTotal/asertividadMensual/etc. (UPDATE, ver verificarYGuardarCronologia).
+function calcularMetricasCronologia(mesStr) {
+  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mesStr));
+
+  const ingresoTotal = movsDelMes
+    .filter(m => m.categoria === "Ingreso")
+    .reduce((s, m) => s + m.monto, 0);
+
+  const fijoReal = movsDelMes
+    .filter(m => m.categoria === "Gasto fijo")
+    .reduce((s, m) => s + Math.abs(m.monto), 0);
+
+  const varReal = movsDelMes
+    .filter(m => m.categoria === "Gasto variable")
+    .reduce((s, m) => s + Math.abs(m.monto), 0);
+
+  const fijoEst = presupuesto
+    .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
+    .reduce((s, p) => s + p.montoEstimado, 0);
+
+  const varEst = presupuesto
+    .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
+    .reduce((s, p) => s + p.montoEstimado, 0);
+
+  const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
+  const varAser  = varEst  > 0 ? Math.round(((varReal  - varEst)  / varEst)  * 100) : 0;
+
+  const gastoTotal         = fijoReal + varReal;
+  const gastoEstimadoTotal = fijoEst + varEst;
+  const asertividadMensual = gastoEstimadoTotal > 0
+    ? Math.round((gastoTotal / gastoEstimadoTotal) * 100) : 0;
+
+  const balanceCierre = calcularBalanceCierreHastaMes(mesStr);
+
+  // Cuánto de ese gasto fijo fue específicamente cuotas de préstamo (usa
+  // la lista de préstamos ACTUAL -- misma limitación que ya tiene el
+  // resto del resumen: un préstamo borrado más adelante ya no se puede
+  // identificar en meses viejos).
+  const gastoPrestamos = (prestamos || []).reduce((s, p) => {
+    const concepto = conceptoPrestamo(p.nombre);
+    return s + movsDelMes
+      .filter(m => m.concepto === concepto)
+      .reduce((x, m) => x + Math.abs(m.monto), 0);
+  }, 0);
+
+  // Concepto con mayor sobregasto real vs. presupuesto ese mes.
+  const realesPorConcepto = {};
+  movsDelMes.forEach(m => {
+    if (m.categoria === "Ingreso") return;
+    realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
+  });
+  const desvios = presupuesto
+    .filter(p => p.montoEstimado > 0)
+    .map(p => ({ concepto: p.concepto, desviacion: (realesPorConcepto[p.concepto] || 0) - p.montoEstimado }))
+    .filter(d => d.desviacion > 0)
+    .sort((a, b) => b.desviacion - a.desviacion);
+  const mayorDesvioConcepto = desvios.length > 0 ? desvios[0].concepto : "";
+  const mayorDesvioMonto    = desvios.length > 0 ? desvios[0].desviacion : 0;
+
+  return {
+    fijoAser, fijoReal, varAser, varReal, ingresoTotal,
+    asertividadMensual, balanceCierre, gastoPrestamos,
+    mayorDesvioConcepto, mayorDesvioMonto
+  };
+}
+
 // Se revisa CADA VEZ que se abre la app (no solo el día 1 del mes): busca
 // todos los meses ya cerrados (anteriores al actual) que tengan movimientos
 // reales pero todavía no tengan registro en la cronología, y los completa.
 // Así, si no abriste la app justo el día 1, el mes anterior no se queda
 // sin guardar para siempre — se pone al día en la próxima visita.
+//
+// También pone al día las filas VIEJAS que ya existían de antes de que
+// Cronología guardara ingresoTotal/asertividadMensual/balanceCierre/etc.
+// (bug real reportado: "Ingreso total" siempre daba 0 -- esas filas viejas
+// nunca se volvían a tocar, solo se guardaban meses nuevos). Solo se puede
+// poner al día un mes viejo si sus movimientos siguen en el array
+// `movimientos` (no se archivaron todavía, ver worker/src/archivo.js) --
+// si ya se archivaron, esa fila se queda como está para siempre.
 async function verificarYGuardarCronologia() {
   try {
     const mesActual = new Date().toISOString().slice(0, 7);
@@ -3470,74 +3571,29 @@ async function verificarYGuardarCronologia() {
     if (mesesConDatos.length === 0) return;
 
     const cronologiaExistente = await Sheets.getCronologia();
-    const mesesYaRegistrados = new Set(cronologiaExistente.map(c => c.mes));
-    const mesesFaltantes = mesesConDatos.filter(mes => !mesesYaRegistrados.has(mes));
-    if (mesesFaltantes.length === 0) return;
+    const porMes = new Map(cronologiaExistente.map(c => [c.mes, c]));
 
-    for (const mesStr of mesesFaltantes) {
-      const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mesStr));
+    for (const mesStr of mesesConDatos) {
+      const existente = porMes.get(mesStr);
+      if (existente && existente.completa) continue; // ya está al día
 
-      const ingresoTotal = movsDelMes
-        .filter(m => m.categoria === "Ingreso")
-        .reduce((s, m) => s + m.monto, 0);
+      const m = calcularMetricasCronologia(mesStr);
 
-      const fijoReal = movsDelMes
-        .filter(m => m.categoria === "Gasto fijo")
-        .reduce((s, m) => s + Math.abs(m.monto), 0);
-
-      const varReal = movsDelMes
-        .filter(m => m.categoria === "Gasto variable")
-        .reduce((s, m) => s + Math.abs(m.monto), 0);
-
-      const fijoEst = presupuesto
-        .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
-        .reduce((s, p) => s + p.montoEstimado, 0);
-
-      const varEst = presupuesto
-        .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
-        .reduce((s, p) => s + p.montoEstimado, 0);
-
-      const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
-      const varAser  = varEst  > 0 ? Math.round(((varReal  - varEst)  / varEst)  * 100) : 0;
-
-      const gastoTotal         = fijoReal + varReal;
-      const gastoEstimadoTotal = fijoEst + varEst;
-      const asertividadMensual = gastoEstimadoTotal > 0
-        ? Math.round((gastoTotal / gastoEstimadoTotal) * 100) : 0;
-
-      const balanceCierre = ingresoTotal - gastoTotal;
-
-      // Cuánto de ese gasto fijo fue específicamente cuotas de préstamo
-      // (usa la lista de préstamos ACTUAL -- misma limitación que ya tiene
-      // el resto del resumen: un préstamo borrado más adelante ya no se
-      // puede identificar en meses viejos).
-      const gastoPrestamos = (prestamos || []).reduce((s, p) => {
-        const concepto = conceptoPrestamo(p.nombre);
-        return s + movsDelMes
-          .filter(m => m.concepto === concepto)
-          .reduce((x, m) => x + Math.abs(m.monto), 0);
-      }, 0);
-
-      // Concepto con mayor sobregasto real vs. presupuesto ese mes.
-      const realesPorConcepto = {};
-      movsDelMes.forEach(m => {
-        if (m.categoria === "Ingreso") return;
-        realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
-      });
-      const desvios = presupuesto
-        .filter(p => p.montoEstimado > 0)
-        .map(p => ({ concepto: p.concepto, desviacion: (realesPorConcepto[p.concepto] || 0) - p.montoEstimado }))
-        .filter(d => d.desviacion > 0)
-        .sort((a, b) => b.desviacion - a.desviacion);
-      const mayorDesvioConcepto = desvios.length > 0 ? desvios[0].concepto : "";
-      const mayorDesvioMonto    = desvios.length > 0 ? desvios[0].desviacion : 0;
-
-      await Sheets.guardarCronologia(
-        mesStr, fijoAser, fijoReal, varAser, varReal,
-        ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos,
-        mayorDesvioConcepto, mayorDesvioMonto
-      );
-      console.log(`✅ Cronología guardada para ${mesStr}`);
+      if (existente) {
+        await Sheets.actualizarCronologia(
+          existente.id, mesStr, m.fijoAser, m.fijoReal, m.varAser, m.varReal,
+          m.ingresoTotal, m.asertividadMensual, m.balanceCierre, m.gastoPrestamos,
+          m.mayorDesvioConcepto, m.mayorDesvioMonto
+        );
+        console.log(`✅ Cronología actualizada (fila vieja puesta al día) para ${mesStr}`);
+      } else {
+        await Sheets.guardarCronologia(
+          mesStr, m.fijoAser, m.fijoReal, m.varAser, m.varReal,
+          m.ingresoTotal, m.asertividadMensual, m.balanceCierre, m.gastoPrestamos,
+          m.mayorDesvioConcepto, m.mayorDesvioMonto
+        );
+        console.log(`✅ Cronología guardada para ${mesStr}`);
+      }
     }
   } catch (err) {
     console.error("Error guardando cronología:", err);
@@ -3565,6 +3621,18 @@ function renderSaludMesCerrado(cronologia) {
   const mesLabel = ultimo
     ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { year: "numeric", month: "long" })
     : "Todavía no hay un mes cerrado";
+
+  const tituloEl = document.getElementById("salud-mes-titulo");
+  if (tituloEl) {
+    // Solo el nombre del mes (sin año) para el título del bloque, ej.
+    // "Salud del mes (Julio)" -- el año sigue apareciendo abajo, en el
+    // detalle de cada tarjeta.
+    const nombreMes = ultimo
+      ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { month: "long" })
+      : null;
+    const nombreMesCapitalizado = nombreMes ? nombreMes[0].toUpperCase() + nombreMes.slice(1) : null;
+    tituloEl.textContent = `💚 Salud del mes${nombreMesCapitalizado ? ` (${nombreMesCapitalizado})` : ""}`;
+  }
 
   const asEl     = document.getElementById("kpi-asertividad-val");
   const asMeta   = document.getElementById("kpi-asertividad-meta");

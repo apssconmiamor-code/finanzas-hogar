@@ -364,6 +364,10 @@ Sheets.getCronologia = async function() {
     gastoPrestamos:      isNaN(parseFloat(r[9]))  ? 0 : parseFloat(r[9]),
     mayorDesvioConcepto: r[10] || "",
     mayorDesvioMonto:    isNaN(parseFloat(r[11])) ? 0 : parseFloat(r[11]),
+    // true si la fila ya tiene las columnas nuevas (G en adelante) -- las
+    // filas escritas antes de que existieran vienen con G vacío, ni
+    // siquiera "0", así se distingue de un mes con ingreso real de 0.
+    completa: r[6] !== undefined && r[6] !== null && r[6] !== "",
   }));
 };
 
@@ -375,6 +379,33 @@ Sheets.guardarCronologia = async function(mes, fijoAser, gastoFijo, varAser, gas
     mayorDesvioConcepto, mayorDesvioMonto
   ]);
   return id;
+};
+
+// Reescribe una fila de Cronología ya existente -- se usa para "poner al
+// día" filas viejas (de antes de que existieran ingresoTotal/balanceCierre/
+// etc.) con los datos nuevos, sin duplicar el mes. Ver "completa" en
+// getCronologia() y el uso en verificarYGuardarCronologia (app.js).
+Sheets.actualizarCronologia = async function(id, mes, fijoAser, gastoFijo, varAser, gastoVariable, ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos, mayorDesvioConcepto, mayorDesvioMonto) {
+  const rows = await this.leer(`${CONFIG.SHEETS.CRONOLOGIA}!A2:A`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) throw new Error("Cronología no encontrada");
+  const sheetRow = rowIndex + 2;
+  const range = `${CONFIG.SHEETS.CRONOLOGIA}!A${sheetRow}:L${sheetRow}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[
+        id, mes, fijoAser, gastoFijo, varAser, gastoVariable,
+        ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos,
+        mayorDesvioConcepto, mayorDesvioMonto
+      ]] })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error actualizando cronología: ${res.status}`);
+  return res.json();
 };
 
 // ---- PROYECCION ----
