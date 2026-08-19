@@ -516,12 +516,29 @@ function renderItemNotificacion(n, soloRevisado = false) {
         <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
         <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>`;
   return `
-    <div class="notificacion-item${claseDia}" data-id="${n.id}" ondblclick="abrirResumenNotificacion('${n.id}')">
+    <div class="notificacion-item${claseDia}" data-id="${n.id}" onclick="tapNotificacion('${n.id}')">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
         ${botones}
       </div>
     </div>`;
+}
+
+// Doble tap/clic manual (mismo patrón que tapMovimiento en app.js): no se
+// puede usar ondblclick acá -- el bloqueo de zoom (touchend ->
+// preventDefault en index.html) suprime la síntesis nativa de dblclick en
+// iOS Safari real, aunque funcione con .dblclick() de Playwright (que no
+// pasa por ese camino táctil). Bug real reportado: "doble clic no abre el
+// resumen" en el celular.
+let ultimoTapNotif = { id: null, tiempo: 0 };
+function tapNotificacion(id) {
+  const ahora = Date.now();
+  if (ultimoTapNotif.id === id && ahora - ultimoTapNotif.tiempo < 400) {
+    ultimoTapNotif = { id: null, tiempo: 0 };
+    abrirResumenNotificacion(id);
+  } else {
+    ultimoTapNotif = { id, tiempo: ahora };
+  }
 }
 
 // ---- Resumen de una alerta (doble clic sobre su tarjeta) ----
