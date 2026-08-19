@@ -35,4 +35,25 @@ test.describe('Navegación desde el menú ⋯', () => {
     await expect(page.locator('#tab-compromisos')).toContainText('Lista de compras');
     await expect(page.locator('#btn-nueva-compra')).toBeVisible();
   });
+
+  // Los tests corren con serviceWorkers:'block' (ver playwright.config.js),
+  // así que no hay una suscripción real que actualizar -- esto solo prueba
+  // que el botón existe y que, sin Service Worker registrado, avisa en vez
+  // de romper la app (bug real reportado: en iOS el chequeo automático de
+  // actualización de una PWA "agregada a inicio" no siempre nota sola que
+  // hay versión nueva, aunque se cierre y abra la app varias veces).
+  test('"Buscar actualización" del menú ⋯ no rompe la app sin un Service Worker real', async ({ page }) => {
+    const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
+    await btnMenu.click();
+    await expect(page.locator('#dd-buscar-actualizacion')).toBeVisible();
+
+    let dialogo = null;
+    page.once('dialog', (d) => { dialogo = d.message(); d.accept(); });
+    await page.locator('#dd-buscar-actualizacion').click();
+
+    await expect.poll(() => dialogo).not.toBeNull();
+    expect(dialogo).toContain('Service Worker');
+    // La app sigue funcionando después del aviso.
+    await expect(page.locator('#app')).toBeVisible();
+  });
 });

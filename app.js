@@ -113,6 +113,50 @@ function avisarSiSeActualizoSola() {
   if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ Actualizado ${transcurrido}`);
 }
 
+// Chequeo manual (menú ⋯ → "Buscar actualización"). A diferencia del
+// automático de sw-register.js -- que espera a un arranque en frío para no
+// interrumpir nada -- acá SÍ se aplica de una si encuentra algo nuevo,
+// porque lo pidió el usuario a propósito. Existe porque en iOS el chequeo
+// automático en segundo plano de una app "agregada a inicio" es poco
+// confiable: a veces nunca nota sola que hay versión nueva por más que se
+// cierre y abra la app varias veces (bug real reportado).
+async function buscarActualizacionManual() {
+  if (!("serviceWorker" in navigator)) {
+    alert("Este navegador no soporta actualizaciones automáticas.");
+    return;
+  }
+  const btn = document.getElementById("dd-buscar-actualizacion");
+  const htmlOriginal = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="dd-icon">🔄</span> Buscando…`; }
+
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { alert("No se encontró el Service Worker registrado."); return; }
+
+    await reg.update();
+    // update() dispara la descarga/instalación en segundo plano -- se le
+    // da un momento para que termine antes de revisar si ya quedó
+    // "esperando" (instalada pero todavía sin activar).
+    await new Promise(r => setTimeout(r, 1500));
+    if (!reg.waiting && reg.installing) await new Promise(r => setTimeout(r, 2000));
+
+    if (reg.waiting) {
+      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast("⬇️ Instalando la última versión…");
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      // El "controllerchange" de sw-register.js recarga la página sola en
+      // cuanto la nueva versión toma control -- no hace falta hacer nada más.
+    } else if (reg.installing) {
+      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast("⬇️ Descargando la actualización — esperá un momento y volvé a intentar");
+    } else {
+      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ Ya tenés la última versión (v${CONFIG.VERSION})`);
+    }
+  } catch (err) {
+    alert("No se pudo buscar la actualización: " + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; if (htmlOriginal) btn.innerHTML = htmlOriginal; }
+  }
+}
+
 // ---- LISTAS DE CONCEPTOS ----
 
 const GASTOS_FIJOS = [
@@ -3815,6 +3859,11 @@ function setupTopbarMenu() {
   ddLogin.addEventListener("click", () => {
     dropdown.classList.add("hidden");
     document.getElementById("btn-login").click();
+  });
+
+  document.getElementById("dd-buscar-actualizacion")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    buscarActualizacionManual();
   });
 }
 
