@@ -120,6 +120,32 @@ function avisarSiSeActualizoSola() {
 // automático en segundo plano de una app "agregada a inicio" es poco
 // confiable: a veces nunca nota sola que hay versión nueva por más que se
 // cierre y abra la app varias veces (bug real reportado).
+// Espera de verdad a que un Service Worker en instalación termine (evento
+// "statechange" -> "installed"), en vez de un tiempo fijo adivinado --
+// bug real reportado: con un tiempo fijo corto, en una red lenta la
+// descarga todavía no había terminado cuando se revisaba, y el botón
+// avisaba "ya estás al día" aunque en realidad la actualización seguía
+// bajando. Devuelve true si terminó de instalar, false si se agotó el
+// tiempo (generoso: 20s) sin terminar.
+function _esperarWorkerInstalado(worker, msTimeout = 20000) {
+  return new Promise((resolve) => {
+    if (!worker) { resolve(false); return; }
+    if (worker.state === "installed" || worker.state === "redundant") { resolve(worker.state === "installed"); return; }
+    const timeout = setTimeout(() => {
+      worker.removeEventListener("statechange", onChange);
+      resolve(false);
+    }, msTimeout);
+    function onChange() {
+      if (worker.state === "installed" || worker.state === "redundant") {
+        clearTimeout(timeout);
+        worker.removeEventListener("statechange", onChange);
+        resolve(worker.state === "installed");
+      }
+    }
+    worker.addEventListener("statechange", onChange);
+  });
+}
+
 async function buscarActualizacionManual() {
   if (!("serviceWorker" in navigator)) {
     alert("Este navegador no soporta actualizaciones automáticas.");
@@ -133,22 +159,44 @@ async function buscarActualizacionManual() {
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) { alert("No se encontró el Service Worker registrado."); return; }
 
+    // Se arma la espera de "¿aparece algo nuevo?" ANTES de pedir update(),
+    // para no perderse el evento "updatefound" si dispara justo entre
+    // medio. Si ya había una instalación en curso de un intento anterior,
+    // se espera esa misma en vez de perderla.
+    const encontroInstalacion = reg.installing
+      ? Promise.resolve(reg.installing)
+      : new Promise((resolve) => {
+          const onUpdateFound = () => { reg.removeEventListener("updatefound", onUpdateFound); resolve(reg.installing); };
+          reg.addEventListener("updatefound", onUpdateFound);
+          setTimeout(() => { reg.removeEventListener("updatefound", onUpdateFound); resolve(null); }, 8000);
+        });
+
     await reg.update();
-    // update() dispara la descarga/instalación en segundo plano -- se le
-    // da un momento para que termine antes de revisar si ya quedó
-    // "esperando" (instalada pero todavía sin activar).
-    await new Promise(r => setTimeout(r, 1500));
-    if (!reg.waiting && reg.installing) await new Promise(r => setTimeout(r, 2000));
+    const workerNuevo = await encontroInstalacion;
+    const instalada = workerNuevo ? await _esperarWorkerInstalado(workerNuevo) : false;
 
     if (reg.waiting) {
       if (typeof SyncManager !== "undefined") SyncManager.mostrarToast("⬇️ Instalando la última versión…");
       reg.waiting.postMessage({ type: "SKIP_WAITING" });
       // El "controllerchange" de sw-register.js recarga la página sola en
       // cuanto la nueva versión toma control -- no hace falta hacer nada más.
-    } else if (reg.installing) {
-      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast("⬇️ Descargando la actualización — esperá un momento y volvé a intentar");
+    } else if (workerNuevo && !instalada) {
+      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast("⬇️ Sigue descargando la actualización — esperá un momento y volvé a intentar");
     } else {
-      if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ Ya tenés la última versión (v${CONFIG.VERSION})`);
+      // No apareció ningún Service Worker nuevo -- puede ser genuinamente
+      // la última versión, o que el chequeo del navegador no esté
+      // detectando el cambio (bug real reportado: en iOS a veces reg.update()
+      // no nota que sw.js cambió aunque sí cambió). Se ofrece una opción más
+      // fuerte: dar de baja el Service Worker actual y recargar de cero,
+      // sin tener que borrar/reinstalar la app.
+      const forzar = confirm(
+        `No se encontró una versión nueva (estás en v${CONFIG.VERSION}).\n\n` +
+        `Si sabés que hay una versión más reciente, tocá Aceptar para forzar un reinicio completo del caché de la app (recarga sola después).`
+      );
+      if (forzar) {
+        await reg.unregister();
+        location.reload();
+      }
     }
   } catch (err) {
     alert("No se pudo buscar la actualización: " + err.message);
