@@ -118,4 +118,43 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
 
     await expect(page.locator('#kpi-asertividad-val')).not.toHaveText('0%');
   });
+
+  test('con montos grandes, "Salud del mes" y Cronología no fuerzan scroll horizontal de la página (bug real: se salía del ancho en celulares angostos)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 720 });
+    const hoy = new Date();
+    const mesPasado = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 10);
+    const fechaMesPasado = mesPasado.toISOString().slice(0, 10);
+
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [
+        ['M1', fechaMesPasado, 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 123456789, '', ''],
+        ['M2', fechaMesPasado, 'prueba@example.com', 'Alquiler', 'Gasto fijo', 'Efectivo', 45678900, '', ''],
+        ['M3', fechaMesPasado, 'prueba@example.com', 'Mercado', 'Gasto variable', 'Efectivo', 12345000, '', ''],
+      ],
+      Presupuesto: [
+        ['Gasto fijo', 'Alquiler', 45678900, 0, ''],
+        ['Gasto variable', 'Mercado', 5000000, 0, ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirResumen(page);
+    await expect(page.locator('#cronologia-wrap table')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#kpi-balance-neto-val')).toContainText('65.432.889');
+
+    // El body ya recorta cualquier desborde de página (overflow-x:hidden),
+    // así que un monto largo sin espacios donde cortar no se ve como
+    // scroll horizontal -- se ve como la tarjeta cortada/tapada en el
+    // borde derecho. Por eso se mide el borde de cada tarjeta contra el
+    // ancho real de la pantalla, no el scrollWidth del documento.
+    const algunaTarjetaSeSale = await page.evaluate(() => {
+      const anchoPantalla = window.innerWidth;
+      return Array.from(document.querySelectorAll('.kpi-card')).some(
+        (card) => card.getBoundingClientRect().right > anchoPantalla + 1
+      );
+    });
+    expect(algunaTarjetaSeSale).toBe(false);
+  });
 });
