@@ -3434,6 +3434,10 @@ async function verificarYGuardarCronologia() {
     for (const mesStr of mesesFaltantes) {
       const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mesStr));
 
+      const ingresoTotal = movsDelMes
+        .filter(m => m.categoria === "Ingreso")
+        .reduce((s, m) => s + m.monto, 0);
+
       const fijoReal = movsDelMes
         .filter(m => m.categoria === "Gasto fijo")
         .reduce((s, m) => s + Math.abs(m.monto), 0);
@@ -3453,7 +3457,43 @@ async function verificarYGuardarCronologia() {
       const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
       const varAser  = varEst  > 0 ? Math.round(((varReal  - varEst)  / varEst)  * 100) : 0;
 
-      await Sheets.guardarCronologia(mesStr, fijoAser, fijoReal, varAser, varReal);
+      const gastoTotal         = fijoReal + varReal;
+      const gastoEstimadoTotal = fijoEst + varEst;
+      const asertividadMensual = gastoEstimadoTotal > 0
+        ? Math.round((gastoTotal / gastoEstimadoTotal) * 100) : 0;
+
+      const balanceCierre = ingresoTotal - gastoTotal;
+
+      // Cuánto de ese gasto fijo fue específicamente cuotas de préstamo
+      // (usa la lista de préstamos ACTUAL -- misma limitación que ya tiene
+      // el resto del resumen: un préstamo borrado más adelante ya no se
+      // puede identificar en meses viejos).
+      const gastoPrestamos = (prestamos || []).reduce((s, p) => {
+        const concepto = conceptoPrestamo(p.nombre);
+        return s + movsDelMes
+          .filter(m => m.concepto === concepto)
+          .reduce((x, m) => x + Math.abs(m.monto), 0);
+      }, 0);
+
+      // Concepto con mayor sobregasto real vs. presupuesto ese mes.
+      const realesPorConcepto = {};
+      movsDelMes.forEach(m => {
+        if (m.categoria === "Ingreso") return;
+        realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
+      });
+      const desvios = presupuesto
+        .filter(p => p.montoEstimado > 0)
+        .map(p => ({ concepto: p.concepto, desviacion: (realesPorConcepto[p.concepto] || 0) - p.montoEstimado }))
+        .filter(d => d.desviacion > 0)
+        .sort((a, b) => b.desviacion - a.desviacion);
+      const mayorDesvioConcepto = desvios.length > 0 ? desvios[0].concepto : "";
+      const mayorDesvioMonto    = desvios.length > 0 ? desvios[0].desviacion : 0;
+
+      await Sheets.guardarCronologia(
+        mesStr, fijoAser, fijoReal, varAser, varReal,
+        ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos,
+        mayorDesvioConcepto, mayorDesvioMonto
+      );
       console.log(`✅ Cronología guardada para ${mesStr}`);
     }
   } catch (err) {
@@ -3465,9 +3505,81 @@ async function cargarYRenderCronologia() {
   try {
     const cronologia = await Sheets.getCronologia();
     renderCronologia(cronologia);
+    renderSaludMesCerrado(cronologia);
   } catch (err) {
     if (err.message === "TOKEN_EXPIRADO") return;
     console.error("Error cargando cronología:", err);
+  }
+}
+
+// "Salud del mes" muestra el MES YA CERRADO (el último con fila en
+// Cronología) -- no el mes que esté eligiendo el selector de arriba, que
+// puede ser el mes en curso todavía sin cerrar. Por eso se llena una sola
+// vez acá, aparte de renderResumen() (que sí reacciona al selector).
+function renderSaludMesCerrado(cronologia) {
+  const ordenados = (cronologia || []).slice().sort((a, b) => b.mes.localeCompare(a.mes));
+  const ultimo = ordenados[0] || null;
+  const mesLabel = ultimo
+    ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { year: "numeric", month: "long" })
+    : "Todavía no hay un mes cerrado";
+
+  const asEl     = document.getElementById("kpi-asertividad-val");
+  const asMeta   = document.getElementById("kpi-asertividad-meta");
+  const asEstado = document.getElementById("kpi-asertividad-estado");
+  const bnEl     = document.getElementById("kpi-balance-neto-val");
+  const bnMeta   = document.getElementById("kpi-balance-neto-meta");
+  const bnEstado = document.getElementById("kpi-balance-neto-estado");
+  const gfEl     = document.getElementById("kpi-gasto-fijo-val");
+  const gfMeta   = document.getElementById("kpi-gasto-fijo-meta");
+  const gvEl     = document.getElementById("kpi-gasto-var-val");
+  const gvMeta   = document.getElementById("kpi-gasto-var-meta");
+  const ppEl     = document.getElementById("kpi-pago-prestamo-val");
+  const ppMeta   = document.getElementById("kpi-pago-prestamo-meta");
+  const dvEl     = document.getElementById("kpi-desvio-val");
+  const dvMeta   = document.getElementById("kpi-desvio-meta");
+  const dvEstado = document.getElementById("kpi-desvio-estado");
+
+  if (!ultimo) {
+    [[asEl, asEstado], [bnEl, bnEstado], [dvEl, dvEstado]].forEach(([el, estado]) => {
+      if (el) el.textContent = "—";
+      if (estado) estado.textContent = "⚪";
+    });
+    [asMeta, bnMeta, gfMeta, gvMeta, ppMeta, dvMeta].forEach(m => { if (m) m.textContent = mesLabel; });
+    if (gfEl) gfEl.textContent = "—";
+    if (gvEl) gvEl.textContent = "—";
+    if (ppEl) ppEl.textContent = "—";
+    return;
+  }
+
+  if (asEl) {
+    asEl.textContent = ultimo.asertividadMensual + "%";
+    asEl.style.color = ultimo.asertividadMensual <= 80
+      ? "var(--green)" : ultimo.asertividadMensual <= 100
+      ? "var(--yellow)" : "var(--red)";
+    asMeta.textContent = mesLabel;
+    asEstado.textContent = ultimo.asertividadMensual <= 80 ? "🟢" : ultimo.asertividadMensual <= 100 ? "🟡" : "🔴";
+  }
+  if (bnEl) {
+    bnEl.textContent = formatMonto(ultimo.balanceCierre);
+    bnEl.style.color = ultimo.balanceCierre >= 0 ? "var(--green)" : "var(--red)";
+    bnMeta.textContent = mesLabel;
+    bnEstado.textContent = ultimo.balanceCierre >= 0 ? "🟢" : "🔴";
+  }
+  if (gfEl) { gfEl.textContent = formatMonto(ultimo.gastoFijo); gfMeta.textContent = mesLabel; }
+  if (gvEl) { gvEl.textContent = formatMonto(ultimo.gastoVariable); gvMeta.textContent = mesLabel; }
+  if (ppEl) { ppEl.textContent = formatMonto(ultimo.gastoPrestamos); ppMeta.textContent = mesLabel; }
+  if (dvEl) {
+    if (ultimo.mayorDesvioConcepto) {
+      dvEl.textContent = ultimo.mayorDesvioConcepto;
+      dvMeta.textContent = `+${formatMonto(ultimo.mayorDesvioMonto)} sobre lo estimado (${mesLabel})`;
+      dvEstado.textContent = "🔴";
+      dvEl.style.color = "var(--red)";
+    } else {
+      dvEl.textContent = "Ninguno";
+      dvMeta.textContent = `Todo dentro del presupuesto (${mesLabel})`;
+      dvEstado.textContent = "🟢";
+      dvEl.style.color = "var(--green)";
+    }
   }
 }
 
@@ -3480,35 +3592,28 @@ function renderCronologia(datos) {
     : [];
 
   const filasCuerpo = ordenados.length === 0
-    ? `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-light);font-style:italic">
+    ? `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-light);font-style:italic">
         Aún no hay registros. El primer día de cada mes se guarda automáticamente el cierre del mes anterior.
        </td></tr>`
     : ordenados.map(d => {
-        const fijoClass = d.fijoAsertividad <= 0 ? "estado-ok" : "estado-mal";
-        const varClass  = d.varAsertividad  <= 0 ? "estado-ok" : "estado-mal";
+        const aserClass = d.asertividadMensual <= 100 ? "estado-ok" : "estado-mal";
         const mesLabel  = new Date(d.mes + "-15").toLocaleDateString("es-CO", {
           year: "numeric", month: "long"
         });
         return `<tr class="proy-fila">
           <td class="proy-concepto" style="font-weight:600">${mesLabel}</td>
-          <td class="proy-num">${formatMonto(d.fijoCantidad)}</td>
+          <td class="proy-num">${formatMonto(d.ingresoTotal)}</td>
+          <td class="proy-num">${formatMonto(d.gastoFijo)}</td>
+          <td class="proy-num">${formatMonto(d.gastoVariable)}</td>
           <td class="proy-pct-cell">
             <div class="pct-wrap">
               <div class="pct-bar-bg">
-                <div class="pct-bar ${fijoClass}" style="width:${Math.min(Math.abs(d.fijoAsertividad), 100)}%"></div>
+                <div class="pct-bar ${aserClass}" style="width:${Math.min(d.asertividadMensual, 100)}%"></div>
               </div>
-              <span class="pct-label ${fijoClass}">${d.fijoAsertividad > 0 ? "↑" : "↓"}${Math.abs(d.fijoAsertividad)}%</span>
+              <span class="pct-label ${aserClass}">${d.asertividadMensual}%</span>
             </div>
           </td>
-          <td class="proy-num">${formatMonto(d.varCantidad)}</td>
-          <td class="proy-pct-cell">
-            <div class="pct-wrap">
-              <div class="pct-bar-bg">
-                <div class="pct-bar ${varClass}" style="width:${Math.min(Math.abs(d.varAsertividad), 100)}%"></div>
-              </div>
-              <span class="pct-label ${varClass}">${d.varAsertividad > 0 ? "↑" : "↓"}${Math.abs(d.varAsertividad)}%</span>
-            </div>
-          </td>
+          <td class="proy-num" style="color:${d.balanceCierre >= 0 ? "var(--green)" : "var(--red)"}">${formatMonto(d.balanceCierre)}</td>
         </tr>`;
       }).join("");
 
@@ -3518,10 +3623,11 @@ function renderCronologia(datos) {
         <thead>
           <tr>
             <th>Mes</th>
-            <th style="text-align:right">Fijo real</th>
-            <th>Asertividad fijo</th>
-            <th style="text-align:right">Variable real</th>
-            <th>Asertividad variable</th>
+            <th style="text-align:right">Ingreso total</th>
+            <th style="text-align:right">Gasto fijo</th>
+            <th style="text-align:right">Gasto variable</th>
+            <th>Asertividad mensual</th>
+            <th style="text-align:right">Balance de cierre</th>
           </tr>
         </thead>
         <tbody>${filasCuerpo}</tbody>
@@ -3845,63 +3951,10 @@ function renderResumen(mesSeleccionado = null) {
     }
   }
 
-  // ── KPI 3: Asertividad presupuestal ──
-  const gastosEstimados = (presupuesto || [])
-    .filter(p => p.montoEstimado > 0)
-    .reduce((s, p) => s + p.montoEstimado, 0);
-  const asEl    = document.getElementById("kpi-asertividad-val");
-  const asMeta  = document.getElementById("kpi-asertividad-meta");
-  const asEstado = document.getElementById("kpi-asertividad-estado");
-  if (asEl) {
-    if (gastosEstimados === 0) {
-      asEl.textContent = "Sin presupuesto";
-      asMeta.textContent = "Define tu presupuesto en Proyección";
-      asEstado.textContent = "⚪";
-    } else {
-      const ejecucion = Math.round((gastoTotal / gastosEstimados) * 100);
-      asEl.textContent = ejecucion + "%";
-      asEl.style.color = ejecucion <= 80
-        ? "var(--green)" : ejecucion <= 100
-        ? "var(--yellow)" : "var(--red)";
-      asMeta.textContent = `${formatMonto(gastoTotal)} de ${formatMonto(gastosEstimados)} estimados`;
-      asEstado.textContent = ejecucion <= 80 ? "🟢" : ejecucion <= 100 ? "🟡" : "🔴";
-    }
-  }
-
-  // ── KPI 4: Balance neto (suma de todas las cajas COP) ──
-  const balanceNeto = cajas
-    .filter(c => c.moneda === "COP")
-    .reduce((s, c) => s + calcularSaldoCaja(c.nombre), 0);
-  const bnEl    = document.getElementById("kpi-balance-neto-val");
-  const bnMeta  = document.getElementById("kpi-balance-neto-meta");
-  const bnEstado = document.getElementById("kpi-balance-neto-estado");
-  if (bnEl) {
-    bnEl.textContent  = formatMonto(balanceNeto);
-    bnEl.style.color  = balanceNeto >= 0 ? "var(--green)" : "var(--red)";
-    bnMeta.textContent = `${cajas.filter(c => c.moneda === "COP").length} cajas COP`;
-    bnEstado.textContent = balanceNeto >= 0 ? "🟢" : "🔴";
-  }
-
-  // ── KPI 5 & 6: Distribución fijo vs variable ──
-  const pctFijo = gastoTotal > 0 ? Math.round((gastoFijo / gastoTotal) * 100) : 0;
-  const pctVar  = gastoTotal > 0 ? Math.round((gastoVar  / gastoTotal) * 100) : 0;
-  const gfEl    = document.getElementById("kpi-gasto-fijo-val");
-  const gfMeta  = document.getElementById("kpi-gasto-fijo-meta");
-  const gfEstado = document.getElementById("kpi-gasto-fijo-estado");
-  const gvEl    = document.getElementById("kpi-gasto-var-val");
-  const gvMeta  = document.getElementById("kpi-gasto-var-meta");
-  const gvEstado = document.getElementById("kpi-gasto-var-estado");
-  if (gfEl) {
-    gfEl.textContent  = pctFijo + "% del gasto";
-    gfMeta.textContent = formatMonto(gastoFijo);
-    gfEstado.textContent = pctFijo <= 60 ? "🟢" : pctFijo <= 75 ? "🟡" : "🔴";
-    gfEl.style.color = pctFijo <= 60 ? "var(--green)" : pctFijo <= 75 ? "var(--yellow)" : "var(--red)";
-  }
-  if (gvEl) {
-    gvEl.textContent  = pctVar + "% del gasto";
-    gvMeta.textContent = formatMonto(gastoVar);
-    gvEstado.textContent = "⚪";
-  }
+  // Asertividad/Balance de cierre/Gasto fijo/Gasto variable del "mes
+  // cerrado" ya NO se calculan acá en vivo -- ver renderSaludMesCerrado(),
+  // que los toma directo de la Cronología (el mes recién cerrado, no el
+  // mes que esté eligiendo el selector de arriba).
 
   // ── KPI 7 & 8: Gestión de deudas ──
   const totalDeudaActiva = activosConCuota.reduce((s, p) => s + p.monto, 0);
@@ -3938,72 +3991,9 @@ function renderResumen(mesSeleccionado = null) {
     cmEl.style.color = cuotasPagadas === activosConCuota.length ? "var(--green)" : "var(--yellow)";
   }
 
-  // ── KPI 9: Tendencia ahorro 3 meses ──
-  const cacheCron = localStorage.getItem("cache_cronologia");
-  const tdEl    = document.getElementById("kpi-tendencia-val");
-  const tdMeta  = document.getElementById("kpi-tendencia-meta");
-  const tdEstado = document.getElementById("kpi-tendencia-estado");
-  if (tdEl && cacheCron) {
-    try {
-      const cronData = JSON.parse(cacheCron);
-      const ultimos3 = [...cronData]
-        .sort((a, b) => b.mes.localeCompare(a.mes))
-        .slice(0, 3);
-      if (ultimos3.length >= 2) {
-        const tendencia = ultimos3[0].fijoCantidad < ultimos3[1].fijoCantidad ? "mejorando" : "empeorando";
-        tdEl.textContent = tendencia === "mejorando" ? "↓ Bajando" : "↑ Subiendo";
-        tdEl.style.color = tendencia === "mejorando" ? "var(--green)" : "var(--red)";
-        tdMeta.textContent = `Gasto fijo: ${ultimos3.map(d =>
-          new Date(d.mes + "-15").toLocaleDateString("es-CO", { month: "short" }) +
-          " " + formatMonto(d.fijoCantidad)
-        ).reverse().join(" → ")}`;
-        tdEstado.textContent = tendencia === "mejorando" ? "🟢" : "🔴";
-      } else {
-        tdEl.textContent = "Pocos datos";
-        tdMeta.textContent = "Se necesitan al menos 2 meses";
-        tdEstado.textContent = "⚪";
-      }
-    } catch { tdEl.textContent = "—"; }
-  } else if (tdEl) {
-    tdEl.textContent = "Sin historial";
-    tdMeta.textContent = "Se registra el 1° de cada mes";
-    tdEstado.textContent = "⚪";
-  }
-
-  // ── KPI 10: Mayor desvío del presupuesto ──
-  const dvEl    = document.getElementById("kpi-desvio-val");
-  const dvMeta  = document.getElementById("kpi-desvio-meta");
-  const dvEstado = document.getElementById("kpi-desvio-estado");
-  if (dvEl && presupuesto && presupuesto.length > 0) {
-    const realesPorConcepto = {};
-    movsDelMes.forEach(m => {
-      if (m.categoria === "Ingreso") return;
-      realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
-    });
-    const desvios = presupuesto
-      .filter(p => p.montoEstimado > 0)
-      .map(p => ({
-        concepto: p.concepto,
-        desviacion: (realesPorConcepto[p.concepto] || 0) - p.montoEstimado
-      }))
-      .filter(d => d.desviacion > 0)
-      .sort((a, b) => b.desviacion - a.desviacion);
-    if (desvios.length > 0) {
-      dvEl.textContent   = desvios[0].concepto;
-      dvMeta.textContent = `+${formatMonto(desvios[0].desviacion)} sobre lo estimado`;
-      dvEstado.textContent = "🔴";
-      dvEl.style.color = "var(--red)";
-    } else {
-      dvEl.textContent   = "Ninguno";
-      dvMeta.textContent = "Todo dentro del presupuesto";
-      dvEstado.textContent = "🟢";
-      dvEl.style.color = "var(--green)";
-    }
-  } else if (dvEl) {
-    dvEl.textContent = "—";
-    dvMeta.textContent = "Define tu presupuesto";
-    dvEstado.textContent = "⚪";
-  }
+  // Tendencia de ahorro: eliminada -- ya no se muestra.
+  // Mayor desvío del presupuesto: ver renderSaludMesCerrado() (viene del
+  // mes cerrado en Cronología, no del mes que esté eligiendo el selector).
 
   // ── ALERTAS ──
   const alertasWrap = document.getElementById("resumen-alertas");

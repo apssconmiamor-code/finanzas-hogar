@@ -343,21 +343,37 @@ Sheets.guardarPresupuesto = async function(filas) {
 };
 
 // ---- CRONOLOGIA ----
+// Columnas C (fijoAsertividad) y E (varAsertividad) son un cálculo legado
+// (asertividad separada por fijo/variable) que ya no se muestra en la UI,
+// pero se sigue escribiendo por si hace falta más adelante -- no se tocan
+// ni se leen acá para no complicar el resto. D y F SIGUEN siendo el gasto
+// real fijo/variable de siempre (mismo dato, solo que ahora la UI los
+// llama "gastoFijo"/"gastoVariable" en vez de "fijoCantidad"/"varCantidad").
+// G en adelante son columnas nuevas -- en filas viejas vienen vacías, se
+// leen como 0/"" sin romper nada.
 Sheets.getCronologia = async function() {
-  const rows = await this.leer(`${CONFIG.SHEETS.CRONOLOGIA}!A2:F`);
+  const rows = await this.leer(`${CONFIG.SHEETS.CRONOLOGIA}!A2:L`);
   return rows.filter(r => r && r[0]).map(r => ({
-    id:              r[0] || "",
-    mes:             r[1] || "",
-    fijoAsertividad: isNaN(parseFloat(r[2])) ? 0 : parseFloat(r[2]),
-    fijoCantidad:    isNaN(parseFloat(r[3])) ? 0 : parseFloat(r[3]),
-    varAsertividad:  isNaN(parseFloat(r[4])) ? 0 : parseFloat(r[4]),
-    varCantidad:     isNaN(parseFloat(r[5])) ? 0 : parseFloat(r[5]),
+    id:                  r[0] || "",
+    mes:                 r[1] || "",
+    gastoFijo:           isNaN(parseFloat(r[3]))  ? 0 : parseFloat(r[3]),
+    gastoVariable:       isNaN(parseFloat(r[5]))  ? 0 : parseFloat(r[5]),
+    ingresoTotal:        isNaN(parseFloat(r[6]))  ? 0 : parseFloat(r[6]),
+    asertividadMensual:  isNaN(parseFloat(r[7]))  ? 0 : parseFloat(r[7]),
+    balanceCierre:       isNaN(parseFloat(r[8]))  ? 0 : parseFloat(r[8]),
+    gastoPrestamos:      isNaN(parseFloat(r[9]))  ? 0 : parseFloat(r[9]),
+    mayorDesvioConcepto: r[10] || "",
+    mayorDesvioMonto:    isNaN(parseFloat(r[11])) ? 0 : parseFloat(r[11]),
   }));
 };
 
-Sheets.guardarCronologia = async function(mes, fijoAser, fijoCant, varAser, varCant) {
+Sheets.guardarCronologia = async function(mes, fijoAser, gastoFijo, varAser, gastoVariable, ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos, mayorDesvioConcepto, mayorDesvioMonto) {
   const id = "CR" + Date.now();
-  await this.agregar(CONFIG.SHEETS.CRONOLOGIA, [id, mes, fijoAser, fijoCant, varAser, varCant]);
+  await this.agregar(CONFIG.SHEETS.CRONOLOGIA, [
+    id, mes, fijoAser, gastoFijo, varAser, gastoVariable,
+    ingresoTotal, asertividadMensual, balanceCierre, gastoPrestamos,
+    mayorDesvioConcepto, mayorDesvioMonto
+  ]);
   return id;
 };
 
