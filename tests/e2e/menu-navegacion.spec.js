@@ -1,7 +1,7 @@
 // Préstamos y Lista de compras viven juntos en una sola pestaña
 // "Compromisos" (dos bloques separados, uno debajo del otro) — no están
 // en la barra de pestañas principal, solo se llega desde el menú de los
-// tres puntos (⋯), igual que "Resumen".
+// tres puntos (⋯), igual que "Análisis".
 
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');

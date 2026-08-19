@@ -3698,9 +3698,8 @@ async function cargarYRenderCronologia() {
 }
 
 // "Salud del mes" muestra el MES YA CERRADO (el último con fila en
-// Cronología) -- no el mes que esté eligiendo el selector de arriba, que
-// puede ser el mes en curso todavía sin cerrar. Por eso se llena una sola
-// vez acá, aparte de renderResumen() (que sí reacciona al selector).
+// Cronología) -- no el mes en curso, que puede estar todavía sin cerrar.
+// Por eso se llena una sola vez acá, aparte de renderResumen().
 function renderSaludMesCerrado(cronologia) {
   const ordenados = (cronologia || []).slice().sort((a, b) => b.mes.localeCompare(a.mes));
   const ultimo = ordenados[0] || null;
@@ -3749,12 +3748,18 @@ function renderSaludMesCerrado(cronologia) {
   }
 
   if (asEl) {
-    asEl.textContent = ultimo.asertividadMensual + "%";
-    asEl.style.color = ultimo.asertividadMensual <= 80
-      ? "var(--green)" : ultimo.asertividadMensual <= 100
-      ? "var(--yellow)" : "var(--red)";
+    // Solo verde/rojo (sin amarillo intermedio): verde = no se excedió el
+    // presupuesto, y el número es directamente "% de lo estimado que se
+    // usó" (ej. 22% = usó el 22% de lo presupuestado). Rojo = se excedió,
+    // y ahí el número le resta 100 para que diga cuánto de MÁS gastó (ej.
+    // asertividadMensual=125 -> "25%" = gastó un 25% más de lo estimado),
+    // en vez del 125% crudo que confundía (ver conversación con el usuario).
+    const seExcedio = ultimo.asertividadMensual > 100;
+    const valorMostrado = seExcedio ? ultimo.asertividadMensual - 100 : ultimo.asertividadMensual;
+    asEl.textContent = valorMostrado + "%";
+    asEl.style.color = seExcedio ? "var(--red)" : "var(--green)";
     asMeta.textContent = mesLabel;
-    asEstado.textContent = ultimo.asertividadMensual <= 80 ? "🟢" : ultimo.asertividadMensual <= 100 ? "🟡" : "🔴";
+    asEstado.textContent = seExcedio ? "🔴" : "🟢";
   }
   if (bnEl) {
     bnEl.textContent = formatMonto(ultimo.balanceCierre);
@@ -3793,7 +3798,13 @@ function renderCronologia(datos) {
         Aún no hay registros. El primer día de cada mes se guarda automáticamente el cierre del mes anterior.
        </td></tr>`
     : ordenados.map(d => {
-        const aserColor = d.asertividadMensual <= 100 ? "var(--green)" : "var(--red)";
+        // Mismo criterio que "Salud del mes": rojo = se excedió el
+        // presupuesto y el número le resta 100 (cuánto de MÁS gastó),
+        // verde = no se excedió y el número es directo (% de lo estimado
+        // que usó).
+        const aserExcedida = d.asertividadMensual > 100;
+        const aserValor = aserExcedida ? d.asertividadMensual - 100 : d.asertividadMensual;
+        const aserColor = aserExcedida ? "var(--red)" : "var(--green)";
         const nombreMes = new Date(d.mes + "-15").toLocaleDateString("es-CO", { month: "long" });
         const mesLabel  = nombreMes[0].toUpperCase() + nombreMes.slice(1);
         return `<tr class="proy-fila">
@@ -3801,7 +3812,7 @@ function renderCronologia(datos) {
           <td class="proy-num">${formatMonto(d.ingresoTotal)}</td>
           <td class="proy-num">${formatMonto(d.gastoFijo)}</td>
           <td class="proy-num">${formatMonto(d.gastoVariable)}</td>
-          <td class="proy-num" style="color:${aserColor}">${d.asertividadMensual}%</td>
+          <td class="proy-num" style="color:${aserColor}">${aserValor}%</td>
           <td class="proy-num" style="color:${d.balanceCierre >= 0 ? "var(--green)" : "var(--red)"}">${formatMonto(d.balanceCierre)}</td>
         </tr>`;
       }).join("");
@@ -4049,33 +4060,12 @@ function actualizarDropdownUsuario() {
 // MÓDULO RESUMEN — KPIs financieros
 // =============================================
 
-function renderResumen(mesSeleccionado = null) {
-  const mes = mesSeleccionado || new Date().toISOString().slice(0, 7);
-
-  // — Selector de mes —
-  const mesesDisponibles = [...new Set(
-    movimientos.map(m => m.fecha.slice(0, 7))
-  )].sort((a, b) => b.localeCompare(a));
-
-  const selectorWrap = document.getElementById("resumen-mes-selector");
-  if (selectorWrap) {
-    selectorWrap.innerHTML = `
-      <select id="resumen-mes-select" class="mes-select">
-        ${mesesDisponibles.map(m => `
-          <option value="${m}" ${m === mes ? "selected" : ""}>
-            ${new Date(m + "-15").toLocaleDateString("es-CO", { year: "numeric", month: "long" })}
-          </option>
-        `).join("")}
-      </select>`;
-    document.getElementById("resumen-mes-select")
-      .addEventListener("change", e => renderResumen(e.target.value));
-  }
-
-  const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", {
-    year: "numeric", month: "long"
-  });
-  const el = document.getElementById("resumen-mes-label");
-  if (el) el.textContent = mesLabel;
+// Ya no toma un mes elegido por el usuario -- el selector de mes se quitó
+// (no cumplía ninguna función real: nada de lo que sigue mostrando en la
+// pestaña depende del mes elegido, ver renderSaludMesCerrado() para lo que
+// sí varía por mes). Lo que queda acá (Deudas) es global, no por mes.
+function renderResumen() {
+  const mes = new Date().toISOString().slice(0, 7);
 
   const movsDelMes = movimientos.filter(m =>
     m.fecha.startsWith(mes) && m.categoria !== "Transferencia"
@@ -4147,8 +4137,7 @@ function renderResumen(mesSeleccionado = null) {
 
   // Asertividad/Balance de cierre/Gasto fijo/Gasto variable del "mes
   // cerrado" ya NO se calculan acá en vivo -- ver renderSaludMesCerrado(),
-  // que los toma directo de la Cronología (el mes recién cerrado, no el
-  // mes que esté eligiendo el selector de arriba).
+  // que los toma directo de la Cronología (el mes recién cerrado).
 
   // ── KPI 7 & 8: Gestión de deudas ──
   const totalDeudaActiva = activosConCuota.reduce((s, p) => s + p.monto, 0);
@@ -4187,7 +4176,7 @@ function renderResumen(mesSeleccionado = null) {
 
   // Tendencia de ahorro: eliminada -- ya no se muestra.
   // Mayor desvío del presupuesto: ver renderSaludMesCerrado() (viene del
-  // mes cerrado en Cronología, no del mes que esté eligiendo el selector).
+  // mes cerrado en Cronología).
 
   // ── ALERTAS ──
   const alertasWrap = document.getElementById("resumen-alertas");

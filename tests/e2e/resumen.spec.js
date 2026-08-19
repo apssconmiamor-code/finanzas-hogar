@@ -48,7 +48,11 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
     await expect(fila).toContainText('2.000.000'); // ingreso total
     await expect(fila).toContainText('800.000');   // gasto fijo
     await expect(fila).toContainText('300.000');   // gasto variable
-    await expect(fila).toContainText('105%');      // asertividad mensual: 1.100.000/1.050.000
+    // Asertividad mensual real: 1.100.000/1.050.000 = 105% -- se excedió el
+    // presupuesto, así que se muestra "5%" (105-100 = cuánto de más gastó),
+    // en rojo (ver _limpiarCronologiaDuplicada / renderCronologia en app.js).
+    await expect(fila).toContainText('5%');
+    await expect(fila).not.toContainText('105%');
     // Balance de cierre = saldo acumulado de la caja hasta fin de ese mes.
     // Como no hay movimientos antes ni saldo archivado, acá coincide con
     // el neto del mes (2.000.000 - 1.100.000), pero es un cálculo distinto
@@ -56,8 +60,8 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
     // deberían sumarse acá).
     await expect(fila).toContainText('900.000');
 
-    // "Salud del mes" toma esos mismos datos del mes ya cerrado -- no
-    // depende de qué mes esté eligiendo el selector de arriba. El título
+    // "Salud del mes" toma esos mismos datos del mes ya cerrado (no hay
+    // selector de mes -- se quitó, no cumplía ninguna función). El título
     // del bloque muestra el nombre de ese mes.
     const nombreMesPasado = mesPasado.toLocaleDateString('es-CO', { month: 'long' });
     const nombreMesPasadoCap = nombreMesPasado[0].toUpperCase() + nombreMesPasado.slice(1);
@@ -66,7 +70,7 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
     // reportado: en algunos celulares se veía apilado en 1 sola columna).
     await expect(page.locator('#salud-mes-titulo + .kpi-grid')).toHaveClass(/kpi-grid-2col/);
 
-    await expect(page.locator('#kpi-asertividad-val')).toHaveText('105%');
+    await expect(page.locator('#kpi-asertividad-val')).toHaveText('5%');
     await expect(page.locator('#kpi-balance-neto-val')).toContainText('900.000');
     await expect(page.locator('#kpi-gasto-fijo-val')).toContainText('800.000');
     await expect(page.locator('#kpi-gasto-var-val')).toContainText('300.000');
