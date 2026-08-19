@@ -497,14 +497,14 @@ function _estadoDiaAlarma(fechaODiaISO) {
 }
 
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
-// bloque) -- a propósito minimalista, solo nombre + próximo recordatorio +
-// Editar/Eliminar. Todo lo demás (repetición, destinatario, bloque,
-// mensaje, estado...) se ve en el resumen del doble clic. El color y la
-// fecha mostrada usan la PRÓXIMA ocurrencia real (_proximaOcurrencia),
-// no el ancla cruda -- si no, una recurrente creada hace tiempo se ve
-// "pasada" para siempre aunque esté funcionando bien.
-// soloRevisado: true dentro del bloque "Activos" -- ahí no tiene sentido
-// editar/eliminar la alerta del día, solo confirmar que ya se atendió.
+// bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
+// Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
+// toque (abrirResumenNotificacion), igual que en Proyección y Movimientos.
+// El color y la fecha mostrada usan la PRÓXIMA ocurrencia real
+// (_proximaOcurrencia), no el ancla cruda -- si no, una recurrente creada
+// hace tiempo se ve "pasada" para siempre aunque esté funcionando bien.
+// soloRevisado: true dentro del bloque "Activos" -- ahí, en vez de la
+// fecha sola, se ve además un botón para confirmar que ya se atendió.
 function renderItemNotificacion(n, soloRevisado = false) {
   const proxima = _proximaOcurrencia(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
@@ -512,9 +512,7 @@ function renderItemNotificacion(n, soloRevisado = false) {
   const botones = soloRevisado
     ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅ Revisado</button>
         <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
-    : `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); abrirEditarNotificacion('${n.id}')">✏️ Editar</button>
-        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
-        <button class="btn-secondary notif-card-btn notif-btn-eliminar" onclick="event.stopPropagation(); borrarNotificacion('${n.id}')">🗑️ Eliminar</button>`;
+    : `<span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`;
   return `
     <div class="notificacion-item${claseDia}" data-id="${n.id}" onclick="tapNotificacion('${n.id}')">
       <div class="notif-card-grid">
@@ -574,6 +572,17 @@ function abrirResumenNotificacion(id) {
   document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", n.estado !== "enviada");
 
   const modal = document.getElementById("modal-resumen-notificacion");
+  const btnEditar   = document.getElementById("btn-resumen-notif-editar");
+  const btnEliminar = document.getElementById("btn-resumen-notif-eliminar");
+  if (btnEditar) btnEditar.onclick = () => {
+    modal?.classList.add("hidden");
+    abrirEditarNotificacion(id);
+  };
+  if (btnEliminar) btnEliminar.onclick = () => {
+    modal?.classList.add("hidden");
+    borrarNotificacion(id);
+  };
+
   if (modal) modal.dataset.id = id;
   modal?.classList.remove("hidden");
 }

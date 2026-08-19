@@ -962,23 +962,15 @@ input, select, textarea, table {
   letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-3);
   padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border);
 }
-/* Detalle por concepto: 4 columnas fijas, sin scroll horizontal —
-   botones de acción reducidos a solo ícono para que siempre quepan. */
+/* Detalle por concepto: 3 columnas fijas, sin scroll horizontal. Modificar/
+   Eliminar ya no viven acá (ver resumen del segundo toque), así que las 3
+   columnas que quedan tienen más aire -- Concepto puede envolver en dos
+   líneas sin apretar a Estimado/Real (bug real reportado: un monto de 7
+   cifras en Real quedaba por debajo de los botones que antes vivían acá). */
 .proy-tabla-detalle { table-layout: fixed; }
-.proy-tabla-detalle thead th:nth-child(1) { width: 42%; }
-.proy-tabla-detalle thead th:nth-child(2) { width: 20%; text-align: right; }
-.proy-tabla-detalle thead th:nth-child(3) { width: 20%; text-align: right; }
-.proy-tabla-detalle thead th:nth-child(4) { width: 18%; }
-.btn-icono-fila {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; flex-shrink: 0;
-  background: var(--bg); border: 1px solid var(--border-mid);
-  border-radius: 4px; font-size: 13px;
-  cursor: pointer; font-family: var(--font); transition: all 0.12s;
-}
-.btn-modificar-fila:hover { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
-.proy-cell-acciones { display: flex; gap: 6px; flex-wrap: wrap; }
-.btn-eliminar-fila:hover { background: var(--red-soft); border-color: var(--red); }
+.proy-tabla-detalle thead th:nth-child(1) { width: 44%; }
+.proy-tabla-detalle thead th:nth-child(2) { width: 28%; text-align: right; }
+.proy-tabla-detalle thead th:nth-child(3) { width: 28%; text-align: right; }
 .nuevo-concepto-aviso {
   display: block; margin-top: 6px; font-size: 12px; font-weight: 600;
   color: var(--red);
@@ -989,8 +981,8 @@ input, select, textarea, table {
 .proy-tabla-row td { padding: 11px 12px; vertical-align: middle; }
 .proy-tabla-row.fila-excedida { background: rgba(255,59,48,0.15); }
 .proy-tabla-row.fila-excedida:hover td { background: rgba(255,59,48,0.2); }
-.proy-cell-concepto { display: flex; align-items: center; gap: 6px; }
-.proy-concepto-nombre { font-size: 13px; font-weight: 600; color: var(--text); }
+.proy-cell-concepto { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.proy-concepto-nombre { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: break-word; }
 .proy-cell-num { text-align: right; font-size: 13px; font-family: var(--font-display); font-weight: 600; color: var(--text-2); letter-spacing: -0.2px; }
 /* Estimado/Real quedaban pegados (dos columnas angostas, ambas alineadas a
    la derecha, una al lado de la otra) -- un poco de padding extra entre

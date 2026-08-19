@@ -99,4 +99,30 @@ test.describe('Movimientos — filtro de subcategoría', () => {
     await expect(page.locator('#movimientos-list')).toContainText('Alquiler');
     await expect(page.locator('#movimientos-list')).not.toContainText('Internet');
   });
+
+  test('la tarjeta no tiene botones sueltos -- Editar/Borrar viven en el resumen (doble toque)', async ({ page }) => {
+    const tarjeta = page.locator('.mov-card', { hasText: 'Alquiler' });
+    await expect(tarjeta).toBeVisible();
+    await expect(tarjeta.locator('button')).toHaveCount(0);
+
+    await tarjeta.dblclick();
+    await expect(page.locator('#modal-resumen-movimiento')).toBeVisible();
+    await expect(page.locator('#resumen-mov-acciones')).toBeVisible();
+
+    await page.locator('#btn-resumen-mov-editar').click();
+    await expect(page.locator('#modal-resumen-movimiento')).toBeHidden();
+    await expect(page.locator('#modal-movimiento')).toBeVisible();
+    await expect(page.locator('#mov-monto')).toHaveValue('500.000');
+  });
+
+  test('borrar desde el resumen quita el movimiento de la lista', async ({ page }) => {
+    const tarjeta = page.locator('.mov-card', { hasText: 'Mercado' });
+    await tarjeta.dblclick();
+    await expect(page.locator('#modal-resumen-movimiento')).toBeVisible();
+
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#btn-resumen-mov-borrar').click();
+
+    await expect(page.locator('#movimientos-list')).not.toContainText('Mercado');
+  });
 });

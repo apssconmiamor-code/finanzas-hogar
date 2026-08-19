@@ -1772,7 +1772,9 @@ function renderMovimientos() {
   list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m)).join("");
 }
 
-function renderTarjetaMovimiento(m, { soloLectura = false } = {}) {
+// Editar/Borrar ya no van sueltos en la tarjeta -- se ven en el resumen del
+// doble toque (mostrarResumenMovimiento), igual que en Alertas y Proyección.
+function renderTarjetaMovimiento(m) {
   const esIngreso  = m.categoria === "Ingreso";
   const esTransfer = m.categoria === "Transferencia";
   const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
@@ -1788,11 +1790,6 @@ function renderTarjetaMovimiento(m, { soloLectura = false } = {}) {
   const fotoHTML = primeraFoto
     ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
     : "";
-  const accionesHTML = soloLectura ? "" : `
-          <div class="mov-card-actions">
-            <button class="btn-accion btn-editar" title="Editar" onclick="event.stopPropagation();abrirEditarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">✏️</button>
-            <button class="btn-accion btn-borrar" title="Borrar" onclick="event.stopPropagation();borrarMovimiento('${m.id}')" onpointerup="event.stopPropagation()">🗑️</button>
-          </div>`;
 
   return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
       <div class="mov-card-row1">
@@ -1808,7 +1805,7 @@ function renderTarjetaMovimiento(m, { soloLectura = false } = {}) {
           </div>
         </div>
         <div class="mov-card-right">
-          <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>${accionesHTML}
+          <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>
         </div>
       </div>
     </div>`;
@@ -1881,7 +1878,7 @@ async function renderMesArchivado(mes) {
   document.getElementById("btn-ver-detalle-archivado")?.addEventListener("click", (e) => {
     const cont = document.getElementById("detalle-archivado-lista");
     if (cont.classList.contains("hidden")) {
-      cont.innerHTML = movsDelMes.map(m => renderTarjetaMovimiento(m, { soloLectura: true })).join("");
+      cont.innerHTML = movsDelMes.map(renderTarjetaMovimiento).join("");
       cont.classList.remove("hidden");
       e.target.textContent = "Ocultar detalle";
     } else {
@@ -1906,8 +1903,14 @@ function tapMovimiento(id) {
   }
 }
 
-// Resumen de solo lectura de un movimiento (doble clic sobre su tarjeta).
+// Resumen de un movimiento (doble toque sobre su tarjeta) -- Editar/Borrar
+// viven acá abajo, ya no sueltos en la tarjeta (mismo patrón que Alertas y
+// Proyección). Un movimiento ARCHIVADO (más de 3 meses, ver
+// worker/src/archivo.js) se puede seguir consultando acá, pero de solo
+// lectura -- no vive en la hoja "Movimiento de Caja" activa, así que
+// abrirEditarMovimiento/borrarMovimiento no lo encontrarían.
 function mostrarResumenMovimiento(id) {
+  const esArchivado = !movimientos.some(x => x.id === id);
   const m = movimientos.find(x => x.id === id) || (movimientosArchivadosCache || []).find(x => x.id === id);
   if (!m) return;
   const caja = cajas.find(c => c.nombre === m.caja);
@@ -1935,6 +1938,20 @@ function mostrarResumenMovimiento(id) {
     ${m.descripcion ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Descripción</span><span>${escapeHtml(m.descripcion)}</span></div>` : ""}
     ${fotoHTML}
   `;
+
+  const acciones = document.getElementById("resumen-mov-acciones");
+  if (acciones) acciones.classList.toggle("hidden", esArchivado);
+  const btnEditar = document.getElementById("btn-resumen-mov-editar");
+  const btnBorrar = document.getElementById("btn-resumen-mov-borrar");
+  if (btnEditar) btnEditar.onclick = () => {
+    document.getElementById("modal-resumen-movimiento").classList.add("hidden");
+    abrirEditarMovimiento(id);
+  };
+  if (btnBorrar) btnBorrar.onclick = () => {
+    document.getElementById("modal-resumen-movimiento").classList.add("hidden");
+    borrarMovimiento(id);
+  };
+
   document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
 
   if (primeraFoto) {
@@ -3200,7 +3217,7 @@ function renderTablaComparacion(movsDelMes) {
   }
 
   if (filas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-light)">
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-light)">
       No hay datos — agrega un presupuesto para ver la comparación.</td></tr>`;
     return;
   }
@@ -3232,11 +3249,17 @@ function renderTablaComparacion(movsDelMes) {
     // grupo, sin línea ni fondo fuerte (pedido explícito: "la separación
     // debe ser sutil").
     const cabeceraGrupo = f.categoria !== categoriaAnterior
-      ? `<tr class="proy-grupo-row"><td colspan="4">${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td></tr>`
+      ? `<tr class="proy-grupo-row"><td colspan="3">${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td></tr>`
       : "";
     categoriaAnterior = f.categoria;
 
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${f.concepto.replace(/"/g, "&quot;")}" data-categoria="${f.categoria.replace(/"/g, "&quot;")}" ${f.esOtros ? 'data-es-otros="1"' : ""}>
+    // Sin botones sueltos de Modificar/Eliminar -- un toque abre los
+    // movimientos reales (como siempre), y un segundo toque rápido sobre la
+    // misma fila abre el resumen con Modificar/Eliminar al final (mismo
+    // patrón que Alertas y Movimientos, ver tapConcepto más abajo).
+    const conceptoJs  = f.concepto.replace(/'/g, "\\'");
+    const categoriaJs = f.categoria.replace(/'/g, "\\'");
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" onclick="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
       <td>
         <div class="proy-cell-concepto">
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
@@ -3244,14 +3267,37 @@ function renderTablaComparacion(movsDelMes) {
       </td>
       <td class="proy-cell-num proy-cell-estimado">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
       <td class="proy-cell-num proy-cell-real">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
-      <td>
-        <div class="proy-cell-acciones">
-          ${f.esOtros ? "" : `<button type="button" class="btn-icono-fila btn-modificar-fila" title="Modificar" onclick="abrirModificarConcepto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">✏️</button>`}
-          ${(f.categoria === "Gasto fijo" || f.categoria === "Gasto variable" || f.categoria === "Ingreso") ? `<button type="button" class="btn-icono-fila btn-eliminar-fila" title="Eliminar concepto" onclick="eliminarConceptoPresupuesto('${f.concepto.replace(/'/g, "\\'")}', '${f.categoria.replace(/'/g, "\\'")}')">🗑️</button>` : ""}
-        </div>
-      </td>
     </tr>`;
   }).join("");
+}
+
+// Toque/clic en una fila de "Detalle por concepto": el primero abre los
+// movimientos reales que la componen ese mes (como siempre); un segundo
+// toque rápido (<400ms) sobre la MISMA fila abre el resumen con
+// Modificar/Eliminar en vez de esa lista. No se puede usar ondblclick -- el
+// bloqueo de zoom (touchend -> preventDefault en index.html) suprime la
+// síntesis nativa de dblclick en iOS Safari real (mismo bug ya resuelto
+// para Alertas y Movimientos, ver tapNotificacion/tapMovimiento).
+//
+// A diferencia de esos dos casos, acá el toque "simple" SÍ abre un modal
+// (los movimientos reales) -- si se abriera de inmediato, ese modal
+// taparía la fila y el segundo toque del gesto de doble toque nunca
+// llegaría a ella (bug real: el resumen no se abría). Por eso el primer
+// toque espera 400ms antes de abrir nada, dando tiempo a que llegue un
+// segundo toque que lo cancele y abra el resumen en su lugar.
+let ultimoTapConcepto = { key: null, tiempo: 0 };
+let tapConceptoTimer = null;
+function tapConcepto(concepto, categoria, esOtros) {
+  const key = concepto + "|" + categoria;
+  const ahora = Date.now();
+  if (ultimoTapConcepto.key === key && ahora - ultimoTapConcepto.tiempo < 400) {
+    clearTimeout(tapConceptoTimer);
+    ultimoTapConcepto = { key: null, tiempo: 0 };
+    abrirResumenConcepto(concepto, categoria, esOtros);
+  } else {
+    ultimoTapConcepto = { key, tiempo: ahora };
+    tapConceptoTimer = setTimeout(() => abrirDetalleRealConcepto(concepto, categoria, esOtros), 400);
+  }
 }
 
 // ---- DETALLE DE MOVIMIENTOS REALES (clic en una fila) ----
@@ -3305,6 +3351,62 @@ function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
   }
 
   document.getElementById("modal-detalle-real-concepto")?.classList.remove("hidden");
+}
+
+// Resumen de un concepto (segundo toque sobre su fila) -- acá viven
+// Modificar/Eliminar, ya no sueltos en la tabla (mismo patrón que Alertas y
+// Movimientos). "Otros" es un cajón agregador, no un concepto propio -- no
+// tiene sentido modificarlo/eliminarlo desde acá.
+function abrirResumenConcepto(concepto, categoria, esOtros) {
+  // El primer toque del doble toque ya disparó abrirDetalleRealConcepto
+  // -- se cierra antes de abrir este para que no quede de fondo, visible
+  // al cerrar el resumen.
+  document.getElementById("modal-detalle-real-concepto")?.classList.add("hidden");
+
+  const mes = proyMesActivo;
+  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
+  const real = movsDelMes
+    .filter(m => m.concepto === concepto)
+    .reduce((s, m) => s + Math.abs(m.monto), 0);
+  const estimado = categoria === "Ingreso"
+    ? (getIngresosMesParaEditor(mes)[concepto] || 0)
+    : (getGastosMesParaEditor(mes)[concepto] || 0);
+
+  document.getElementById("resumen-concepto-titulo").textContent =
+    `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
+
+  const cuerpo = document.getElementById("resumen-concepto-cuerpo");
+  if (cuerpo) {
+    cuerpo.innerHTML = [
+      ["Categoría", categoria],
+      ["Estimado", estimado > 0 ? formatMonto(estimado) : "—"],
+      ["Real", real !== 0 ? formatMonto(real) : "—"]
+    ].map(([label, valor]) => `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">${label}</span>
+        <span class="detalle-notif-valor">${valor}</span>
+      </div>`).join("");
+  }
+
+  const btnModificar = document.getElementById("btn-resumen-concepto-modificar");
+  const btnEliminar  = document.getElementById("btn-resumen-concepto-eliminar");
+  // Mismo criterio que tenían los botones sueltos: Modificar no aplica a
+  // "Otros" (es un agregado, no un concepto con su propio estimado editable
+  // acá), Eliminar solo aplica a las tres categorías presupuestables.
+  if (btnModificar) btnModificar.classList.toggle("hidden", esOtros);
+  const puedeEliminar = categoria === "Gasto fijo" || categoria === "Gasto variable" || categoria === "Ingreso";
+  if (btnEliminar) btnEliminar.classList.toggle("hidden", !puedeEliminar);
+
+  if (btnModificar) btnModificar.onclick = () => {
+    document.getElementById("modal-resumen-concepto")?.classList.add("hidden");
+    abrirModificarConcepto(concepto, categoria);
+  };
+  if (btnEliminar) btnEliminar.onclick = () => {
+    document.getElementById("modal-resumen-concepto")?.classList.add("hidden");
+    eliminarConceptoPresupuesto(concepto, categoria);
+  };
+
+  document.getElementById("modal-resumen-concepto")?.classList.remove("hidden");
 }
 
 // ---- DASHBOARD DONUTS ----
@@ -3974,15 +4076,6 @@ function setupProyeccionListeners() {
       btn.dataset.value === "Ingreso" ? "Ingreso estimado" : "Monto estimado";
   });
 
-  // Toque/clic en una fila de "Detalle por concepto" → ver los movimientos
-  // reales que la componen ese mes. Un solo clic, igual que las tarjetas de
-  // Cajas (abrirDetalleCaja) — nada de temporizadores de doble clic, que en
-  // touch son poco confiables.
-  document.getElementById("proy-tabla-body")?.addEventListener("click", (e) => {
-    const row = e.target.closest(".proy-tabla-row");
-    if (!row || e.target.closest("button")) return;
-    abrirDetalleRealConcepto(row.dataset.concepto, row.dataset.categoria, !!row.dataset.esOtros);
-  });
   document.getElementById("btn-cerrar-detalle-real")?.addEventListener("click", () => {
     document.getElementById("modal-detalle-real-concepto").classList.add("hidden");
   });

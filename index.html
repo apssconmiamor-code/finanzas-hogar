@@ -392,11 +392,10 @@
                 <th>Concepto</th>
                 <th>Estimado</th>
                 <th>Real</th>
-                <th></th>
               </tr>
             </thead>
             <tbody id="proy-tabla-body">
-              <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-light)">Cargando…</td></tr>
+              <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-light)">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -546,6 +545,10 @@
           <button class="modal-close" onclick="document.getElementById('modal-resumen-movimiento').classList.add('hidden')">✕</button>
         </div>
         <div id="resumen-mov-body" class="detalle-real-lista"></div>
+        <div class="modal-actions" id="resumen-mov-acciones">
+          <button class="btn-secondary" id="btn-resumen-mov-borrar">🗑️ Borrar</button>
+          <button class="btn-secondary" id="btn-resumen-mov-editar">✏️ Editar</button>
+        </div>
       </div>
     </div>
 
@@ -742,6 +745,10 @@
         <button type="button" class="btn-primary notif-btn-ancho hidden" id="btn-resumen-revisado">✅ Marcar como revisada</button>
         <button type="button" class="btn-secondary btn-franja" id="btn-resumen-crear-recordatorio">📝 Crear recordatorio</button>
         <div class="modal-actions">
+          <button class="btn-secondary" id="btn-resumen-notif-eliminar">🗑️ Eliminar</button>
+          <button class="btn-primary" id="btn-resumen-notif-editar">✏️ Editar</button>
+        </div>
+        <div class="modal-actions">
           <button class="btn-secondary" id="btn-cerrar-resumen-notificacion">Cerrar</button>
         </div>
       </div>
@@ -813,6 +820,21 @@
         </div>
         <p class="modal-subtitle" id="detalle-real-subtitulo"></p>
         <div id="detalle-real-lista" class="detalle-real-lista" style="overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- Modal: resumen de un concepto (segundo toque sobre su fila en Proyección) -->
+    <div id="modal-resumen-concepto" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <span id="resumen-concepto-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-resumen-concepto').classList.add('hidden')">✕</button>
+        </div>
+        <div id="resumen-concepto-cuerpo" class="detalle-notif-cuerpo"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-resumen-concepto-eliminar">🗑️ Eliminar</button>
+          <button class="btn-primary" id="btn-resumen-concepto-modificar">✏️ Modificar</button>
+        </div>
       </div>
     </div>
 

@@ -54,4 +54,58 @@ test.describe('Proyección', () => {
     await page.locator('#nuevo-concepto-nombre').fill('Gimnasio');
     await expect(page.locator('#nuevo-concepto-duplicado')).toBeVisible();
   });
+
+  test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque ve movimientos y el segundo abre el resumen con Modificar/Eliminar', async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      Presupuesto: [
+        ['Ingreso', 'SURA', 0, 3000000, ''],
+        ['Gasto fijo', 'Alquiler', 800000, 0, ''],
+        ['Gasto variable', 'Mercado', 500000, 0, ''],
+      ],
+      'Movimiento de Caja': [
+        ['M1', hoy, 'prueba@example.com', 'Alquiler', 'Gasto fijo', 'Efectivo', 800000, '', ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await expect(page.locator('#tab-proyeccion')).toBeVisible();
+
+    // Los grupos aparecen como etiquetas sutiles, en orden Ingresos/Fijos/Variables.
+    const grupos = page.locator('.proy-grupo-row');
+    await expect(grupos).toHaveCount(3);
+    await expect(grupos.nth(0)).toContainText('Ingresos');
+    await expect(grupos.nth(1)).toContainText('Fijos');
+    await expect(grupos.nth(2)).toContainText('Variables');
+
+    // Ya no hay botones de Modificar/Eliminar sueltos en ninguna fila.
+    await expect(page.locator('#proy-tabla-body button')).toHaveCount(0);
+
+    const filaAlquiler = page.locator('.proy-tabla-row', { hasText: 'Alquiler' });
+
+    // Un solo toque abre los movimientos reales de ese concepto.
+    await filaAlquiler.click();
+    await expect(page.locator('#modal-detalle-real-concepto')).toBeVisible();
+    await expect(page.locator('#detalle-real-titulo')).toContainText('Alquiler');
+    await page.locator('#btn-cerrar-detalle-real').click();
+    await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
+
+    // Un segundo toque rápido sobre la misma fila abre el resumen, con
+    // Modificar/Eliminar al final -- y el detalle de movimientos no se
+    // queda abierto de fondo.
+    await filaAlquiler.dblclick();
+    await expect(page.locator('#modal-resumen-concepto')).toBeVisible();
+    await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
+    await expect(page.locator('#resumen-concepto-titulo')).toContainText('Alquiler');
+    await expect(page.locator('#resumen-concepto-cuerpo')).toContainText('800.000');
+    await expect(page.locator('#btn-resumen-concepto-modificar')).toBeVisible();
+    await expect(page.locator('#btn-resumen-concepto-eliminar')).toBeVisible();
+
+    await page.locator('#btn-resumen-concepto-modificar').click();
+    await expect(page.locator('#modal-modificar-concepto')).toBeVisible();
+    await expect(page.locator('#modificar-concepto-nombre')).toContainText('Alquiler');
+  });
 });
