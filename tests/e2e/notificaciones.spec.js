@@ -323,8 +323,10 @@ test.describe('Notificaciones (Web Push)', () => {
 
     // Ninguna de las dos visibles tiene bloque -> ambas caen en "Otros",
     // y "Activos" (cruza todos los bloques) también las cuenta a ambas.
+    // Solo Activos/Pasados llevan contador en su tarjeta -- los bloques
+    // (Gastos fijos/Otros/los del usuario) no.
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('2');
-    await expect(page.locator('.alerta-bloque-card', { hasText: 'Otros' }).locator('.alerta-bloque-cantidad')).toHaveText('2');
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Otros' }).locator('.alerta-bloque-cantidad')).toHaveCount(0);
     await abrirBloqueAlerta(page, 'Otros');
     await expect(page.locator('.notificacion-item')).toContainText(['Recordatorio propio', 'Pagar el condominio']);
     await expect(page.locator('#notificaciones-list')).not.toContainText('Cita médica de Royer');
@@ -394,6 +396,26 @@ test.describe('Notificaciones (Web Push)', () => {
     expect(categoriaGuardada).toBe('Gastos fijos');
   });
 
+  test('el resumen no desborda el ancho de la pantalla ni con textos largos (bug real: se salía en celulares angostos)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 720 });
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    const mensajeLargo = 'Un mensaje bastante largo para probar que la fila no fuerza el ancho del modal más allá de la pantalla en un celular angosto de verdad';
+    await mockGoogleApis(page, {
+      Notificaciones: [['N8', 'Pagar internet', mensajeLargo, 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '', '', '', 'Internet']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Gastos fijos');
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText(mensajeLargo);
+
+    const desbordaAncho = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(desbordaAncho).toBe(false);
+  });
+
   test('Editar sigue funcionando desde el botón de la tarjeta, y ahí sí se ve el selector de bloque', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
@@ -449,6 +471,12 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Pagar Netflix');
     // Bloque personalizado: sí tiene botón de borrar en su pantalla de detalle.
     await expect(page.locator('.notif-btn-borrar-bloque')).toHaveCount(1);
+
+    // Aunque ya tiene una alerta, su tarjeta en la cuadrícula sigue sin
+    // contador -- eso es solo para Activos/Pasados.
+    await deslizarParaVolver(page);
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Servicios' }).locator('.alerta-bloque-cantidad')).toHaveCount(0);
+    await abrirBloqueAlerta(page, 'Servicios');
 
     // Borrar el bloque -- la alerta no se pierde, cae en "Otros", y vuelve
     // solo a la cuadrícula (el bloque abierto ya no existe).

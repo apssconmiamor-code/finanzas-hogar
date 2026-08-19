@@ -589,7 +589,7 @@ function renderNotificaciones() {
 function renderBloquesAlertaGrid(lista, grupos) {
   const tarjetas = Object.entries(grupos).map(([clave, g]) => `
     <button type="button" class="alerta-bloque-card${g.esAgrupacion ? " alerta-bloque-card-agrupacion" : ""}" data-clave="${clave}">
-      ${g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
+      ${g.esAgrupacion && g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
       <span class="alerta-bloque-icono">${g.icono}</span>
       <span class="alerta-bloque-nombre">${escapeHtml(g.titulo)}</span>
     </button>`).join("");

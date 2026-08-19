@@ -574,7 +574,8 @@ input, select, textarea, table {
 .modal-card {
   background: var(--surface); border-radius: 4px 4px 0 0;
   padding: 24px 20px 36px; width: 100%; max-width: 540px;
-  max-height: 92vh; overflow-y: auto;
+  max-height: 92vh; overflow-y: auto; overflow-x: hidden;
+  box-sizing: border-box;
   display: flex; flex-direction: column; gap: 16px;
   animation: slideUp .2s cubic-bezier(.32,1,.23,1);
   box-shadow: var(--shadow-lg);
@@ -1078,8 +1079,11 @@ input, select, textarea, table {
   padding-bottom: 8px; border-bottom: 1px solid var(--border);
   font-size: 13.5px;
 }
-.detalle-notif-label { color: var(--text-4); }
-.detalle-notif-valor { color: var(--text); font-weight: 600; text-align: right; }
+.detalle-notif-label { color: var(--text-4); flex-shrink: 0; }
+.detalle-notif-valor {
+  color: var(--text); font-weight: 600; text-align: right;
+  min-width: 0; overflow-wrap: break-word;
+}
 
 /* Cuadrícula de bloques del panel de Alertas -- mismo espíritu que
    .acciones-rapidas-grid/.accion-rapida-card (2 columnas, ícono + nombre),

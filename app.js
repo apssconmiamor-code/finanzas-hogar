@@ -3755,23 +3755,15 @@ function renderCronologia(datos) {
         Aún no hay registros. El primer día de cada mes se guarda automáticamente el cierre del mes anterior.
        </td></tr>`
     : ordenados.map(d => {
-        const aserClass = d.asertividadMensual <= 100 ? "estado-ok" : "estado-mal";
-        const mesLabel  = new Date(d.mes + "-15").toLocaleDateString("es-CO", {
-          year: "numeric", month: "long"
-        });
+        const aserColor = d.asertividadMensual <= 100 ? "var(--green)" : "var(--red)";
+        const nombreMes = new Date(d.mes + "-15").toLocaleDateString("es-CO", { month: "long" });
+        const mesLabel  = nombreMes[0].toUpperCase() + nombreMes.slice(1);
         return `<tr class="proy-fila">
           <td class="proy-concepto" style="font-weight:600">${mesLabel}</td>
           <td class="proy-num">${formatMonto(d.ingresoTotal)}</td>
           <td class="proy-num">${formatMonto(d.gastoFijo)}</td>
           <td class="proy-num">${formatMonto(d.gastoVariable)}</td>
-          <td class="proy-pct-cell">
-            <div class="pct-wrap">
-              <div class="pct-bar-bg">
-                <div class="pct-bar ${aserClass}" style="width:${Math.min(d.asertividadMensual, 100)}%"></div>
-              </div>
-              <span class="pct-label ${aserClass}">${d.asertividadMensual}%</span>
-            </div>
-          </td>
+          <td class="proy-num" style="color:${aserColor}">${d.asertividadMensual}%</td>
           <td class="proy-num" style="color:${d.balanceCierre >= 0 ? "var(--green)" : "var(--red)"}">${formatMonto(d.balanceCierre)}</td>
         </tr>`;
       }).join("");
@@ -3785,7 +3777,7 @@ function renderCronologia(datos) {
             <th style="text-align:right">Ingreso total</th>
             <th style="text-align:right">Gasto fijo</th>
             <th style="text-align:right">Gasto variable</th>
-            <th>Asertividad mensual</th>
+            <th style="text-align:right">Asertividad mensual</th>
             <th style="text-align:right">Balance de cierre</th>
           </tr>
         </thead>
