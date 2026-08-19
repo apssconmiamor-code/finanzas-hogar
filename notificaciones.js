@@ -273,6 +273,27 @@ async function activarNotificacionesPush() {
   }
 }
 
+// DIAGNÓSTICO TEMPORAL (agosto 2026): dispara un push real de prueba sin
+// esperar al Cron de 5 minutos ni depender de la hoja Notificaciones -- ver
+// handlePushTest en worker/src/push.js y el debug que guarda sw.js en Cache
+// Storage. Sacar junto con el botón "🧪 Enviar notificación de prueba" y el
+// endpoint /push/test en cuanto se resuelva el badge en iOS.
+async function enviarNotificacionPrueba() {
+  const sessionToken = localStorage.getItem("worker_session");
+  if (!sessionToken) { alert("No hay sesión activa con el Worker."); return; }
+  try {
+    const res = await fetch(`${CONFIG.WORKER_URL}/push/test`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(`Worker respondió ${res.status}`);
+    SyncManager.mostrarToast("🧪 Notificación de prueba enviada");
+  } catch (err) {
+    alert("No se pudo enviar la prueba: " + err.message);
+  }
+}
+
 // Este dispositivo ya tiene el permiso + la suscripción push activa -- no
 // tiene sentido seguir ofreciendo el botón para activarlas de nuevo, ni la
 // explicación de por qué hace falta activarlas (ya se activaron acá).
@@ -510,11 +531,11 @@ function renderItemNotificacion(n, soloRevisado = false) {
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
   const botones = soloRevisado
-    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅ Revisado</button>
+    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Revisado</button>
         <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
     : `<span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`;
   return `
-    <div class="notificacion-item${claseDia}" data-id="${n.id}" onclick="tapNotificacion('${n.id}')">
+    <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}')">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
         ${botones}
@@ -526,8 +547,13 @@ function renderItemNotificacion(n, soloRevisado = false) {
 // puede usar ondblclick acá -- el bloqueo de zoom (touchend ->
 // preventDefault en index.html) suprime la síntesis nativa de dblclick en
 // iOS Safari real, aunque funcione con .dblclick() de Playwright (que no
-// pasa por ese camino táctil). Bug real reportado: "doble clic no abre el
-// resumen" en el celular.
+// pasa por ese camino táctil). Tampoco alcanza con onclick: ese mismo
+// preventDefault() en el touchend del SEGUNDO toque también suprime la
+// síntesis del click de ESE toque puntual (no solo dblclick) -- por eso
+// el div usa onpointerup, no onclick: pointerup sí llega siempre, porque
+// preventDefault() no cancela el evento en sí, solo la acción por defecto
+// del navegador que dispara (bug real reportado: con onclick, "al darle
+// doble clic no me da el resumen" seguía pasando en el celular real).
 let ultimoTapNotif = { id: null, tiempo: 0 };
 function tapNotificacion(id) {
   const ahora = Date.now();
@@ -1051,6 +1077,9 @@ function setupNotificacionesListeners() {
 
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);
+
+  document.getElementById("btn-notif-prueba")
+    ?.addEventListener("click", enviarNotificacionPrueba);
 
   document.getElementById("modal-notificacion")
     ?.addEventListener("click", (e) => {
