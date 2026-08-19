@@ -362,7 +362,7 @@ function poblarSelectBloque() {
   if (!sel) return;
   const valorActual = sel.value;
   const bloques = obtenerBloquesAlertas();
-  sel.innerHTML = `<option value="">— Ninguno —</option><option value="__gastos_fijos__">📌 Gastos fijos</option>` +
+  sel.innerHTML = `<option value="">🔖 Otros</option><option value="__gastos_fijos__">📌 Gastos fijos</option>` +
     bloques.map(b => `<option value="${escapeAttr(b)}">${escapeHtml(b)}</option>`).join("");
   sel.value = ["", "__gastos_fijos__", ...bloques].includes(valorActual) ? valorActual : "";
 }
@@ -437,30 +437,38 @@ function renderNotificaciones() {
 
   const bloquesPersonalizados = obtenerBloquesAlertas();
 
-  const porRevisar  = notificaciones.filter(n => n.estado === "enviada");
-  const gastosFijos = notificaciones.filter(n => n.estado === "activa" && n.gastoFijo);
+  // Dos dimensiones independientes (ver conversación):
+  //  - Agrupaciones (Activos/Pasados): por ESTADO, cruzan todos los bloques.
+  //  - Bloques (Gastos fijos/Otros/los del usuario): por CATEGORÍA -- acá
+  //    (y solo acá) se puede crear una alerta nueva.
+  const activosTodos = notificaciones.filter(n => n.estado === "activa");
+  const pasados       = notificaciones.filter(n => n.estado === "enviada");
+  const canceladas    = notificaciones.filter(n => n.estado === "cancelada");
+
+  const gastosFijos = activosTodos.filter(n => n.gastoFijo);
   const porBloque = {};
   bloquesPersonalizados.forEach(b => { porBloque[b] = []; });
-  const activas = [];
-  notificaciones
-    .filter(n => n.estado === "activa" && !n.gastoFijo)
+  const otros = [];
+  activosTodos
+    .filter(n => !n.gastoFijo)
     .forEach(n => {
       if (n.categoria && porBloque[n.categoria]) porBloque[n.categoria].push(n);
-      else activas.push(n);
+      else otros.push(n);
     });
-  const canceladas = notificaciones.filter(n => n.estado === "cancelada");
 
-  // Mapa clave -> bloque a mostrar como tarjeta. "Por revisar" y
-  // "Canceladas" solo aparecen si tienen algo (no son bloques del usuario,
-  // son estados de paso); Gastos fijos y Activas son fijos y siempre están.
+  // Mapa clave -> tarjeta. El orden de inserción define el orden en la
+  // cuadrícula: Activos/Pasados van primero (primera fila), después los
+  // bloques (Gastos fijos y Otros fijos, los del usuario después), y por
+  // último Canceladas (solo si hay alguna).
   const grupos = {};
-  if (porRevisar.length > 0) grupos.porRevisar = { titulo: "Por revisar", icono: "📩", items: porRevisar, eliminable: false };
-  grupos.gastosFijos = { titulo: "Gastos fijos", icono: "📌", items: gastosFijos, eliminable: false };
+  grupos.activos = { titulo: "Activos", icono: "🔔", items: activosTodos, esBloque: false, eliminable: false };
+  grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false };
+  grupos.gastosFijos = { titulo: "Gastos fijos", icono: "📌", items: gastosFijos, esBloque: true, eliminable: false, valorBloque: "__gastos_fijos__" };
+  grupos.otros = { titulo: "Otros", icono: "🔖", items: otros, esBloque: true, eliminable: false, valorBloque: "" };
   bloquesPersonalizados.forEach((nombre, i) => {
-    grupos[`bloque_${i}`] = { titulo: nombre, icono: "🗂️", items: porBloque[nombre] || [], eliminable: true, nombreBloque: nombre };
+    grupos[`bloque_${i}`] = { titulo: nombre, icono: "🗂️", items: porBloque[nombre] || [], esBloque: true, eliminable: true, nombreBloque: nombre, valorBloque: nombre };
   });
-  grupos.activas = { titulo: "Activas", icono: "🔔", items: activas, eliminable: false };
-  if (canceladas.length > 0) grupos.canceladas = { titulo: "Canceladas", icono: "🗄️", items: canceladas, eliminable: false };
+  if (canceladas.length > 0) grupos.canceladas = { titulo: "Canceladas", icono: "🗄️", items: canceladas, esBloque: false, eliminable: false };
 
   if (bloqueAlertaAbierto && !grupos[bloqueAlertaAbierto]) bloqueAlertaAbierto = null; // se borró el bloque que estaba abierto
 
@@ -506,7 +514,7 @@ function renderBloquesAlertaGrid(lista, grupos) {
 function renderBloqueAlertaDetalle(lista, grupo) {
   const itemsHTML = grupo.items.length > 0
     ? grupo.items.map(renderItemNotificacion).join("")
-    : `<div class="notif-bloque-vacio">Sin alertas en este bloque todavía.</div>`;
+    : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
 
   lista.innerHTML = `
     <div class="alerta-bloque-detalle-header">
@@ -514,11 +522,16 @@ function renderBloqueAlertaDetalle(lista, grupo) {
       <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
       ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque">🗑️</button>` : ""}
     </div>
+    ${grupo.esBloque ? `<button type="button" class="btn-primary btn-franja" id="btn-nueva-notificacion-bloque">+ Nueva</button>` : ""}
     ${itemsHTML}`;
 
   document.getElementById("btn-volver-bloque")?.addEventListener("click", () => {
     bloqueAlertaAbierto = null;
     renderNotificaciones();
+  });
+
+  document.getElementById("btn-nueva-notificacion-bloque")?.addEventListener("click", () => {
+    abrirNuevaNotificacionEnBloque(grupo.valorBloque);
   });
 
   lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => {
@@ -596,6 +609,7 @@ function limpiarFormNotificacion() {
   document.getElementById("notif-destinatario").value = "yo";
   poblarSelectBloque();
   document.getElementById("notif-bloque").value = "";
+  document.getElementById("notif-bloque-row")?.classList.remove("hidden");
   document.getElementById("notif-gasto-fijo-row")?.classList.add("hidden");
   poblarSelectGastoFijo();
   const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
@@ -619,11 +633,27 @@ function _isoAFechaHoraLocalInput(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// ---- Editar (reusa el modal de "Nueva alerta") ----
+// ---- Nueva alerta DESDE un bloque (único lugar donde se puede crear una
+// alerta -- ver conversación: ya no hay "+ Nueva" suelto en la pantalla
+// principal). El bloque ya viene decidido por dónde se entró, así que ni
+// tiene sentido mostrar el selector: se precarga y se oculta.
+function abrirNuevaNotificacionEnBloque(valorBloque) {
+  limpiarFormNotificacion();
+  document.getElementById("notif-bloque").value = valorBloque;
+  document.getElementById("notif-bloque-row")?.classList.add("hidden");
+  const esGastosFijos = valorBloque === "__gastos_fijos__";
+  document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", !esGastosFijos);
+  if (esGastosFijos) poblarSelectGastoFijo();
+  document.getElementById("modal-notificacion").classList.remove("hidden");
+}
+
+// ---- Editar (reusa el modal de "Nueva alerta") -- acá sí se ve y se
+// puede cambiar el bloque, a diferencia de crear una alerta nueva. ----
 function abrirEditarNotificacion(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
 
+  document.getElementById("notif-bloque-row")?.classList.remove("hidden");
   document.getElementById("notif-texto").value = n.titulo;
   document.getElementById("notif-destinatario").value = n.destinatario;
   document.getElementById("notif-fecha-hora").value = _isoAFechaHoraLocalInput(n.fechaHora);
@@ -797,12 +827,6 @@ function setupNotificacionesListeners() {
     if (panel.contains(e.target) || e.target === btn || btn?.contains(e.target)) return;
     panel.classList.add("hidden");
   });
-
-  document.getElementById("btn-nueva-notificacion")
-    ?.addEventListener("click", () => {
-      limpiarFormNotificacion();
-      document.getElementById("modal-notificacion").classList.remove("hidden");
-    });
 
   document.getElementById("btn-cancelar-notificacion")
     ?.addEventListener("click", () => {
