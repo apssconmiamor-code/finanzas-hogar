@@ -157,4 +157,40 @@ test.describe('Resumen: Salud del mes y Cronología', () => {
     });
     expect(algunaTarjetaSeSale).toBe(false);
   });
+
+  test('un mes duplicado en Cronología (dos filas, distinto ingreso) se limpia solo y queda una sola fila', async ({ page }) => {
+    // Simula el bug real reportado: el mismo mes con dos filas en la hoja
+    // (pudo pasar con una versión vieja que agregaba en vez de actualizar).
+    // Sin movimientos vivos para ese mes -- ya archivados, como sería en la
+    // realidad para un mes tan viejo -- así que la limpieza tiene que
+    // funcionar sin depender de volver a calcular nada.
+    const hoy = new Date();
+    const mesViejo = new Date(hoy.getFullYear(), hoy.getMonth() - 3, 10);
+    const mesViejoStr = mesViejo.toISOString().slice(0, 7);
+
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      Cronologia: [
+        ['CR1000000000000', mesViejoStr, 0, 800000, 0, 300000, 2000000, 105, 900000, 0, '', 0],
+        ['CR2000000000000', mesViejoStr, 0, 800000, 0, 300000, 5000000, 110, 950000, 0, '', 0],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirResumen(page);
+    await expect(page.locator('#cronologia-wrap table')).toBeVisible({ timeout: 10000 });
+
+    const cronologia = await page.evaluate(() => Sheets.getCronologia());
+    const filasDeEseMes = cronologia.filter(c => c.mes === mesViejoStr);
+    expect(filasDeEseMes).toHaveLength(1);
+    // Se quedó con la más reciente (id más nuevo) de las dos.
+    expect(filasDeEseMes[0].id).toBe('CR2000000000000');
+    expect(filasDeEseMes[0].ingresoTotal).toBe(5000000);
+
+    // Y la tabla solo la muestra una vez.
+    const nombreMes = mesViejo.toLocaleDateString('es-CO', { month: 'long' });
+    const nombreMesCap = nombreMes[0].toUpperCase() + nombreMes.slice(1);
+    await expect(page.locator('#cronologia-wrap tbody tr', { hasText: nombreMesCap })).toHaveCount(1);
+  });
 });

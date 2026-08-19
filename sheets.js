@@ -408,6 +408,44 @@ Sheets.actualizarCronologia = async function(id, mes, fijoAser, gastoFijo, varAs
   return res.json();
 };
 
+// Borra una fila de Cronología por id -- se usa para limpiar meses
+// duplicados (bug real reportado: un mismo mes con dos filas y valores
+// de ingreso distintos, ver _limpiarCronologiaDuplicada en app.js).
+Sheets.borrarCronologia = async function (id) {
+  const rows = await this.leer(`${CONFIG.SHEETS.CRONOLOGIA}!A2:A`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) return;
+  const sheetRowIndex = rowIndex + 1;
+
+  const metaRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${this.token}` } }
+  );
+  if (!metaRes.ok) throw new Error(`Error obteniendo metadata: ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const sheet = meta.sheets.find(s => s.properties.title === CONFIG.SHEETS.CRONOLOGIA);
+  if (!sheet) return;
+  const sheetId = sheet.properties.sheetId;
+
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}:batchUpdate`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: { sheetId, dimension: "ROWS", startIndex: sheetRowIndex, endIndex: sheetRowIndex + 1 }
+          }
+        }]
+      })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error borrando cronología: ${res.status}`);
+  return res.json();
+};
+
 // ---- PROYECCION ----
 // Estructura hoja Proyeccion:
 // A: tipo ("mes_lista" | "ingreso" | "gasto")

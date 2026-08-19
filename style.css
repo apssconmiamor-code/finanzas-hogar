@@ -986,6 +986,12 @@ input, select, textarea, table {
 .proy-cell-num { text-align: right; font-size: 13px; font-family: var(--font-display); font-weight: 600; color: var(--text-2); letter-spacing: -0.2px; }
 /* Legacy compat */
 .proy-fila td, .proy-fila-2 td { padding: 0; }
+/* Cronología mensual reusa .proy-tabla/.proy-fila por el estilo base de
+   la tabla, pero acá SÍ son filas normales (una fila = un mes, sin las
+   sub-filas 1/2 que sí valen padding:0) -- sin este empate de
+   especificidad las columnas quedaban pegadas una a la otra (bug real
+   reportado: pidió "un poco de espacio entre columnas"). */
+.cronologia-tabla .proy-fila td { padding: 12px 16px; }
 .proy-fila-1 { display: flex; align-items: center; gap: 8px; padding: 10px 14px 2px; }
 .proy-fila-2 { display: flex; gap: 10px; padding: 2px 14px 8px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
 

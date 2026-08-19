@@ -3598,6 +3598,41 @@ function calcularMetricasCronologia(mesStr) {
   };
 }
 
+// Limpia meses duplicados en Cronología -- bug real reportado: un mismo
+// mes (ej. junio) aparecía dos veces en la tabla, cada fila con un
+// "ingreso total" distinto. Vino de una versión vieja de
+// verificarYGuardarCronologia que en algún momento agregó una fila nueva
+// en vez de actualizar la que ya existía para ese mes, así que ambas
+// quedaron viviendo en la hoja (la función de acá abajo, al buscar
+// "¿existe ya este mes?" con un Map, solo ve la última y la otra queda
+// huérfana para siempre -- se sigue leyendo y mostrando igual). Se queda
+// con la fila "completa" más reciente para cada mes (o la más reciente a
+// secas si ninguna está completa) y borra el resto. Corre en cada arranque
+// de la app, así que sirve tanto para datos nuevos como para limpiar lo
+// que ya haya quedado duplicado de antes.
+async function _limpiarCronologiaDuplicada(cronologia) {
+  const porMes = new Map();
+  cronologia.forEach(c => {
+    if (!porMes.has(c.mes)) porMes.set(c.mes, []);
+    porMes.get(c.mes).push(c);
+  });
+
+  const limpia = [];
+  for (const filas of porMes.values()) {
+    if (filas.length === 1) { limpia.push(filas[0]); continue; }
+    const ordenadas = [...filas].sort((a, b) => {
+      if (a.completa !== b.completa) return a.completa ? -1 : 1;
+      return b.id.localeCompare(a.id); // id = "CR" + timestamp -> más reciente primero
+    });
+    const [principal, ...sobrantes] = ordenadas;
+    limpia.push(principal);
+    for (const sobra of sobrantes) {
+      try { await Sheets.borrarCronologia(sobra.id); } catch (err) { console.error("Error borrando fila duplicada de cronología:", err); }
+    }
+  }
+  return limpia.sort((a, b) => a.mes.localeCompare(b.mes));
+}
+
 // Se revisa CADA VEZ que se abre la app (no solo el día 1 del mes): busca
 // todos los meses ya cerrados (anteriores al actual) que tengan movimientos
 // reales pero todavía no tengan registro en la cronología, y los completa.
@@ -3613,6 +3648,8 @@ function calcularMetricasCronologia(mesStr) {
 // si ya se archivaron, esa fila se queda como está para siempre.
 async function verificarYGuardarCronologia() {
   try {
+    const cronologiaExistente = await _limpiarCronologiaDuplicada(await Sheets.getCronologia());
+
     const mesActual = new Date().toISOString().slice(0, 7);
 
     const mesesConDatos = [...new Set(movimientos.map(m => m.fecha.slice(0, 7)))]
@@ -3620,7 +3657,6 @@ async function verificarYGuardarCronologia() {
       .sort();
     if (mesesConDatos.length === 0) return;
 
-    const cronologiaExistente = await Sheets.getCronologia();
     const porMes = new Map(cronologiaExistente.map(c => [c.mes, c]));
 
     for (const mesStr of mesesConDatos) {
@@ -3772,7 +3808,7 @@ function renderCronologia(datos) {
 
   container.innerHTML = `
     <div style="overflow-x:auto">
-      <table class="proy-tabla">
+      <table class="proy-tabla cronologia-tabla">
         <thead>
           <tr>
             <th>Mes</th>
