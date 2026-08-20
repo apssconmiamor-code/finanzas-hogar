@@ -531,7 +531,7 @@
 
     <!-- Modal detalle cuenta -->
     <div id="modal-detalle-caja" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
-      <div class="modal-card" style="max-width:560px;max-height:80vh;display:flex;flex-direction:column">
+      <div class="modal-card" style="max-width:560px;max-height:75vh;display:flex;flex-direction:column">
         <div class="modal-header">
           <span id="detalle-caja-titulo" class="modal-title"></span>
           <button class="modal-close" onclick="document.getElementById('modal-detalle-caja').classList.add('hidden')">✕</button>
@@ -543,7 +543,7 @@
 
     <!-- Modal resumen de un movimiento (doble clic en su tarjeta) -->
     <div id="modal-resumen-movimiento" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
-      <div class="modal-card" style="max-width:480px">
+      <div class="modal-card" style="max-width:480px;max-height:75vh">
         <div class="modal-header">
           <span id="resumen-mov-titulo" class="modal-title"></span>
           <button class="modal-close" onclick="document.getElementById('modal-resumen-movimiento').classList.add('hidden')">✕</button>
@@ -743,7 +743,7 @@
 
     <!-- Modal: resumen de una alerta (doble clic sobre su tarjeta) -->
     <div id="modal-resumen-notificacion" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card" style="max-height:75vh">
         <h3 class="modal-title" id="resumen-notificacion-titulo"></h3>
         <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
         <button type="button" class="btn-primary notif-btn-ancho hidden" id="btn-resumen-revisado">✅ Marcar como revisada</button>
@@ -817,7 +817,7 @@
 
     <!-- Modal: detalle de movimientos reales de un concepto (clic en una fila de Proyección) -->
     <div id="modal-detalle-real-concepto" class="modal hidden">
-      <div class="modal-card" style="max-width:480px;max-height:80vh;display:flex;flex-direction:column">
+      <div class="modal-card" style="max-width:480px;max-height:75vh;display:flex;flex-direction:column">
         <div class="modal-header">
           <span id="detalle-real-titulo" class="modal-title"></span>
           <button class="modal-close" id="btn-cerrar-detalle-real">✕</button>
@@ -829,7 +829,7 @@
 
     <!-- Modal: resumen de un concepto (segundo toque sobre su fila en Proyección) -->
     <div id="modal-resumen-concepto" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card" style="max-height:75vh">
         <div class="modal-header">
           <span id="resumen-concepto-titulo" class="modal-title"></span>
           <button class="modal-close" onclick="document.getElementById('modal-resumen-concepto').classList.add('hidden')">✕</button>
