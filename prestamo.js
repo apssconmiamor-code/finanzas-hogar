@@ -118,7 +118,6 @@ async function cargarPrestamos() {
   }
   renderPrestamos();
   await verificarPrestamosCompletados();
-  if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
 }
 
 // ---- Verificar si algún préstamo no pagado llegó al 100% ----
