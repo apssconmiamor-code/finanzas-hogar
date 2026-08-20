@@ -16,10 +16,9 @@ test.describe('Movimientos', () => {
   });
 
   test('registrar un ingreso lo muestra en la lista', async ({ page }) => {
-    await page.locator('#btn-nuevo-movimiento').click();
+    await page.locator('#btn-nuevo-ingreso').click();
     await expect(page.locator('#modal-movimiento')).toBeVisible();
 
-    await page.locator('.cat-btn[data-value="Ingreso"]').click();
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('500000');
@@ -31,8 +30,7 @@ test.describe('Movimientos', () => {
   });
 
   test('no deja guardar un movimiento sin monto', async ({ page }) => {
-    await page.locator('#btn-nuevo-movimiento').click();
-    await page.locator('.cat-btn[data-value="Ingreso"]').click();
+    await page.locator('#btn-nuevo-ingreso').click();
     await page.locator('#mov-concepto-ingreso').fill('SURA');
 
     let dialogo = null;
@@ -47,8 +45,7 @@ test.describe('Movimientos', () => {
   test('doble clic en un movimiento abre su resumen', async ({ page }) => {
     // Ingreso porque no valida saldo suficiente (a diferencia de un gasto,
     // que necesitaría fondos ya cargados en la caja de prueba).
-    await page.locator('#btn-nuevo-movimiento').click();
-    await page.locator('.cat-btn[data-value="Ingreso"]').click();
+    await page.locator('#btn-nuevo-ingreso').click();
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('80000');
@@ -60,6 +57,72 @@ test.describe('Movimientos', () => {
     await expect(page.locator('#resumen-mov-titulo')).toContainText('SURA');
     await expect(page.locator('#resumen-mov-body')).toContainText('Ingreso');
     await expect(page.locator('#resumen-mov-body')).toContainText('80.000');
+  });
+
+  test('"Nuevo ingreso" preselecciona la categoría y oculta el selector', async ({ page }) => {
+    await page.locator('#btn-nuevo-ingreso').click();
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nuevo ingreso');
+    await expect(page.locator('#grupo-categoria')).toBeHidden();
+    await expect(page.locator('#mov-categoria')).toHaveValue('Ingreso');
+    await expect(page.locator('#wrap-concepto-ingreso')).toBeVisible();
+  });
+
+  test('"Nuevo gasto" no asume categoría -- solo deja elegir Fijo o Variable', async ({ page }) => {
+    await page.locator('#btn-nuevo-gasto').click();
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nuevo gasto');
+    await expect(page.locator('#grupo-categoria')).toBeVisible();
+    await expect(page.locator('#mov-categoria')).toHaveValue('');
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Gasto fijo"]')).toBeVisible();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Gasto variable"]')).toBeVisible();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]')).toBeHidden();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Transferencia"]')).toBeHidden();
+
+    // Sin elegir Fijo/Variable, sigue faltando la categoría -- mismo error de siempre.
+    let dialogo = null;
+    page.once('dialog', async (d) => { dialogo = d.message(); await d.accept(); });
+    await page.locator('#mov-monto').fill('10000');
+    await page.locator('#btn-guardar-mov').click();
+    await page.waitForTimeout(200);
+    expect(dialogo).toContain('Completa todos los campos obligatorios');
+
+    await page.locator('#cat-btn-group .cat-btn[data-value="Gasto variable"]').click();
+    await expect(page.locator('#mov-categoria')).toHaveValue('Gasto variable');
+    await expect(page.locator('#wrap-concepto-variable')).toBeVisible();
+  });
+
+  test('"Nueva transferencia" preselecciona la categoría y va directo al bloque origen/destino', async ({ page }) => {
+    await page.locator('#btn-nueva-transferencia').click();
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nueva transferencia');
+    await expect(page.locator('#grupo-categoria')).toBeHidden();
+    await expect(page.locator('#mov-categoria')).toHaveValue('Transferencia');
+    await expect(page.locator('#row-transferencia')).toBeVisible();
+    await expect(page.locator('#grupo-concepto')).toBeHidden();
+  });
+
+  test('editar un movimiento vuelve a mostrar el selector de categoría completo', async ({ page }) => {
+    // "Nuevo gasto" deja el selector recortado (Ingreso/Transferencia
+    // ocultos) -- se cancela sin guardar y se registra un ingreso aparte,
+    // para comprobar que ese recorte no queda pegado al editar después
+    // cualquier movimiento (independiente de si el gasto llegó a guardarse).
+    await page.locator('#btn-nuevo-gasto').click();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]')).toBeHidden();
+    await page.locator('#btn-cancelar-mov').click();
+
+    await page.locator('#btn-nuevo-ingreso').click();
+    await page.locator('#mov-concepto-ingreso').fill('SURA');
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await page.locator('#mov-monto').fill('50000');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden();
+
+    await page.locator('.mov-card', { hasText: 'SURA' }).dblclick();
+    await page.locator('#btn-resumen-mov-editar').click();
+
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Editar movimiento');
+    await expect(page.locator('#grupo-categoria')).toBeVisible();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Gasto fijo"]')).toBeVisible();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Transferencia"]')).toBeVisible();
+    await expect(page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]')).toHaveClass(/active/);
   });
 });
 

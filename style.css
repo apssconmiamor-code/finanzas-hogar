@@ -393,6 +393,25 @@ input, select, textarea, table {
 }
 .btn-franja-grande { padding: 40px 18px; font-size: 20px; }
 
+/* Fila de 3 botones "Nuevo movimiento" (Ingreso/Gasto/Transferencia) que
+   reemplaza al único botón "Nuevo Movimiento" de antes -- cada uno abre el
+   modal con ese tipo ya elegido (ver abrirNuevoMovimiento en app.js).
+   Coloreados con el mismo criterio que ya usa el resto de la app para
+   estas categorías (verde ingreso, rojo gasto — ver .resumen-item.ingreso/
+   .gasto); Transferencia usa el color de marca al no tener uno propio. */
+.tipo-mov-btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+.tipo-mov-btn {
+  flex: 1; border: none; border-radius: var(--r-sm);
+  padding: 16px 8px; font-size: 14px; font-weight: 600;
+  color: #fff; cursor: pointer; font-family: var(--font);
+  letter-spacing: -0.1px; transition: all 0.15s;
+}
+.tipo-mov-btn:hover { transform: translateY(-1px); }
+.tipo-mov-btn:active { transform: scale(0.97); }
+.tipo-mov-ingreso { background: var(--green); }
+.tipo-mov-gasto { background: var(--red); }
+.tipo-mov-transferencia { background: var(--brand); }
+
 /* Card section wrapper */
 .card-section {
   background: var(--surface); border-radius: var(--r-lg);
@@ -499,6 +518,18 @@ input, select, textarea, table {
 .cat-btn:nth-child(4) { border-bottom-right-radius: var(--r-sm); }
 .cat-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); z-index: 1; }
 .cat-btn.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; z-index: 1; }
+/* Flujo "Nuevo gasto" (abrirNuevoMovimiento en app.js): solo quedan
+   visibles Fijo/Variable (Ingreso y Transferencia se ocultan) -- las
+   esquinas redondeadas de arriba están pensadas para la grilla 2x2
+   completa, así que acá se corrigen a mano para que la fila de 2 que
+   queda visible se vea como una sola píldora, no con las esquinas
+   invertidas que le tocarían por su posición original en el DOM. */
+#cat-btn-group.grupo-2 .cat-btn[data-value="Gasto fijo"] {
+  margin-left: 0; border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+#cat-btn-group.grupo-2 .cat-btn[data-value="Gasto variable"] {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
 .concepto-placeholder { font-size: 13px; color: var(--text-4); padding: 12px 0; text-align: center; font-style: italic; }
 
 /* Campo de Concepto (Fijo/Variable/Ingreso) -- los tres con panel propio
@@ -544,7 +575,8 @@ input, select, textarea, table {
    look de lista nativa (iOS/Android), consistente para Fijos, Variable,
    Ingreso y el selector de Caja, que ya usaban este mismo panel. */
 .caja-picker-option {
-  display: block; width: 100%; text-align: left; border: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; border: none;
   border-bottom: 1px solid var(--border); border-radius: 0;
   padding: 14px; margin-top: 0;
   font-size: 15px; font-family: var(--font); color: var(--text);
@@ -552,6 +584,16 @@ input, select, textarea, table {
 }
 .caja-picker-option:last-child { border-bottom: none; }
 .caja-picker-option:hover, .caja-picker-option:active { filter: brightness(0.96); }
+.caja-picker-option-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Logo de la entidad (Nequi/Bancolombia/Mercado Pago/Falabella) a la
+   derecha de cada fila -- alto fijo + ancho automático mantiene la
+   proporción de cada logo sin estirarlo, y no agranda la fila porque
+   queda dentro del mismo padding que ya tenía el texto (pedido explícito
+   del usuario: mismo tamaño de fila de siempre). */
+.caja-picker-option-icono {
+  height: 20px; width: auto; max-width: 72px; object-fit: contain;
+  flex-shrink: 0; border-radius: 3px;
+}
 .caja-picker-empty { padding: 14px; font-size: 14px; color: var(--text-4); }
 
 /* ═══════════════ MODAL ═══════════════ */

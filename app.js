@@ -1087,12 +1087,10 @@ document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
 
   // Movimientos
 
-document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => {
-    document.getElementById("modal-movimiento").classList.remove("hidden");
-    poblarSelectCajas("mov-caja");
-    actualizarConceptosPrestamo();
-  });
-  
+document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abrirNuevoMovimiento("Ingreso"));
+  document.getElementById("btn-nuevo-gasto").addEventListener("click", () => abrirNuevoMovimiento("Gasto"));
+  document.getElementById("btn-nueva-transferencia").addEventListener("click", () => abrirNuevoMovimiento("Transferencia"));
+
   document.getElementById("btn-cancelar-mov").addEventListener("click", () => {
     document.getElementById("modal-movimiento").classList.add("hidden");
     limpiarFormMov();
@@ -1163,18 +1161,7 @@ document.getElementById("btn-nuevo-movimiento").addEventListener("click", () => 
   document.getElementById("cat-btn-group").addEventListener("click", (e) => {
     const btn = e.target.closest(".cat-btn");
     if (!btn) return;
-    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("mov-categoria").value = btn.dataset.value;
-    actualizarCampoConcepto();
-    // Al cambiar categoría, resetear el filtro de cajas según monto actual
-    const cat   = btn.dataset.value;
-    const monto = evaluarMonto(document.getElementById("mov-monto").value) || 0;
-    if (cat === "Ingreso" || cat === "Transferencia") {
-      poblarSelectCajas("mov-caja");
-    } else {
-      poblarSelectCajas("mov-caja", monto > 0 ? monto : 0);
-    }
+    seleccionarCategoriaMovimiento(btn.dataset.value);
   });
 
   document.getElementById("filtro-mes").addEventListener("change", renderMovimientos);
@@ -1239,6 +1226,56 @@ function poblarSelectGastosFijos() {
   });
 
   poblarPanelConcepto("mov-concepto-fijo", "panel-concepto-fijo", opciones);
+}
+
+// Marca "valor" como categoría activa (botón .cat-btn + input oculto
+// mov-categoria) y refresca concepto/cajas en consecuencia -- lo usa tanto
+// el click directo sobre un .cat-btn como abrirNuevoMovimiento() al
+// preseleccionar Ingreso/Transferencia.
+function seleccionarCategoriaMovimiento(valor) {
+  document.querySelectorAll(".cat-btn").forEach(b => b.classList.toggle("active", b.dataset.value === valor));
+  document.getElementById("mov-categoria").value = valor;
+  actualizarCampoConcepto();
+  // Al cambiar categoría, resetear el filtro de cajas según monto actual
+  const monto = evaluarMonto(document.getElementById("mov-monto").value) || 0;
+  if (valor === "Ingreso" || valor === "Transferencia") {
+    poblarSelectCajas("mov-caja");
+  } else {
+    poblarSelectCajas("mov-caja", monto > 0 ? monto : 0);
+  }
+}
+
+// Abre el modal desde uno de los 3 botones de la pestaña Movimientos
+// (Ingreso / Gasto / Transferencia) -- a diferencia del viejo botón único
+// "Nuevo Movimiento", acá el tipo ya viene elegido de afuera:
+//   - Ingreso/Transferencia: la categoría se preselecciona sola y el
+//     selector de categoría (#grupo-categoria) queda oculto -- el usuario
+//     nunca lo ve, no hay nada que elegir.
+//   - Gasto: la categoría NO se asume (puede ser fijo o variable) -- se
+//     muestra el selector, pero recortado a solo esas dos opciones.
+function abrirNuevoMovimiento(tipo) {
+  document.getElementById("modal-movimiento").classList.remove("hidden");
+  poblarSelectCajas("mov-caja");
+  actualizarConceptosPrestamo();
+
+  document.getElementById("modal-movimiento-titulo").textContent =
+    tipo === "Ingreso" ? "Nuevo ingreso" : tipo === "Transferencia" ? "Nueva transferencia" : "Nuevo gasto";
+
+  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("hidden"));
+
+  if (tipo === "Gasto") {
+    document.getElementById("grupo-categoria").classList.remove("hidden");
+    document.getElementById("cat-btn-group").classList.add("grupo-2");
+    document.querySelector('.cat-btn[data-value="Ingreso"]').classList.add("hidden");
+    document.querySelector('.cat-btn[data-value="Transferencia"]').classList.add("hidden");
+    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("mov-categoria").value = "";
+    actualizarCampoConcepto();
+  } else {
+    document.getElementById("grupo-categoria").classList.add("hidden");
+    document.getElementById("cat-btn-group").classList.remove("grupo-2");
+    seleccionarCategoriaMovimiento(tipo);
+  }
 }
 
 function actualizarCampoConcepto() {
@@ -1589,6 +1626,18 @@ function cajaColorFondo(nombre) {
   if (n.includes("luni"))  return "rgba(241,176,255,0.1)"; // rosa/lila pastel, muy transparente
   if (n.includes("choco")) return "rgba(215,255,218,0.1)"; // verde pastel, muy transparente
   return "#ffffff";
+}
+
+// Logo de la entidad según el nombre de la caja (lista desplegable del
+// selector de caja, pedido explícito del usuario) -- null si el nombre no
+// menciona ninguna de las que tienen ícono.
+function iconoCajaImagen(nombre) {
+  const n = (nombre || "").toLowerCase();
+  if (n.includes("nequi"))        return "nequi.png";
+  if (n.includes("bancolombia"))  return "bancolombia.png";
+  if (n.includes("mercado pago")) return "mercado-pago.png";
+  if (n.includes("falabella"))    return "falabella.png";
+  return null;
 }
 
 function renderCajas() {
@@ -2301,6 +2350,15 @@ function abrirEditarMovimiento(id) {
   document.getElementById("modal-movimiento").classList.remove("hidden");
   poblarSelectCajas("mov-caja");
 
+  // El selector de categoría puede haber quedado recortado/oculto por un
+  // abrirNuevoMovimiento() anterior (Ingreso/Transferencia lo ocultan del
+  // todo, Gasto oculta dos de los cuatro botones) -- al editar se muestra
+  // siempre completo, la categoría real del movimiento puede ser cualquiera.
+  document.getElementById("modal-movimiento-titulo").textContent = "Editar movimiento";
+  document.getElementById("grupo-categoria").classList.remove("hidden");
+  document.getElementById("cat-btn-group").classList.remove("grupo-2");
+  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("hidden"));
+
   document.getElementById("mov-fecha").value       = m.fecha;
   document.getElementById("mov-categoria").value = m.categoria;
   document.querySelectorAll(".cat-btn").forEach(b => {
@@ -2543,10 +2601,16 @@ function refrescarSelectorCaja(selectId) {
 
   const opciones = Array.from(sel.options).filter(o => o.value !== "");
   panel.innerHTML = opciones.length
-    ? opciones.map(o => `
+    ? opciones.map(o => {
+        const icono = iconoCajaImagen(o.value);
+        return `
         <button type="button" class="caja-picker-option" data-value="${o.value.replace(/"/g, "&quot;")}"
-          style="background-color:${cajaColorFondo(o.value)}">${o.textContent}</button>
-      `).join("")
+          style="background-color:${cajaColorFondo(o.value)}">
+          <span class="caja-picker-option-texto">${o.textContent}</span>
+          ${icono ? `<img class="caja-picker-option-icono" src="${icono}" alt="" />` : ""}
+        </button>
+      `;
+      }).join("")
     : `<div class="caja-picker-empty">Sin cajas disponibles</div>`;
 
   panel.querySelectorAll(".caja-picker-option").forEach(btn => {

@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v145";
+const CACHE_NAME = "finanzas-v146";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -19,6 +19,10 @@ const STATIC_ASSETS = [
   "./config.js",
   "./manifest.json",
   "./icono.png",
+  "./nequi.png",
+  "./bancolombia.png",
+  "./mercado-pago.png",
+  "./falabella.png",
   "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap"
 ];
 

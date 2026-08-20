@@ -21,8 +21,7 @@ test.describe('Adjuntar foto/audio sin conexión', () => {
     await esperarAppLista(page);
     await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
 
-    await page.locator('#btn-nuevo-movimiento').click();
-    await page.locator('.cat-btn[data-value="Ingreso"]').first().click();
+    await page.locator('#btn-nuevo-ingreso').click();
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('500000');
