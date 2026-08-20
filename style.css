@@ -400,10 +400,12 @@ input, select, textarea, table {
    modal con ese tipo ya elegido (ver abrirNuevoMovimiento en app.js).
    Pegados en un solo bloque (mismo criterio que .modal-actions de
    Cancelar/Guardar: sin espacio entre ellos, solo las puntas de afuera
-   redondeadas) con los colores sólidos originales. */
+   redondeadas). Sin ícono y con el mismo azul de marca que .btn-primary
+   en vez de verde/rojo/azul sueltos -- pedido explícito: los colores
+   anteriores no se leían como botones de acción reales de la app. */
 .tipo-mov-btn-group { display: flex; gap: 0; margin-bottom: 20px; }
 .tipo-mov-btn {
-  flex: 1; border: none; border-radius: 0;
+  flex: 1; border: none; border-radius: 0; background: var(--brand);
   padding: 16px 8px; font-size: 14px; font-weight: 600;
   color: #fff; cursor: pointer; font-family: var(--font);
   letter-spacing: -0.1px; transition: all 0.15s;
@@ -411,11 +413,8 @@ input, select, textarea, table {
 }
 .tipo-mov-btn:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
 .tipo-mov-btn:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
-.tipo-mov-btn:hover { z-index: 1; transform: translateY(-1px); }
+.tipo-mov-btn:hover { z-index: 1; background: var(--brand-hover); transform: translateY(-1px); }
 .tipo-mov-btn:active { transform: scale(0.97); z-index: 1; }
-.tipo-mov-ingreso { background: var(--green); }
-.tipo-mov-gasto { background: var(--red); }
-.tipo-mov-transferencia { background: var(--brand); }
 
 /* Card section wrapper */
 .card-section {
