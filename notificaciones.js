@@ -546,16 +546,7 @@ function renderItemNotificacion(n, soloRevisado = false) {
 // preventDefault() no cancela el evento en sí, solo la acción por defecto
 // del navegador que dispara (bug real reportado: con onclick, "al darle
 // doble clic no me da el resumen" seguía pasando en el celular real).
-let ultimoTapNotif = { id: null, tiempo: 0 };
-function tapNotificacion(id) {
-  const ahora = Date.now();
-  if (ultimoTapNotif.id === id && ahora - ultimoTapNotif.tiempo < 400) {
-    ultimoTapNotif = { id: null, tiempo: 0 };
-    abrirResumenNotificacion(id);
-  } else {
-    ultimoTapNotif = { id, tiempo: ahora };
-  }
-}
+const tapNotificacion = crearManejadorDobleToque(id => id, id => abrirResumenNotificacion(id));
 
 // ---- Resumen de una alerta (doble clic sobre su tarjeta) ----
 function abrirResumenNotificacion(id) {
@@ -1078,13 +1069,8 @@ function setupNotificacionesListeners() {
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);
 
-  document.getElementById("modal-notificacion")
-    ?.addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-notificacion")) {
-        document.getElementById("modal-notificacion").classList.add("hidden");
-        limpiarFormNotificacion();
-      }
-    });
+  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
+  // (ver cerrarModal, que ya sabe llamar a limpiarFormNotificacion para este modal).
 
   document.getElementById("btn-guardar-bloque-alerta")
     ?.addEventListener("click", async () => {
@@ -1112,13 +1098,6 @@ function setupNotificacionesListeners() {
       document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
     });
 
-  document.getElementById("modal-bloque-alerta")
-    ?.addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-bloque-alerta")) {
-        document.getElementById("modal-bloque-alerta").classList.add("hidden");
-      }
-    });
-
   document.getElementById("btn-resumen-revisado")
     ?.addEventListener("click", () => {
       const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
@@ -1138,12 +1117,6 @@ function setupNotificacionesListeners() {
       document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
     });
 
-  document.getElementById("modal-resumen-notificacion")
-    ?.addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-resumen-notificacion")) {
-        document.getElementById("modal-resumen-notificacion").classList.add("hidden");
-      }
-    });
 }
 
 if (document.readyState === "loading") {

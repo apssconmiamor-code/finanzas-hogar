@@ -844,6 +844,22 @@
       </div>
     </div>
 
+    <!-- Menú de Editar/Eliminar compartido -- lo abre mantener presionado
+         sobre cualquier ítem con esas acciones (ver abrirMenuEditarBorrar
+         en app.js). Un solo modal para toda la app, no uno por módulo. -->
+    <div id="modal-editar-borrar" class="modal hidden">
+      <div class="modal-card" style="max-width:360px">
+        <div class="modal-header">
+          <span id="editar-borrar-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-editar-borrar').classList.add('hidden')">✕</button>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-editar-borrar-eliminar">🗑️ Eliminar</button>
+          <button class="btn-primary" id="btn-editar-borrar-editar">✏️ Editar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Menú del botón flotante: acciones rápidas (las que el usuario haya
          configurado, sin límite) + Agregar + Recordatorio -->
     <div id="modal-menu-acciones" class="modal hidden">
@@ -937,6 +953,7 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
+  <script src="gestos.js"></script>
   <script src="sheets.js"></script>
   <script src="sync.js"></script>
   <script src="sheets-offline.js"></script>

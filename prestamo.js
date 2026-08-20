@@ -418,15 +418,7 @@ function setupPrestamoListeners() {
   const pagoMonto = document.getElementById("pago-monto");
   if (pagoMonto) pagoMonto.addEventListener("input", () => formatearInputMiles(pagoMonto));
 
-  // Cerrar modales al clic fuera
-  ["modal-prestamo", "modal-pago-rapido"].forEach(id => {
-    const modal = document.getElementById(id);
-    if (modal) {
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) modal.classList.add("hidden");
-      });
-    }
-  });
+  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js (ver cerrarModal).
 }
 
 if (document.readyState === "loading") {

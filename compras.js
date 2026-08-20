@@ -365,13 +365,8 @@ function setupComprasListeners() {
   const compraMonto = document.getElementById("compra-monto");
   if (compraMonto) compraMonto.addEventListener("input", () => formatearInputMiles(compraMonto));
 
-  document.getElementById("modal-compra")
-    .addEventListener("click", (e) => {
-      if (e.target === document.getElementById("modal-compra")) {
-        document.getElementById("modal-compra").classList.add("hidden");
-        limpiarFormCompra();
-      }
-    });
+  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
+  // (ver cerrarModal, que ya sabe llamar a limpiarFormCompra para este modal).
 
   document.getElementById("btn-cancelar-mov")
     .addEventListener("click", _limpiarCompraContexto, { capture: false });

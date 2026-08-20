@@ -973,19 +973,30 @@ function animarYCerrar(el, cerrarDeVerdad) {
   }, ANIM_CIERRE_MS);
 }
 
+// Limpieza especial al cerrar un modal en particular (frenar el
+// micrófono si estaba grabando, limpiar un formulario a medio llenar...)
+// -- UN solo lugar para que TODO camino de cierre (deslizar, tocar el
+// fondo, X, Cancelar) haga la misma limpieza. Antes cada camino tenía su
+// propia copia de esta lógica (o directamente no la tenía) -- bug real:
+// tocar el fondo de "Nuevo movimiento" mientras se grababa audio podía
+// dejar el micrófono prendido, porque esa limpieza solo vivía en el
+// gesto de deslizar.
+function cerrarModal(modalEl) {
+  if (!modalEl) return;
+  if (modalEl.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
+    cerrarModalCrearRecordatorio();
+    return;
+  }
+  if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
+  if (modalEl.id === "modal-compra" && typeof limpiarFormCompra === "function") limpiarFormCompra();
+  if (modalEl.id === "modal-notificacion" && typeof limpiarFormNotificacion === "function") limpiarFormNotificacion();
+  modalEl.classList.add("hidden");
+}
+
 function cerrarPantallaActual() {
   const modalAbierto = document.querySelector(".modal:not(.hidden)");
   if (modalAbierto) {
-    // Los modales que pueden estar grabando audio necesitan apagar el
-    // micrófono al cerrarse, no solo ocultarse.
-    animarYCerrar(modalAbierto, () => {
-      if (modalAbierto.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
-        cerrarModalCrearRecordatorio();
-      } else {
-        if (modalAbierto.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
-        modalAbierto.classList.add("hidden");
-      }
-    });
+    animarYCerrar(modalAbierto, () => cerrarModal(modalAbierto));
     return true;
   }
   const dropdown = document.getElementById("dropdown-menu");
@@ -1042,6 +1053,9 @@ function cerrarPantallaActual() {
     if (dx > SWIPE_MIN_PX && dy < DESVIO_MAX_PX) cerrarPantallaActual();
   }, { passive: true });
 })();
+
+// Criterio único de gestos (doble toque / mantener presionado) — ver gestos.js,
+// cargado antes que este archivo a propósito.
 
 // ---- NAVEGACIÓN ----
 
@@ -1186,10 +1200,11 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
   setupFotosListeners();
   setupDesplegablesConcepto();
 
-  // Cerrar modal al clic fuera
+  // Cerrar modal al clic fuera (misma limpieza que el gesto de deslizar,
+  // ver cerrarModal)
   document.querySelectorAll(".modal").forEach(modal => {
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.classList.add("hidden");
+      if (e.target === modal) cerrarModal(modal);
     });
   });
   setupTopbarMenu();
@@ -1962,16 +1977,7 @@ async function renderMesArchivado(mes) {
 // ondblclick porque el bloqueo de zoom (touchend -> preventDefault en index.html)
 // suprime la síntesis nativa de click/dblclick en Safari iOS real, aunque
 // funcione con .dblclick() de Playwright (que no pasa por ese camino táctil).
-let ultimoTapMov = { id: null, tiempo: 0 };
-function tapMovimiento(id) {
-  const ahora = Date.now();
-  if (ultimoTapMov.id === id && ahora - ultimoTapMov.tiempo < 400) {
-    ultimoTapMov = { id: null, tiempo: 0 };
-    mostrarResumenMovimiento(id);
-  } else {
-    ultimoTapMov = { id, tiempo: ahora };
-  }
-}
+const tapMovimiento = crearManejadorDobleToque(id => id, id => mostrarResumenMovimiento(id));
 
 // Resumen de un movimiento (doble toque sobre su tarjeta) -- Editar/Borrar
 // viven acá abajo, ya no sueltos en la tarjeta (mismo patrón que Alertas y
@@ -2993,8 +2999,8 @@ function agregarMesProyeccion() {
     });
   });
 
+  // Cerrar tocando el fondo ya lo cubre el listener genérico (ver cerrarModal).
   document.getElementById("btn-cancelar-agregar-mes").onclick = () => modal.classList.add("hidden");
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); }, { once: true });
 }
 
 function eliminarMesProyeccion(mes) {
@@ -3266,8 +3272,8 @@ function abrirConfigMes(mes) {
     SyncManager.mostrarToast("✅ Proyección de " + new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" }) + " guardada");
   };
 
+  // Cerrar tocando el fondo ya lo cubre el listener genérico (ver cerrarModal).
   document.getElementById("btn-cancelar-config-mes").onclick = () => modal.classList.add("hidden");
-  modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); }, { once: true });
 }
 
 // Abre un modal chico para editar el estimado de un solo concepto (gasto o ingreso)
@@ -3470,20 +3476,11 @@ function renderTablaComparacion(movsDelMes) {
 // llegaría a ella (bug real: el resumen no se abría). Por eso el primer
 // toque espera 400ms antes de abrir nada, dando tiempo a que llegue un
 // segundo toque que lo cancele y abra el resumen en su lugar.
-let ultimoTapConcepto = { key: null, tiempo: 0 };
-let tapConceptoTimer = null;
-function tapConcepto(concepto, categoria, esOtros) {
-  const key = concepto + "|" + categoria;
-  const ahora = Date.now();
-  if (ultimoTapConcepto.key === key && ahora - ultimoTapConcepto.tiempo < 400) {
-    clearTimeout(tapConceptoTimer);
-    ultimoTapConcepto = { key: null, tiempo: 0 };
-    abrirResumenConcepto(concepto, categoria, esOtros);
-  } else {
-    ultimoTapConcepto = { key, tiempo: ahora };
-    tapConceptoTimer = setTimeout(() => abrirDetalleRealConcepto(concepto, categoria, esOtros), 400);
-  }
-}
+const tapConcepto = crearManejadorDobleToque(
+  (concepto, categoria) => concepto + "|" + categoria,
+  (concepto, categoria, esOtros) => abrirResumenConcepto(concepto, categoria, esOtros),
+  { alPrimerToque: (concepto, categoria, esOtros) => abrirDetalleRealConcepto(concepto, categoria, esOtros) }
+);
 
 // ---- DETALLE DE MOVIMIENTOS REALES (clic en una fila) ----
 
