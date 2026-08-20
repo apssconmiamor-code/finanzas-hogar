@@ -584,17 +584,6 @@ function abrirResumenNotificacion(id) {
   document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", !_esPasada(n));
 
   const modal = document.getElementById("modal-resumen-notificacion");
-  const btnEditar   = document.getElementById("btn-resumen-notif-editar");
-  const btnEliminar = document.getElementById("btn-resumen-notif-eliminar");
-  if (btnEditar) btnEditar.onclick = () => {
-    modal?.classList.add("hidden");
-    abrirEditarNotificacion(id);
-  };
-  if (btnEliminar) btnEliminar.onclick = () => {
-    modal?.classList.add("hidden");
-    borrarNotificacion(id);
-  };
-
   if (modal) modal.dataset.id = id;
   modal?.classList.remove("hidden");
 }
@@ -742,6 +731,24 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
     bloqueAlertaAbierto = null;
     renderNotificaciones();
   });
+
+  // Mantener presionada abre Editar/Eliminar (ver abrirMenuEditarBorrar en
+  // gestos.js) -- salvo en "Activos", donde no aplica (ver comentario
+  // arriba: ahí solo se puede confirmar que ya se atendió).
+  if (!esActivos) {
+    lista.querySelectorAll(".notificacion-item[data-id]").forEach(item => {
+      const id = item.dataset.id;
+      const n = itemsOrdenados.find(x => x.id === id);
+      if (!n) return;
+      crearManejadorPresionSostenida(item, {
+        onLargo: () => abrirMenuEditarBorrar({
+          titulo: n.titulo,
+          onEditar: () => abrirEditarNotificacion(id),
+          onBorrar: () => borrarNotificacion(id)
+        })
+      });
+    });
+  }
 }
 
 // Notificaciones de una sola vez no se cancelan solas al dispararse (ver

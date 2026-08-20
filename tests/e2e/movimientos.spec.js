@@ -171,8 +171,16 @@ test.describe('Movimientos', () => {
     await page.locator('#btn-guardar-mov').click();
     await expect(page.locator('#modal-movimiento')).toBeHidden();
 
-    await page.locator('.mov-card', { hasText: 'SURA' }).dblclick();
-    await page.locator('#btn-resumen-mov-editar').click();
+    // Editar ya no vive en el resumen del doble toque -- lo abre mantener
+    // presionada la tarjeta (pointerdown + esperar + pointerup).
+    const tarjetaSura = page.locator('.mov-card', { hasText: 'SURA' });
+    const box = await tarjetaSura.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await page.locator('#btn-editar-borrar-editar').click();
 
     await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Editar movimiento');
     await expect(page.locator('#grupo-categoria')).toBeVisible();
@@ -219,28 +227,44 @@ test.describe('Movimientos — filtro de subcategoría', () => {
     await expect(page.locator('#movimientos-list')).not.toContainText('Internet');
   });
 
-  test('la tarjeta no tiene botones sueltos -- Editar/Borrar viven en el resumen (doble toque)', async ({ page }) => {
+  test('la tarjeta no tiene botones sueltos -- doble toque abre un resumen de solo lectura, sin Editar/Borrar', async ({ page }) => {
     const tarjeta = page.locator('.mov-card', { hasText: 'Alquiler' });
     await expect(tarjeta).toBeVisible();
     await expect(tarjeta.locator('button')).toHaveCount(0);
 
     await tarjeta.dblclick();
     await expect(page.locator('#modal-resumen-movimiento')).toBeVisible();
-    await expect(page.locator('#resumen-mov-acciones')).toBeVisible();
+    await expect(page.locator('#modal-resumen-movimiento button')).toHaveCount(1); // solo la ✕ de cerrar
+  });
 
-    await page.locator('#btn-resumen-mov-editar').click();
-    await expect(page.locator('#modal-resumen-movimiento')).toBeHidden();
+  test('mantener presionada una tarjeta abre Editar/Eliminar', async ({ page }) => {
+    const tarjeta = page.locator('.mov-card', { hasText: 'Alquiler' });
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#modal-resumen-movimiento')).toBeHidden(); // no abrió el resumen de paso
+
+    await page.locator('#btn-editar-borrar-editar').click();
+    await expect(page.locator('#modal-editar-borrar')).toBeHidden();
     await expect(page.locator('#modal-movimiento')).toBeVisible();
     await expect(page.locator('#mov-monto')).toHaveValue('500.000');
   });
 
-  test('borrar desde el resumen quita el movimiento de la lista', async ({ page }) => {
+  test('borrar desde el menú de mantener presionado quita el movimiento de la lista', async ({ page }) => {
     const tarjeta = page.locator('.mov-card', { hasText: 'Mercado' });
-    await tarjeta.dblclick();
-    await expect(page.locator('#modal-resumen-movimiento')).toBeVisible();
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
 
     page.once('dialog', (d) => d.accept());
-    await page.locator('#btn-resumen-mov-borrar').click();
+    await page.locator('#btn-editar-borrar-eliminar').click();
 
     await expect(page.locator('#movimientos-list')).not.toContainText('Mercado');
   });

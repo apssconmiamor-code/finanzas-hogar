@@ -55,7 +55,7 @@ test.describe('Proyección', () => {
     await expect(page.locator('#nuevo-concepto-duplicado')).toBeVisible();
   });
 
-  test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque ve movimientos y el segundo abre el resumen con Modificar/Eliminar', async ({ page }) => {
+  test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque ve movimientos, el segundo abre el resumen y mantener presionado abre Editar/Eliminar', async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await mockGoogleApis(page, {
       Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
@@ -95,9 +95,9 @@ test.describe('Proyección', () => {
     await page.locator('#btn-cerrar-detalle-real').click();
     await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
 
-    // Un segundo toque rápido sobre la misma fila abre el resumen, con
-    // Modificar/Eliminar al final -- y el detalle de movimientos no se
-    // queda abierto de fondo.
+    // Un segundo toque rápido sobre la misma fila abre el resumen, de solo
+    // lectura -- Modificar/Eliminar viven en el menú de mantener presionado,
+    // no acá -- y el detalle de movimientos no se queda abierto de fondo.
     await filaAlquiler.dblclick();
     await expect(page.locator('#modal-resumen-concepto')).toBeVisible();
     await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
@@ -116,10 +116,22 @@ test.describe('Proyección', () => {
     await expect(listaMovs.first()).toContainText('Efectivo');
     await expect(listaMovs.first()).toContainText('800.000');
 
-    await expect(page.locator('#btn-resumen-concepto-modificar')).toBeVisible();
-    await expect(page.locator('#btn-resumen-concepto-eliminar')).toBeVisible();
+    // El resumen ya no tiene botones de acción -- solo la ✕ de cerrar.
+    await expect(page.locator('#modal-resumen-concepto button')).toHaveCount(1);
+    await page.locator('#modal-resumen-concepto .modal-close').click();
 
-    await page.locator('#btn-resumen-concepto-modificar').click();
+    // Mantener presionada la fila (pointerdown + esperar + pointerup)
+    // abre Editar/Eliminar.
+    const boxAlquiler = await filaAlquiler.boundingBox();
+    await page.mouse.move(boxAlquiler.x + boxAlquiler.width / 2, boxAlquiler.y + boxAlquiler.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-editar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeVisible();
+
+    await page.locator('#btn-editar-borrar-editar').click();
     await expect(page.locator('#modal-modificar-concepto')).toBeVisible();
     await expect(page.locator('#modificar-concepto-nombre')).toContainText('Alquiler');
   });
@@ -213,5 +225,15 @@ test.describe('Proyección', () => {
     await expect(valorBalance).toContainText('+');
     await expect(valorBalance).toContainText('50.000');
     await expect(valorBalance).toHaveCSS('color', 'rgb(26, 122, 54)'); // --green-dark
+
+    // Mantener presionada "Ajuste" no ofrece Editar/Eliminar -- no tiene
+    // estimado que se pueda modificar ni una fila de presupuesto que borrar.
+    await page.locator('#modal-resumen-concepto .modal-close').click();
+    const boxAjuste = await filaAjuste.boundingBox();
+    await page.mouse.move(boxAjuste.x + boxAjuste.width / 2, boxAjuste.y + boxAjuste.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeHidden();
   });
 });

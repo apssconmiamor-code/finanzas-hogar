@@ -173,7 +173,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(tarjeta).not.toHaveClass(/notificacion-item-pasada/);
   });
 
-  test('la tarjeta de una alarma solo muestra nombre y próximo recordatorio -- Editar/Eliminar viven en el resumen', async ({ page }) => {
+  test('la tarjeta de una alarma solo muestra nombre y próximo recordatorio -- doble toque abre un resumen de solo lectura, mantener presionado abre Editar/Eliminar', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
       Notificaciones: [['N9', 'Pagar seguro', 'Un mensaje cualquiera', 'mensual', enUnaHora, '', 'familia', 'prueba@example.com', 'activa', '', '1', 'mes']],
@@ -185,9 +185,8 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirBloqueAlerta(page, 'Otros');
     const tarjeta = page.locator('.notificacion-item');
     await expect(tarjeta).toContainText('Pagar seguro');
-    // Ya no hay botones sueltos en la tarjeta -- Editar/Eliminar se mudaron
-    // al resumen del segundo toque (ver más abajo y "Editar sigue
-    // funcionando...").
+    // Ya no hay botones sueltos en la tarjeta -- Editar/Eliminar viven en
+    // el menú de mantener presionado, no en la tarjeta ni en el resumen.
     await expect(tarjeta.locator('button')).toHaveCount(0);
     // El resto de la info (mensaje, destinatario, repetición...) va solo en el resumen.
     await expect(tarjeta).not.toContainText('Un mensaje cualquiera');
@@ -196,8 +195,18 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await tarjeta.dblclick();
     await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
-    await expect(page.locator('#btn-resumen-notif-editar')).toBeVisible();
-    await expect(page.locator('#btn-resumen-notif-eliminar')).toBeVisible();
+    await expect(page.locator('#btn-resumen-notif-editar')).toHaveCount(0);
+    await expect(page.locator('#btn-resumen-notif-eliminar')).toHaveCount(0);
+    await page.locator('#btn-cerrar-resumen-notificacion').click();
+
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-editar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeVisible();
   });
 
   test('para volver de un bloque a la cuadrícula no hay botón -- se hace con el gesto de deslizar desde el borde', async ({ page }) => {
@@ -450,7 +459,7 @@ test.describe('Notificaciones (Web Push)', () => {
     expect(desbordaAncho).toBe(false);
   });
 
-  test('Editar sigue funcionando desde el resumen (segundo toque), y ahí sí se ve el selector de bloque', async ({ page }) => {
+  test('Editar sigue funcionando desde mantener presionado, y ahí sí se ve el selector de bloque', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
       Notificaciones: [['N3b', 'Pagar internet', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
@@ -460,9 +469,14 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await abrirBloqueAlerta(page, 'Otros');
-    await page.locator('.notificacion-item').dblclick();
-    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
-    await page.locator('#btn-resumen-notif-editar').click();
+    const tarjeta = page.locator('.notificacion-item');
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await page.locator('#btn-editar-borrar-editar').click();
     await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
     await expect(page.locator('#notif-bloque-row')).toBeVisible();
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');
@@ -524,7 +538,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Pagar Netflix');
   });
 
-  test('borrar una notificación la quita de la lista', async ({ page }) => {
+  test('borrar una notificación (desde mantener presionado) la quita de la lista', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
       Notificaciones: [['N2', 'Revisar el correo', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
@@ -534,11 +548,16 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await abrirBloqueAlerta(page, 'Otros');
-    await expect(page.locator('.notificacion-item')).toContainText('Revisar el correo');
-    await page.locator('.notificacion-item').dblclick();
-    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    const tarjeta = page.locator('.notificacion-item');
+    await expect(tarjeta).toContainText('Revisar el correo');
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
     page.once('dialog', (d) => d.accept());
-    await page.locator('#btn-resumen-notif-eliminar').click();
+    await page.locator('#btn-editar-borrar-eliminar').click();
 
     await expect(page.locator('#notificaciones-list')).not.toContainText('Revisar el correo');
   });

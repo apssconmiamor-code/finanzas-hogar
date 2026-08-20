@@ -830,6 +830,10 @@ input, select, textarea, table {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-md); padding: 12px 14px;
   box-shadow: var(--shadow-sm); transition: box-shadow 0.12s;
+  /* Mantener presionada abre Editar/Eliminar (ver abrirMenuEditarBorrar) --
+     sin esto, iOS intenta mostrar su propio menú de selección de texto o
+     callout nativo al sostener el dedo, en vez de dejar pasar el gesto. */
+  user-select: none; -webkit-touch-callout: none;
 }
 .mov-card:hover { box-shadow: var(--shadow-md); }
 
@@ -1029,7 +1033,7 @@ input, select, textarea, table {
   display: block; margin-top: 6px; font-size: 12px; font-weight: 600;
   color: var(--red);
 }
-.proy-tabla-row { border-bottom: 1px solid var(--border); cursor: pointer; }
+.proy-tabla-row { border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; -webkit-touch-callout: none; }
 .proy-tabla-row:last-child { border-bottom: none; }
 .proy-tabla-row:hover td { background: var(--bg); }
 .proy-tabla-row td { padding: 11px 12px; vertical-align: middle; }
@@ -1120,6 +1124,8 @@ input, select, textarea, table {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); margin-bottom: 10px;
   box-shadow: var(--shadow-sm); transition: box-shadow .15s;
+  /* Mantener presionada abre Editar/Eliminar -- mismo motivo que .mov-card. */
+  user-select: none; -webkit-touch-callout: none;
 }
 .notificacion-item:hover { box-shadow: var(--shadow-md); }
 /* Según el día de la alarma contra hoy (ver _estadoDiaAlarma en

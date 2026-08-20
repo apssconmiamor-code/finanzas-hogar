@@ -1855,6 +1855,27 @@ function renderMovimientos() {
   }
 
   list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m)).join("");
+  _conectarLargoPresionListaMovimientos(list, filtrados);
+}
+
+// Mantener presionada una tarjeta de movimiento abre Editar/Eliminar (ver
+// abrirMenuEditarBorrar en gestos.js) -- SOLO para la lista activa. Un mes
+// archivado reusa renderTarjetaMovimiento pero de solo lectura (no está
+// en la hoja activa, abrirEditarMovimiento/borrarMovimiento no lo
+// encontrarían), así que renderMesArchivado nunca llama a esto.
+function _conectarLargoPresionListaMovimientos(contenedor, lista) {
+  contenedor.querySelectorAll(".mov-card").forEach(card => {
+    const id = card.dataset.id;
+    const m = lista.find(x => x.id === id);
+    if (!m) return;
+    crearManejadorPresionSostenida(card, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: m.concepto || "Movimiento",
+        onEditar: () => abrirEditarMovimiento(id),
+        onBorrar: () => borrarMovimiento(id)
+      })
+    });
+  });
 }
 
 // Editar/Borrar ya no van sueltos en la tarjeta -- se ven en el resumen del
@@ -1876,7 +1897,7 @@ function renderTarjetaMovimiento(m) {
     ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
     : "";
 
-  return `<div class="mov-card" onpointerup="tapMovimiento('${m.id}')">
+  return `<div class="mov-card" data-id="${m.id}" onpointerup="tapMovimiento('${m.id}')">
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
@@ -1979,14 +2000,15 @@ async function renderMesArchivado(mes) {
 // funcione con .dblclick() de Playwright (que no pasa por ese camino táctil).
 const tapMovimiento = crearManejadorDobleToque(id => id, id => mostrarResumenMovimiento(id));
 
-// Resumen de un movimiento (doble toque sobre su tarjeta) -- Editar/Borrar
-// viven acá abajo, ya no sueltos en la tarjeta (mismo patrón que Alertas y
-// Proyección). Un movimiento ARCHIVADO (más de 3 meses, ver
-// worker/src/archivo.js) se puede seguir consultando acá, pero de solo
-// lectura -- no vive en la hoja "Movimiento de Caja" activa, así que
-// abrirEditarMovimiento/borrarMovimiento no lo encontrarían.
+// Resumen de un movimiento (doble toque sobre su tarjeta) -- solo lectura;
+// Editar/Borrar viven en el menú de mantener presionado, no acá (ver
+// _conectarLargoPresionListaMovimientos, criterio único de gestos de
+// gestos.js). Un movimiento ARCHIVADO (más de 3 meses, ver
+// worker/src/archivo.js) se puede seguir consultando en este resumen,
+// pero nunca ofrece el mantener-presionado -- no vive en la hoja
+// "Movimiento de Caja" activa, así que abrirEditarMovimiento/
+// borrarMovimiento no lo encontrarían.
 function mostrarResumenMovimiento(id) {
-  const esArchivado = !movimientos.some(x => x.id === id);
   const m = movimientos.find(x => x.id === id) || (movimientosArchivadosCache || []).find(x => x.id === id);
   if (!m) return;
   const caja = cajas.find(c => c.nombre === m.caja);
@@ -2014,19 +2036,6 @@ function mostrarResumenMovimiento(id) {
     ${m.descripcion ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Descripción</span><span>${escapeHtml(m.descripcion)}</span></div>` : ""}
     ${fotoHTML}
   `;
-
-  const acciones = document.getElementById("resumen-mov-acciones");
-  if (acciones) acciones.classList.toggle("hidden", esArchivado);
-  const btnEditar = document.getElementById("btn-resumen-mov-editar");
-  const btnBorrar = document.getElementById("btn-resumen-mov-borrar");
-  if (btnEditar) btnEditar.onclick = () => {
-    document.getElementById("modal-resumen-movimiento").classList.add("hidden");
-    abrirEditarMovimiento(id);
-  };
-  if (btnBorrar) btnBorrar.onclick = () => {
-    document.getElementById("modal-resumen-movimiento").classList.add("hidden");
-    borrarMovimiento(id);
-  };
 
   document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
 
@@ -3439,13 +3448,15 @@ function renderTablaComparacion(movsDelMes) {
       : "";
     categoriaAnterior = f.categoria;
 
-    // Sin botones sueltos de Modificar/Eliminar -- un toque abre los
-    // movimientos reales (como siempre), y un segundo toque rápido sobre la
-    // misma fila abre el resumen con Modificar/Eliminar al final (mismo
-    // patrón que Alertas y Movimientos, ver tapConcepto más abajo).
+    // Sin botones sueltos -- un toque abre los movimientos reales (como
+    // siempre), un segundo toque rápido abre el resumen de solo lectura
+    // (ver tapConcepto más abajo), y mantener presionada abre Editar/
+    // Eliminar (ver conexión después de armar la tabla).
     const conceptoJs  = f.concepto.replace(/'/g, "\\'");
     const categoriaJs = f.categoria.replace(/'/g, "\\'");
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
+    const conceptoAttr  = f.concepto.replace(/"/g, "&quot;");
+    const categoriaAttr = f.categoria.replace(/"/g, "&quot;");
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
       <td>
         <div class="proy-cell-concepto">
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
@@ -3455,6 +3466,33 @@ function renderTablaComparacion(movsDelMes) {
       <td class="proy-cell-num proy-cell-real">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
     </tr>`;
   }).join("");
+
+  _conectarLargoPresionTablaComparacion();
+}
+
+// Mantener presionada una fila abre Editar/Eliminar (ver abrirMenuEditarBorrar
+// en gestos.js) -- mismo criterio que ya usaban los botones sueltos que
+// existían antes: Modificar no aplica a "Otros" (agregado, no un concepto
+// con estimado propio) ni a "Ajuste" (automático, nunca tiene estimado
+// editable); Eliminar solo aplica a las tres categorías presupuestables, y
+// tampoco a "Ajuste".
+function _conectarLargoPresionTablaComparacion() {
+  document.querySelectorAll("#proy-tabla-body .proy-tabla-row[data-concepto]").forEach(row => {
+    const concepto  = row.dataset.concepto;
+    const categoria = row.dataset.categoria;
+    const esOtros   = row.dataset.esOtros === "true";
+    const puedeModificar = !esOtros && concepto !== "Ajuste";
+    const puedeEliminar  = concepto !== "Ajuste" &&
+      (categoria === "Gasto fijo" || categoria === "Gasto variable" || categoria === "Ingreso");
+    if (!puedeModificar && !puedeEliminar) return;
+    crearManejadorPresionSostenida(row, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: `${ICONOS[concepto] || "📌"} ${concepto}`,
+        onEditar: puedeModificar ? () => abrirModificarConcepto(concepto, categoria) : null,
+        onBorrar: puedeEliminar ? () => eliminarConceptoPresupuesto(concepto, categoria) : null
+      })
+    });
+  });
 }
 
 // Toque/clic en una fila de "Detalle por concepto": el primero abre los
@@ -3596,24 +3634,6 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
       ? `<div class="detalle-real-vacio">Sin movimientos reales este mes.</div>`
       : _renderListaMovimientosReales(lista, esOtros);
   }
-
-  const btnModificar = document.getElementById("btn-resumen-concepto-modificar");
-  const btnEliminar  = document.getElementById("btn-resumen-concepto-eliminar");
-  // Mismo criterio que tenían los botones sueltos: Modificar no aplica a
-  // "Otros" (es un agregado, no un concepto con su propio estimado editable
-  // acá), Eliminar solo aplica a las tres categorías presupuestables.
-  if (btnModificar) btnModificar.classList.toggle("hidden", esOtros);
-  const puedeEliminar = categoria === "Gasto fijo" || categoria === "Gasto variable" || categoria === "Ingreso";
-  if (btnEliminar) btnEliminar.classList.toggle("hidden", !puedeEliminar);
-
-  if (btnModificar) btnModificar.onclick = () => {
-    document.getElementById("modal-resumen-concepto")?.classList.add("hidden");
-    abrirModificarConcepto(concepto, categoria);
-  };
-  if (btnEliminar) btnEliminar.onclick = () => {
-    document.getElementById("modal-resumen-concepto")?.classList.add("hidden");
-    eliminarConceptoPresupuesto(concepto, categoria);
-  };
 
   document.getElementById("modal-resumen-concepto")?.classList.remove("hidden");
 }

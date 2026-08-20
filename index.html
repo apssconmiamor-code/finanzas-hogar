@@ -549,10 +549,6 @@
           <button class="modal-close" onclick="document.getElementById('modal-resumen-movimiento').classList.add('hidden')">✕</button>
         </div>
         <div id="resumen-mov-body" class="detalle-real-lista"></div>
-        <div class="modal-actions" id="resumen-mov-acciones">
-          <button class="btn-secondary" id="btn-resumen-mov-borrar">🗑️ Borrar</button>
-          <button class="btn-secondary" id="btn-resumen-mov-editar">✏️ Editar</button>
-        </div>
       </div>
     </div>
 
@@ -749,10 +745,6 @@
         <button type="button" class="btn-primary notif-btn-ancho hidden" id="btn-resumen-revisado">✅ Marcar como revisada</button>
         <button type="button" class="btn-secondary btn-franja" id="btn-resumen-crear-recordatorio">📝 Crear recordatorio</button>
         <div class="modal-actions">
-          <button class="btn-secondary" id="btn-resumen-notif-eliminar">🗑️ Eliminar</button>
-          <button class="btn-primary" id="btn-resumen-notif-editar">✏️ Editar</button>
-        </div>
-        <div class="modal-actions">
           <button class="btn-secondary" id="btn-cerrar-resumen-notificacion">Cerrar</button>
         </div>
       </div>
@@ -837,16 +829,12 @@
         <div id="resumen-concepto-cuerpo" class="detalle-notif-cuerpo"></div>
         <div class="resumen-concepto-movs-titulo">Movimientos reales</div>
         <div id="resumen-concepto-movimientos" class="detalle-real-lista"></div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-resumen-concepto-eliminar">🗑️ Eliminar</button>
-          <button class="btn-primary" id="btn-resumen-concepto-modificar">✏️ Modificar</button>
-        </div>
       </div>
     </div>
 
     <!-- Menú de Editar/Eliminar compartido -- lo abre mantener presionado
          sobre cualquier ítem con esas acciones (ver abrirMenuEditarBorrar
-         en app.js). Un solo modal para toda la app, no uno por módulo. -->
+         en gestos.js). Un solo modal para toda la app, no uno por módulo. -->
     <div id="modal-editar-borrar" class="modal hidden">
       <div class="modal-card" style="max-width:360px">
         <div class="modal-header">
