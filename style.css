@@ -413,6 +413,10 @@ input, select, textarea, table {
 }
 .tipo-mov-btn:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
 .tipo-mov-btn:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+/* Línea blanca sutil solo donde se tocan dos botones -- por eso va en
+   :not(:last-child) (2 bordes = 2 líneas, una por costura) y no en los 3,
+   que dejaría una también en el borde de afuera del último. */
+.tipo-mov-btn:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.3); }
 .tipo-mov-btn:hover { z-index: 1; background: var(--brand-hover); transform: translateY(-1px); }
 .tipo-mov-btn:active { transform: scale(0.97); z-index: 1; }
 
