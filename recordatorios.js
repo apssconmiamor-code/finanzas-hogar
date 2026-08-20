@@ -513,7 +513,7 @@ async function abrirRecordatorioComoMovimiento(id) {
   modal.dataset.fromRecordatorioId = id;
   delete modal.dataset.editId;
 
-  poblarSelectCajas("mov-caja");
+  poblarSelectCajaMovimiento();
   document.getElementById("mov-fecha").value = r.fecha;
   document.getElementById("mov-descripcion").value = r.texto || "";
 

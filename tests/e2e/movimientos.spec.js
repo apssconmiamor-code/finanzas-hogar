@@ -99,6 +99,62 @@ test.describe('Movimientos', () => {
     await expect(page.locator('#grupo-concepto')).toBeHidden();
   });
 
+  test('en Transferencia, el panel de Origen/Destino se despliega al ancho completo del modal, no de su columna angosta', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Ahorros', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+
+    await page.locator('#btn-nueva-transferencia').click();
+    const toggleOrigen = page.locator('#mov-caja-origen + .caja-picker .caja-picker-toggle');
+    await toggleOrigen.click();
+
+    const panel = page.locator('#mov-caja-origen + .caja-picker .caja-picker-panel');
+    await expect(panel).toBeVisible();
+
+    const anchoPanel = await panel.evaluate(el => el.getBoundingClientRect().width);
+    const anchoCard  = await page.locator('#modal-movimiento .modal-card').evaluate(el => el.getBoundingClientRect().width);
+    const anchoColumna = await page.locator('#mov-caja-origen').evaluate(el => el.getBoundingClientRect().width);
+
+    // El panel debe acercarse al ancho de la tarjeta del modal (menos el
+    // padding interno), no quedarse angosto como la columna del <select>.
+    expect(anchoPanel).toBeGreaterThan(anchoColumna * 1.5);
+    expect(anchoPanel).toBeGreaterThan(anchoCard * 0.8);
+  });
+
+  test('en Ingreso/Gasto la caja solo muestra las que este usuario puede manejar; en Transferencia se ven todas', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        // Sin nada en la columna F (usuarios_permitidos) -- visible para todos.
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        // Restringida a otro email -- prueba@example.com no debe verla en Ingreso/Gasto.
+        ['C2', 'prueba@example.com', 'Nequi de otra persona', 'COP', 0, 'otra.persona@example.com'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+
+    await page.locator('#btn-nuevo-ingreso').click();
+    let opciones = await page.locator('#mov-caja option').allTextContents();
+    expect(opciones.some(t => t.includes('Efectivo'))).toBe(true);
+    expect(opciones.some(t => t.includes('Nequi de otra persona'))).toBe(false);
+    await page.locator('#btn-cancelar-mov').click();
+
+    await page.locator('#btn-nueva-transferencia').click();
+    const opcionesOrigen  = await page.locator('#mov-caja-origen option').allTextContents();
+    const opcionesDestino = await page.locator('#mov-caja-destino option').allTextContents();
+    expect(opcionesOrigen.some(t => t.includes('Nequi de otra persona'))).toBe(true);
+    expect(opcionesDestino.some(t => t.includes('Nequi de otra persona'))).toBe(true);
+  });
+
   test('editar un movimiento vuelve a mostrar el selector de categoría completo', async ({ page }) => {
     // "Nuevo gasto" deja el selector recortado (Ingreso/Transferencia
     // ocultos) -- se cancela sin guardar y se registra un ingreso aparte,

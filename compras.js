@@ -166,7 +166,7 @@ function abrirComprarAhora(id) {
   modal.dataset.fromCompraId = id;
 
   // Pre-llenar campos
-  poblarSelectCajas("mov-caja");
+  poblarSelectCajaMovimiento();
   actualizarConceptosPrestamo();
 
   // Fecha hoy

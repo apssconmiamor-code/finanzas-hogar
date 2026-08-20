@@ -1116,7 +1116,7 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
 
     if (catVal !== "Ingreso" && catVal !== "Transferencia") {
       // Repoblar select mostrando solo cajas con fondos suficientes
-      poblarSelectCajas("mov-caja", monto > 0 ? monto : 0);
+      poblarSelectCajaMovimiento(monto > 0 ? monto : 0);
     }
 
     const cajaId = document.getElementById("mov-caja").value;
@@ -1239,9 +1239,9 @@ function seleccionarCategoriaMovimiento(valor) {
   // Al cambiar categoría, resetear el filtro de cajas según monto actual
   const monto = evaluarMonto(document.getElementById("mov-monto").value) || 0;
   if (valor === "Ingreso" || valor === "Transferencia") {
-    poblarSelectCajas("mov-caja");
+    poblarSelectCajaMovimiento();
   } else {
-    poblarSelectCajas("mov-caja", monto > 0 ? monto : 0);
+    poblarSelectCajaMovimiento(monto > 0 ? monto : 0);
   }
 }
 
@@ -1255,7 +1255,7 @@ function seleccionarCategoriaMovimiento(valor) {
 //     muestra el selector, pero recortado a solo esas dos opciones.
 function abrirNuevoMovimiento(tipo) {
   document.getElementById("modal-movimiento").classList.remove("hidden");
-  poblarSelectCajas("mov-caja");
+  poblarSelectCajaMovimiento();
   actualizarConceptosPrestamo();
 
   document.getElementById("modal-movimiento-titulo").textContent =
@@ -2513,11 +2513,21 @@ async function borrarMovimiento(id) {
 
 // Una caja sin usuarios_permitidos configurados (columna F en Cajas, ver
 // sheets.js) es visible para todos -- la restricción solo aplica a las que
-// sí tienen algo ahí. Se usa en Acciones rápidas (pedido explícito del
-// usuario: cada quien solo debe ver ahí las cajas que puede manejar), NO en
-// el selector normal de "nuevo movimiento", que sigue mostrando todas.
+// sí tienen algo ahí. Se usa en Acciones rápidas y en el campo "Caja" de
+// Ingreso/Gasto en "Nuevo movimiento" (ver poblarSelectCajaMovimiento) --
+// NO en Origen/Destino de Transferencia, que a propósito sigue mostrando
+// todas (pedido explícito: una transferencia puede mover plata hacia/desde
+// una caja que uno no "maneja" a diario).
 function cajaVisibleParaUsuario(caja, email) {
   return caja.usuariosPermitidos.length === 0 || caja.usuariosPermitidos.includes(email);
+}
+
+// Wrapper de poblarSelectCajas para el único campo "Caja" del modal (el que
+// usan Ingreso/Gasto, no Origen/Destino de Transferencia) -- centraliza acá
+// el filtro por usuario para no repetirlo en cada uno de los ~7 lugares que
+// abren o refrescan ese campo (app.js, compras.js, recordatorios.js).
+function poblarSelectCajaMovimiento(montoMinimo = 0) {
+  poblarSelectCajas("mov-caja", montoMinimo, (c) => cajaVisibleParaUsuario(c, currentUser?.email));
 }
 
 // Completa sola la columna "usuarios_permitidos" (F) de las cajas que
@@ -2578,6 +2588,34 @@ function poblarSelectCajas(selectId, montoMinimo = 0, filtro = null) {
 
 // ---- SELECTOR DE CAJA CON COLOR (reemplazo visual del <select> nativo) ----
 
+// Origen/Destino de Transferencia viven en dos columnas angostas (la mitad
+// del modal cada una, ver .transferencia-row) -- el panel desplegado hereda
+// ese mismo ancho angosto porque es position:absolute contra .caja-picker
+// (ver .caja-picker-panel en style.css), que es tan angosto como el <select>
+// que envuelve. Pedido explícito: en esos dos campos el panel debe verse al
+// 100% del ancho de la tarjeta del modal, no de su propia columna -- acá se
+// saca del flujo (position:fixed) y se calcula en vivo contra el
+// .modal-card real, así funciona igual en cualquier tamaño de pantalla. Los
+// demás campos de caja (el normal de Ingreso/Gasto, Acciones rápidas, pago
+// rápido de préstamo) no viven en columnas angostas y no necesitan esto.
+function _ensancharPanelCajaSiEsAngosto(panel, toggle) {
+  const card = toggle.closest(".modal-card");
+  const fila = toggle.closest(".transferencia-row");
+  if (!card || !fila) return;
+
+  const rectCard   = card.getBoundingClientRect();
+  const rectToggle = toggle.getBoundingClientRect();
+  const estiloCard = getComputedStyle(card);
+  const padIzq = parseFloat(estiloCard.paddingLeft) || 0;
+  const padDer = parseFloat(estiloCard.paddingRight) || 0;
+
+  panel.style.position = "fixed";
+  panel.style.left     = (rectCard.left + padIzq) + "px";
+  panel.style.width    = (rectCard.width - padIzq - padDer) + "px";
+  panel.style.right    = "auto";
+  panel.style.top      = (rectToggle.bottom + 6) + "px";
+}
+
 function refrescarSelectorCaja(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
@@ -2599,6 +2637,7 @@ function refrescarSelectorCaja(selectId) {
       const abierto = !panel.classList.contains("hidden");
       document.querySelectorAll(".caja-picker-panel").forEach(p => p.classList.add("hidden"));
       panel.classList.toggle("hidden", abierto);
+      if (!panel.classList.contains("hidden")) _ensancharPanelCajaSiEsAngosto(panel, e.currentTarget);
     });
   }
 
