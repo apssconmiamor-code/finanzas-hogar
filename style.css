@@ -720,12 +720,11 @@ input, select, textarea, table {
 .caja-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px rgba(47,107,79,.10); }
 .caja-card:active { transform: scale(0.98); }
 .caja-card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
-.caja-card-moneda-grupo { display: flex; align-items: center; gap: 6px; min-width: 0; }
-/* Logo de la entidad (Nequi/Bancolombia/Mercado Pago/Falabella/Ahorro/
-   Efectivo/Emergencia, ver iconoCajaImagen en app.js) junto a la moneda --
-   mismo criterio visual que ya usa .caja-picker-option-icono en la lista
-   desplegable del selector de caja, pero más chico para no desbalancear
-   la tarjeta compacta de Cuentas. */
+/* Moneda a la izquierda, logo de la entidad (Nequi/Bancolombia/Mercado
+   Pago/Falabella/Ahorro/Efectivo/Emergencia, ver iconoCajaImagen en app.js)
+   a la derecha -- pedido explícito. El aviso de "Requiere ajuste" (cuando
+   aplica) se agrupa junto al logo del lado derecho. */
+.caja-card-top-derecha { display: flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
 .caja-card-icono { height: 16px; width: auto; max-width: 40px; object-fit: contain; border-radius: 3px; flex-shrink: 0; }
 .caja-alerta-ajuste {
   display: inline-flex; align-items: center; gap: 1px;
@@ -1156,6 +1155,14 @@ input, select, textarea, table {
 .detalle-notif-valor {
   color: var(--text); font-weight: 600; text-align: right;
   min-width: 0; overflow-wrap: break-word;
+}
+
+/* Encabezado de la lista de movimientos reales debajo de Categoría/
+   Estimado/Real en el resumen de un concepto de Proyección (segundo
+   toque sobre su fila, ver abrirResumenConcepto en app.js). */
+.resumen-concepto-movs-titulo {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--text-4); margin-top: 4px;
 }
 
 /* Cuadrícula de bloques del panel de Alertas -- mismo espíritu que

@@ -101,6 +101,14 @@ test.describe('Proyección', () => {
     await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
     await expect(page.locator('#resumen-concepto-titulo')).toContainText('Alquiler');
     await expect(page.locator('#resumen-concepto-cuerpo')).toContainText('800.000');
+
+    // Debajo de Categoría/Estimado/Real, la lista de movimientos reales
+    // que se tuvieron en cuenta para ese "Real".
+    const listaMovs = page.locator('#resumen-concepto-movimientos .detalle-real-item');
+    await expect(listaMovs).toHaveCount(1);
+    await expect(listaMovs.first()).toContainText('Efectivo');
+    await expect(listaMovs.first()).toContainText('800.000');
+
     await expect(page.locator('#btn-resumen-concepto-modificar')).toBeVisible();
     await expect(page.locator('#btn-resumen-concepto-eliminar')).toBeVisible();
 

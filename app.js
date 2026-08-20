@@ -1670,11 +1670,11 @@ function renderCajas() {
     const icono = iconoCajaImagen(c.nombre);
     return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
       <div class="caja-card-top">
-        <div class="caja-card-moneda-grupo">
-          <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
+        <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
+        <div class="caja-card-top-derecha">
+          ${requiereAjuste ? `<span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>` : ""}
           ${icono ? `<img class="caja-card-icono" src="${icono}" alt="" />` : ""}
         </div>
-        ${requiereAjuste ? `<span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>` : ""}
       </div>
       <div class="caja-nombre">${c.nombre}</div>
       <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
@@ -3476,53 +3476,60 @@ function tapConcepto(concepto, categoria, esOtros) {
 
 // ---- DETALLE DE MOVIMIENTOS REALES (clic en una fila) ----
 
+// Movimientos reales del mes que cuentan para un concepto de Proyección --
+// compartido entre abrirDetalleRealConcepto (lista de "un toque") y
+// abrirResumenConcepto (mismo total + la misma lista, debajo de Categoría/
+// Estimado/Real). "esOtros" agrupa distinto: mismo criterio que
+// renderTablaComparacion usa para armar esa fila -- conceptos que no
+// tienen estimado este mes ni son fuente de ingreso, más los movimientos
+// con el concepto "Otros" en sí (que siempre caen ahí, tenga o no
+// estimado propio configurado). "concepto" se ignora en ese caso.
+function _movimientosRealesDeConcepto(mes, concepto, esOtros) {
+  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
+  if (!esOtros) return movsDelMes.filter(m => m.concepto === concepto);
+
+  const gastosMes = getGastosMesParaEditor(mes);
+  const conocidos = new Set([
+    ...Object.entries(gastosMes).filter(([, v]) => v > 0).map(([c]) => c),
+    ...FUENTES_INGRESO
+  ]);
+  conocidos.delete("Otros");
+  return movsDelMes.filter(m => !conocidos.has(m.concepto));
+}
+
+// Arma el HTML de una lista de movimientos reales (.detalle-real-item),
+// compartido entre esos mismos dos lugares -- ver _movimientosRealesDeConcepto.
+function _renderListaMovimientosReales(lista, esOtros) {
+  const ordenados = [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  return ordenados.map(m => {
+    const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+    const esIngreso = m.categoria === "Ingreso";
+    const etiqueta = esOtros ? `${ICONOS[m.concepto] || "📌"} ${m.concepto}` : m.caja;
+    const metaFecha = esOtros ? `${fechaFmt} · ${m.caja}` : fechaFmt;
+    return `<div class="detalle-real-item">
+      <div class="detalle-real-item-texto">
+        <span class="detalle-real-item-caja">${etiqueta}</span>
+        ${m.descripcion ? `<span class="detalle-real-item-desc">${m.descripcion}</span>` : ""}
+        <span class="detalle-real-item-fecha">${metaFecha}</span>
+      </div>
+      <span class="detalle-real-item-monto" style="color:${esIngreso ? "var(--green-dark)" : "var(--text)"}">${esIngreso ? "+" : "-"}${formatMonto(Math.abs(m.monto))}</span>
+    </div>`;
+  }).join("");
+}
+
 function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
   const mes = proyMesActivo;
   const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
-
-  let lista, titulo;
-  if (esOtros) {
-    // Mismo criterio que renderTablaComparacion usa para armar la fila
-    // "Otros": conceptos que no tienen estimado este mes ni son fuente de
-    // ingreso, más los movimientos con el concepto "Otros" en sí (que
-    // siempre caen ahí, tenga o no estimado propio configurado).
-    const gastosMes = getGastosMesParaEditor(mes);
-    const conocidos = new Set([
-      ...Object.entries(gastosMes).filter(([, v]) => v > 0).map(([c]) => c),
-      ...FUENTES_INGRESO
-    ]);
-    conocidos.delete("Otros");
-    lista = movsDelMes.filter(m => !conocidos.has(m.concepto));
-    titulo = "🗂️ Otros";
-  } else {
-    lista = movsDelMes.filter(m => m.concepto === concepto);
-    titulo = `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
-  }
+  const lista = _movimientosRealesDeConcepto(mes, concepto, esOtros);
+  const titulo = esOtros ? "🗂️ Otros" : `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
 
   document.getElementById("detalle-real-titulo").textContent = titulo;
   document.getElementById("detalle-real-subtitulo").textContent = `Movimientos reales de ${mesLabel}`;
 
   const cont = document.getElementById("detalle-real-lista");
-  if (lista.length === 0) {
-    cont.innerHTML = `<div class="detalle-real-vacio">No hay movimientos reales de este concepto en ${mesLabel}.</div>`;
-  } else {
-    const ordenados = [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha));
-    cont.innerHTML = ordenados.map(m => {
-      const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-      const esIngreso = m.categoria === "Ingreso";
-      const etiqueta = esOtros ? `${ICONOS[m.concepto] || "📌"} ${m.concepto}` : m.caja;
-      const metaFecha = esOtros ? `${fechaFmt} · ${m.caja}` : fechaFmt;
-      return `<div class="detalle-real-item">
-        <div class="detalle-real-item-texto">
-          <span class="detalle-real-item-caja">${etiqueta}</span>
-          ${m.descripcion ? `<span class="detalle-real-item-desc">${m.descripcion}</span>` : ""}
-          <span class="detalle-real-item-fecha">${metaFecha}</span>
-        </div>
-        <span class="detalle-real-item-monto" style="color:${esIngreso ? "var(--green-dark)" : "var(--text)"}">${esIngreso ? "+" : "-"}${formatMonto(Math.abs(m.monto))}</span>
-      </div>`;
-    }).join("");
-  }
+  cont.innerHTML = lista.length === 0
+    ? `<div class="detalle-real-vacio">No hay movimientos reales de este concepto en ${mesLabel}.</div>`
+    : _renderListaMovimientosReales(lista, esOtros);
 
   document.getElementById("modal-detalle-real-concepto")?.classList.remove("hidden");
 }
@@ -3538,10 +3545,8 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
   document.getElementById("modal-detalle-real-concepto")?.classList.add("hidden");
 
   const mes = proyMesActivo;
-  const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
-  const real = movsDelMes
-    .filter(m => m.concepto === concepto)
-    .reduce((s, m) => s + Math.abs(m.monto), 0);
+  const lista = _movimientosRealesDeConcepto(mes, concepto, esOtros);
+  const real = lista.reduce((s, m) => s + Math.abs(m.monto), 0);
   const estimado = categoria === "Ingreso"
     ? (getIngresosMesParaEditor(mes)[concepto] || 0)
     : (getGastosMesParaEditor(mes)[concepto] || 0);
@@ -3560,6 +3565,13 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
         <span class="detalle-notif-label">${label}</span>
         <span class="detalle-notif-valor">${valor}</span>
       </div>`).join("");
+  }
+
+  const listaMovs = document.getElementById("resumen-concepto-movimientos");
+  if (listaMovs) {
+    listaMovs.innerHTML = lista.length === 0
+      ? `<div class="detalle-real-vacio">Sin movimientos reales este mes.</div>`
+      : _renderListaMovimientosReales(lista, esOtros);
   }
 
   const btnModificar = document.getElementById("btn-resumen-concepto-modificar");
