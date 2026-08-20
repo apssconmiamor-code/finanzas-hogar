@@ -78,6 +78,21 @@ body {
   overscroll-behavior-y: contain;
   overflow-x: hidden;
   max-width: 100vw;
+  /* Mantener presionado en cualquier parte de la app (no solo en las
+     tarjetas con gesto de Editar/Eliminar, ver gestos.js) NO debe abrir el
+     menú nativo de "Copiar/Consultar/Traducir" -- bug real reportado: eso
+     interfiere con la forma de interactuar con la app. Antes esto solo se
+     apagaba tarjeta por tarjeta (.mov-card, .compra-item, etc.); acá queda
+     de una vez para toda la app, y los campos de texto lo recuperan justo
+     abajo porque ahí SÍ hace falta poder seleccionar/copiar. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, select, [contenteditable] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Nada debe forzar scroll horizontal de la página */
