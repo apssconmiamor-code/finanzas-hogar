@@ -1675,7 +1675,12 @@ function renderCajas() {
     const colorFondo = cajaColorFondo(c.nombre);
     const requiereAjuste = saldoReal < 0;
     const icono = iconoCajaImagen(c.nombre);
-    return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
+    // El onclick nativo se omite cuando hay long-press (requiereAjuste):
+    // el toque corto se dispara desde el propio manejador de mantener
+    // presionado (onCorto) para no disparar DOS VECES abrirDetalleCaja --
+    // un click nativo se sigue generando después del pointerup aunque haya
+    // sido un toque largo, si no se quita el onclick de acá.
+    return `<div class="caja-card" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}" ${requiereAjuste ? "" : `onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')"`} title="Ver movimientos de esta caja">
       ${requiereAjuste ? `<div class="caja-card-top"><span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span></div>` : ""}
       <div class="caja-nombre-fila">
         <span class="caja-nombre">${c.nombre}</span>
@@ -1684,6 +1689,28 @@ function renderCajas() {
       <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
     </div>`;
   }).join("");
+  _conectarLargoPresionCajas(grid);
+}
+
+// Mantener presionada una tarjeta ofrece "Ajustar" -- solo cuando el saldo
+// real es negativo (mismo criterio que ya usa el botón dentro del detalle,
+// ver abrirDetalleCaja/botonAjustar). El toque corto sigue abriendo el
+// detalle completo directo, sin cambios -- Cajas no tiene un resumen
+// intermedio nuevo.
+function _conectarLargoPresionCajas(grid) {
+  grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
+    const nombre = card.dataset.nombre;
+    const saldoReal = calcularSaldoCaja(nombre);
+    if (saldoReal >= 0) return;
+    crearManejadorPresionSostenida(card, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: nombre,
+        labelEditar: "⚖️ Ajustar",
+        onEditar: () => ajustarCaja(nombre)
+      }),
+      onCorto: () => abrirDetalleCaja(nombre)
+    });
+  });
 }
 
 function abrirDetalleCaja(nombre) {

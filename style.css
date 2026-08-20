@@ -1489,7 +1489,8 @@ input, select, textarea, table {
 .detalle-caja-scroll {
   overflow-y: auto; overflow-x: hidden; max-height: 52vh; padding: 4px 4px 12px;
 }
-.caja-card { user-select: none; }
+/* Mantener presionada (cuando requiere ajuste) abre Ajustar -- mismo motivo que .mov-card. */
+.caja-card { user-select: none; -webkit-touch-callout: none; }
 
 /* ═══════════════ SOPORTE EN MOVIMIENTO (Cámara / Grabar) ═══════════════ */
 .fotos-actions-row {

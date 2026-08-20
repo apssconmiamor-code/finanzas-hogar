@@ -74,7 +74,10 @@ function crearManejadorPresionSostenida(el, { onLargo, onCorto } = {}) {
 // de la app -- un solo modal compartido en vez de uno por módulo. Si
 // falta onEditar u onBorrar (ej. "Otros" en Proyección no se puede
 // editar) el botón correspondiente se oculta en vez de mostrarse roto.
-function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar }) {
+// "labelEditar" es opcional -- Cajas lo usa para mostrar "⚖️ Ajustar" en
+// vez de "✏️ Editar" (mismo botón/slot, la acción no es literalmente
+// "editar" pero sigue siendo la única acción de mantener-presionado ahí).
+function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
   const modal = document.getElementById("modal-editar-borrar");
   if (!modal) return;
   const tituloEl    = document.getElementById("editar-borrar-titulo");
@@ -83,6 +86,7 @@ function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar }) {
   if (tituloEl) tituloEl.textContent = titulo || "";
   if (btnEditar) {
     btnEditar.classList.toggle("hidden", !onEditar);
+    btnEditar.textContent = labelEditar || "✏️ Editar";
     btnEditar.onclick = () => { modal.classList.add("hidden"); if (onEditar) onEditar(); };
   }
   if (btnEliminar) {

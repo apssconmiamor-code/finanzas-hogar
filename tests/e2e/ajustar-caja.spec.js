@@ -47,6 +47,59 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator('#detalle-caja-body')).toContainText('Ajuste');
   });
 
+  test('mantener presionada una tarjeta que requiere ajuste ofrece "Ajustar" directo, sin pasar por el detalle', async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await iniciarSesionFalsa(page);
+    await mockGoogleApis(page, {
+      'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [
+        ['M1', hoy, 'prueba@example.com', 'Renta', 'Gasto fijo', 'Efectivo', 100000, '', ''],
+      ],
+    });
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeVisible();
+
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#editar-borrar-titulo')).toHaveText('Efectivo');
+    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeHidden();
+    const btnAjustar = page.locator('#btn-editar-borrar-editar');
+    await expect(btnAjustar).toBeVisible();
+    await expect(btnAjustar).toHaveText('⚖️ Ajustar');
+    // El detalle no se abrió solo por mantener presionado.
+    await expect(page.locator('#modal-detalle-caja')).toBeHidden();
+
+    await btnAjustar.click();
+    await expect(page.locator('#modal-editar-borrar')).toBeHidden();
+    await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeHidden({ timeout: 10000 });
+  });
+
+  test('un toque corto sigue abriendo el detalle directo, incluso en una tarjeta que requiere ajuste', async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await iniciarSesionFalsa(page);
+    await mockGoogleApis(page, {
+      'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [
+        ['M1', hoy, 'prueba@example.com', 'Renta', 'Gasto fijo', 'Efectivo', 100000, '', ''],
+      ],
+    });
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await tarjeta.click();
+    await expect(page.locator('#modal-detalle-caja')).toBeVisible();
+    await expect(page.locator('#modal-editar-borrar')).toBeHidden();
+  });
+
   test('la tarjeta muestra el logo de la entidad en la misma fila del nombre, sin la moneda', async ({ page }) => {
     await iniciarSesionFalsa(page);
     await mockGoogleApis(page, {
