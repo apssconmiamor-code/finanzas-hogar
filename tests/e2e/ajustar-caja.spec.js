@@ -46,4 +46,23 @@ test.describe('Ajustar caja', () => {
     // El movimiento de ajuste quedó registrado con la descripción esperada.
     await expect(page.locator('#detalle-caja-body')).toContainText('Ajuste');
   });
+
+  test('la tarjeta muestra el logo de la entidad junto a la moneda cuando el nombre lo menciona', async ({ page }) => {
+    await iniciarSesionFalsa(page);
+    await mockGoogleApis(page, {
+      'Cajas': [
+        ['C1', 'prueba@example.com', 'Nequi', 'COP'],
+        // Nombre sin ninguna entidad/propósito conocido -- sin ícono.
+        ['C2', 'prueba@example.com', 'Caja rara', 'COP'],
+      ],
+    });
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjetaNequi = page.locator('.caja-card', { hasText: 'Nequi' });
+    await expect(tarjetaNequi.locator('.caja-card-icono')).toHaveAttribute('src', 'nequi.png');
+
+    const tarjetaRara = page.locator('.caja-card', { hasText: 'Caja rara' });
+    await expect(tarjetaRara.locator('.caja-card-icono')).toHaveCount(0);
+  });
 });

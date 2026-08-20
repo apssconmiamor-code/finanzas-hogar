@@ -1667,9 +1667,13 @@ function renderCajas() {
     const badgeClass = cajaBadgeClass(c.nombre);
     const colorFondo = cajaColorFondo(c.nombre);
     const requiereAjuste = saldoReal < 0;
+    const icono = iconoCajaImagen(c.nombre);
     return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
       <div class="caja-card-top">
-        <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
+        <div class="caja-card-moneda-grupo">
+          <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
+          ${icono ? `<img class="caja-card-icono" src="${icono}" alt="" />` : ""}
+        </div>
         ${requiereAjuste ? `<span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>` : ""}
       </div>
       <div class="caja-nombre">${c.nombre}</div>

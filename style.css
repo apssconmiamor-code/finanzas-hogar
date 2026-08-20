@@ -720,6 +720,13 @@ input, select, textarea, table {
 .caja-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px rgba(47,107,79,.10); }
 .caja-card:active { transform: scale(0.98); }
 .caja-card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
+.caja-card-moneda-grupo { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* Logo de la entidad (Nequi/Bancolombia/Mercado Pago/Falabella/Ahorro/
+   Efectivo/Emergencia, ver iconoCajaImagen en app.js) junto a la moneda --
+   mismo criterio visual que ya usa .caja-picker-option-icono en la lista
+   desplegable del selector de caja, pero más chico para no desbalancear
+   la tarjeta compacta de Cuentas. */
+.caja-card-icono { height: 16px; width: auto; max-width: 40px; object-fit: contain; border-radius: 3px; flex-shrink: 0; }
 .caja-alerta-ajuste {
   display: inline-flex; align-items: center; gap: 1px;
   font-size: 7px; font-weight: 700; line-height: 1;
