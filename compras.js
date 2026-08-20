@@ -119,7 +119,7 @@ function renderCompras() {
     const tienePresupuesto = c.montoDestinado > 0;
 
     return `
-      <div class="compra-item" data-id="${c.id}">
+      <div class="compra-item" data-id="${c.id}" onpointerup="tapCompra('${c.id}')">
         <div class="compra-urg-bar" style="background:${urg.color}"></div>
         <div class="compra-body">
           <div class="compra-top">
@@ -138,15 +138,57 @@ function renderCompras() {
           </div>
           <div class="compra-acciones">
             <button class="btn-comprar btn-primary"
-              onclick="abrirComprarAhora('${c.id}')">
+              onclick="event.stopPropagation();abrirComprarAhora('${c.id}')" onpointerup="event.stopPropagation()">
               🛒 Comprar ahora
             </button>
-            <button class="btn-accion btn-borrar" title="Eliminar"
-              onclick="borrarCompra('${c.id}')">🗑️</button>
           </div>
         </div>
       </div>`;
   }).join("");
+
+  _conectarLargoPresionCompras(lista, filtradas);
+}
+
+// Doble toque abre un resumen de solo lectura; mantener presionada abre
+// Eliminar (no hay "Editar" para una compra -- nunca existió esa
+// función, solo crear/borrar). Mismo criterio único de gestos que el
+// resto de la app, ver gestos.js.
+const tapCompra = crearManejadorDobleToque(id => id, id => abrirResumenCompra(id));
+
+function abrirResumenCompra(id) {
+  const c = compras.find(x => x.id === id);
+  if (!c) return;
+  const urg = URGENCIA_CONFIG[c.urgencia] || URGENCIA_CONFIG["Media"];
+
+  document.getElementById("resumen-compra-titulo").textContent = c.concepto;
+  const cuerpo = document.getElementById("resumen-compra-cuerpo");
+  if (cuerpo) {
+    cuerpo.innerHTML = [
+      ["Urgencia", `${urg.icon} ${c.urgencia}`],
+      ["Categoría", c.categoria || "—"],
+      ["Monto destinado", c.montoDestinado > 0 ? formatMonto(c.montoDestinado) : "—"],
+      ["Fecha", c.fecha]
+    ].map(([label, valor]) => `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">${label}</span>
+        <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
+      </div>`).join("");
+  }
+  document.getElementById("modal-resumen-compra")?.classList.remove("hidden");
+}
+
+function _conectarLargoPresionCompras(contenedor, lista) {
+  contenedor.querySelectorAll(".compra-item").forEach(item => {
+    const id = item.dataset.id;
+    const c = lista.find(x => x.id === id);
+    if (!c) return;
+    crearManejadorPresionSostenida(item, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: c.concepto,
+        onBorrar: () => borrarCompra(id)
+      })
+    });
+  });
 }
 
 // ---- ABRIR "COMPRAR AHORA" → pre-llena el modal de movimiento ----

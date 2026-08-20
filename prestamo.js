@@ -200,7 +200,7 @@ function renderPrestamos() {
     const barColor  = pct >= 100 ? "var(--green)" : "var(--blue)";
 
     return `
-      <div class="prestamo-card ${p.pagado ? "prestamo-pagado" : ""}">
+      <div class="prestamo-card ${p.pagado ? "prestamo-pagado" : ""}" data-id="${p.id}" onpointerup="tapPrestamo('${p.id}')">
         <div class="prest-left-bar" style="background:${p.pagado ? "var(--green)" : "var(--red)"}"></div>
         <div class="prest-body">
           <div class="prest-header">
@@ -238,11 +238,10 @@ function renderPrestamos() {
           <div class="prestamo-acciones">
             ${!p.pagado ? `
               <button class="btn-primary btn-prest-pago"
-                onclick="abrirPagoRapido('${p.id}', '${escapeAttr(p.nombre)}', ${pendiente})">
+                onclick="event.stopPropagation();abrirPagoRapido('${p.id}', '${escapeAttr(p.nombre)}', ${pendiente})"
+                onpointerup="event.stopPropagation()">
                 💳 Registrar pago
               </button>` : ""}
-            <button class="btn-accion btn-borrar" title="Eliminar préstamo"
-              onclick="borrarPrestamo('${p.id}')">🗑️</button>
           </div>
         </div>
       </div>`;
@@ -264,6 +263,54 @@ function renderPrestamos() {
 
   // Actualizar resumen
   renderResumenPrestamos(activos);
+
+  _conectarLargoPresionPrestamos(grid);
+}
+
+// Doble toque abre un resumen de solo lectura; mantener presionada abre
+// Eliminar (no hay "Editar" para un préstamo -- nunca existió esa
+// función, solo crear/borrar/registrar pago). Mismo criterio único de
+// gestos que el resto de la app, ver gestos.js.
+const tapPrestamo = crearManejadorDobleToque(id => id, id => abrirResumenPrestamo(id));
+
+function abrirResumenPrestamo(id) {
+  const p = prestamos.find(x => x.id === id);
+  if (!p) return;
+  const pagado    = p.pagado ? p.monto : calcularPagadoPrestamo(p.nombre);
+  const pendiente = Math.max(p.monto - pagado, 0);
+
+  document.getElementById("resumen-prestamo-titulo").textContent = p.nombre;
+  const cuerpo = document.getElementById("resumen-prestamo-cuerpo");
+  if (cuerpo) {
+    cuerpo.innerHTML = [
+      ["Estado", p.pagado ? "✅ Pagado" : "En curso"],
+      ["Total", formatMonto(p.monto)],
+      ["Pagado", formatMonto(pagado)],
+      ["Por pagar", formatMonto(pendiente)],
+      ["Cuotas", p.cuotas > 0 ? String(p.cuotas) : "—"],
+      ["Inicio", p.fechaInicio || "—"],
+      ...(p.descripcion ? [["Descripción", p.descripcion]] : [])
+    ].map(([label, valor]) => `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">${label}</span>
+        <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
+      </div>`).join("");
+  }
+  document.getElementById("modal-resumen-prestamo")?.classList.remove("hidden");
+}
+
+function _conectarLargoPresionPrestamos(contenedor) {
+  contenedor.querySelectorAll(".prestamo-card[data-id]").forEach(card => {
+    const id = card.dataset.id;
+    const p = prestamos.find(x => x.id === id);
+    if (!p) return;
+    crearManejadorPresionSostenida(card, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: p.nombre,
+        onBorrar: () => borrarPrestamo(id)
+      })
+    });
+  });
 }
 
 function renderResumenPrestamos(activos) {

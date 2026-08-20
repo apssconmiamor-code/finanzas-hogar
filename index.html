@@ -591,6 +591,18 @@
       </div>
     </div>
 
+    <!-- Modal resumen de una compra (doble toque sobre su tarjeta) --
+         solo lectura; Eliminar vive en el menú de mantener presionado. -->
+    <div id="modal-resumen-compra" class="modal hidden">
+      <div class="modal-card" style="max-width:420px">
+        <div class="modal-header">
+          <span id="resumen-compra-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-resumen-compra').classList.add('hidden')">✕</button>
+        </div>
+        <div id="resumen-compra-cuerpo" class="detalle-notif-cuerpo"></div>
+      </div>
+    </div>
+
     <!-- Modal agregar mes (con detección de huecos) -->
     <div id="modal-agregar-mes" class="modal hidden">
       <div class="modal-card">
@@ -637,6 +649,18 @@
           <button class="btn-secondary" id="btn-cancelar-prestamo">Cancelar</button>
           <button class="btn-primary" id="btn-guardar-prestamo">Crear préstamo</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal resumen de un préstamo (doble toque sobre su tarjeta) --
+         solo lectura; Eliminar vive en el menú de mantener presionado. -->
+    <div id="modal-resumen-prestamo" class="modal hidden">
+      <div class="modal-card" style="max-width:420px">
+        <div class="modal-header">
+          <span id="resumen-prestamo-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-resumen-prestamo').classList.add('hidden')">✕</button>
+        </div>
+        <div id="resumen-prestamo-cuerpo" class="detalle-notif-cuerpo"></div>
       </div>
     </div>
 

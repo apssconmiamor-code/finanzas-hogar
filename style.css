@@ -1103,6 +1103,8 @@ input, select, textarea, table {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); overflow: hidden; display: flex;
   margin-bottom: 10px; box-shadow: var(--shadow-sm); transition: box-shadow .15s;
+  /* Mantener presionada abre Eliminar -- mismo motivo que .mov-card. */
+  user-select: none; -webkit-touch-callout: none;
 }
 .compra-item:hover { box-shadow: var(--shadow-md); }
 .compra-urg-bar { width: 4px; flex-shrink: 0; }
@@ -1225,7 +1227,8 @@ input, select, textarea, table {
 /* ═══════════════ PRÉSTAMOS ═══════════════ */
 .prestamos-resumen { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
 .prestamos-grid { display: flex; flex-direction: column; gap: 12px; }
-.prestamo-card { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); }
+/* Mantener presionada abre Eliminar -- mismo motivo que .mov-card. */
+.prestamo-card { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-sm); user-select: none; -webkit-touch-callout: none; }
 .prestamo-pagado { opacity: 0.65; }
 .prest-left-bar { width: 4px; flex-shrink: 0; }
 .prest-body { flex: 1; padding: 14px 16px; }
