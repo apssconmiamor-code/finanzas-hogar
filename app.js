@@ -1628,15 +1628,21 @@ function cajaColorFondo(nombre) {
   return "#ffffff";
 }
 
-// Logo de la entidad según el nombre de la caja (lista desplegable del
-// selector de caja, pedido explícito del usuario) -- null si el nombre no
-// menciona ninguna de las que tienen ícono.
+// Ícono según el nombre de la caja (lista desplegable del selector de
+// caja, pedido explícito del usuario) -- null si el nombre no menciona
+// ninguno de los que tienen ícono. El logo de la entidad (Nequi,
+// Bancolombia...) manda sobre el ícono de propósito (Ahorro, Efectivo...)
+// si una caja menciona ambos (ej. "Nequi - Ahorro"), porque identifica
+// mejor DÓNDE está la plata.
 function iconoCajaImagen(nombre) {
   const n = (nombre || "").toLowerCase();
   if (n.includes("nequi"))        return "nequi.png";
   if (n.includes("bancolombia"))  return "bancolombia.png";
   if (n.includes("mercado pago")) return "mercado-pago.png";
   if (n.includes("falabella"))    return "falabella.png";
+  if (n.includes("ahorro"))       return "ahorro.png";
+  if (n.includes("emergencia"))   return "emergencia.png";
+  if (n.includes("efectivo"))     return "efectivo.png";
   return null;
 }
 
