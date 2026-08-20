@@ -172,6 +172,51 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-recordatorio-crear')).toBeVisible();
   });
 
+  test('al configurar una acción, la caja solo muestra las que este usuario puede manejar', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        // Sin nada en la columna F (usuarios_permitidos) -- visible para todos.
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        // Restringida a otro email -- prueba@example.com no debe verla.
+        ['C2', 'prueba@example.com', 'Nequi de otra persona', 'COP', 0, 'otra.persona@example.com'],
+        // Restringida, pero incluye a prueba@example.com -- sí debe verla.
+        ['C3', 'prueba@example.com', 'Bancolombia compartida', 'COP', 0, 'otra.persona@example.com, prueba@example.com'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+
+    const opciones = page.locator('#config-accion-caja option');
+    await expect(opciones).toHaveCount(3); // "Selecciona una caja" + las 2 visibles (no la restringida a otra persona)
+    const textos = await opciones.allTextContents();
+    expect(textos.some(t => t.includes('Efectivo'))).toBe(true);
+    expect(textos.some(t => t.includes('Bancolombia compartida'))).toBe(true);
+    expect(textos.some(t => t.includes('Nequi de otra persona'))).toBe(false);
+  });
+
+  test('una caja nueva llamada "Luni ..." o "Choco ..." se completa sola con quién puede manejarla', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'royer.sanabria1685@gmail.com', 'Choco - Efectivo', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await expect.poll(async () => {
+      const cajas = await page.evaluate(() => Sheets.getCajas());
+      return cajas.find(c => c.id === 'C1')?.usuariosPermitidos;
+    }, { timeout: 10000 }).toEqual([
+      'apssconmiamor@gmail.com', 'blanjor1685@gmail.com', 'byco85@gmail.com',
+      'royer.sanabria1685@gmail.com', 'sabogaldario427@gmail.com'
+    ]);
+  });
+
   test('una acción rápida configurada en otro dispositivo carga igual acá (sincronizada por Sheets)', async ({ page }) => {
     // Simula que este usuario ya configuró una acción rápida desde otro
     // dispositivo: la hoja ConfigUsuario ya trae esa fila, pero ESTE

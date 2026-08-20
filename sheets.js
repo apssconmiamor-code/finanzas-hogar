@@ -89,11 +89,17 @@ const Sheets = {
   // calcularSaldoCaja() en app.js le suma esto al total de los movimientos
   // activos para que el saldo siga siendo exacto sin tener que cargar todo
   // el historial.
+  // Columna F "usuarios_permitidos" (nueva, pedido explícito del usuario):
+  // emails separados por coma de quiénes pueden usar esa caja en Acciones
+  // rápidas -- vacía = sin restricción (visible para todos). Se completa
+  // sola por nombre de caja (ver verificarYCompletarUsuariosPermitidosCajas
+  // en app.js), no hace falta cargarla a mano.
   async getCajas() {
-    const rows = await this.leer(`${CONFIG.SHEETS.CAJAS}!A2:E`);
+    const rows = await this.leer(`${CONFIG.SHEETS.CAJAS}!A2:F`);
     return rows.filter(r => r && r[0]).map(r => ({
       id: r[0] || "", usuario: r[1] || "", nombre: r[2] || "", moneda: r[3] || "COP",
-      saldoArchivado: isNaN(parseFloat(r[4])) ? 0 : parseFloat(r[4])
+      saldoArchivado: isNaN(parseFloat(r[4])) ? 0 : parseFloat(r[4]),
+      usuariosPermitidos: (r[5] || "").split(",").map(e => e.trim()).filter(Boolean)
     }));
   },
 
@@ -214,6 +220,26 @@ const Sheets = {
     if (!res.ok) throw new Error(`Error borrando: ${res.status}`);
     return res.json();
   }
+};
+
+// Escribe la columna F (usuarios_permitidos) de una caja puntual -- separado
+// de getCajas() porque es la única escritura que necesita esta hoja (las
+// cajas no se crean/editan desde la app, solo se leen).
+Sheets.actualizarUsuariosPermitidosCaja = async function (id, usuarios) {
+  const rows = await this.leer(`${CONFIG.SHEETS.CAJAS}!A2:A`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) return;
+  const sheetRow = rowIndex + 2;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(`${CONFIG.SHEETS.CAJAS}!F${sheetRow}`)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[usuarios.join(", ")]] })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error actualizando usuarios permitidos: ${res.status}`);
 };
 
 // ---- GOOGLE DRIVE (fotos y audios de recordatorios/movimientos) ----

@@ -814,7 +814,13 @@ function abrirConfigAccion(slot) {
   document.getElementById("config-accion-categoria").value = accion?.categoria || "Gasto fijo";
   actualizarConceptoAccion();
   if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
-  if (typeof poblarSelectCajas === "function") poblarSelectCajas("config-accion-caja");
+  // Solo las cajas que este usuario puede manejar (pedido explícito: en
+  // Acciones rápidas, según quién entró) -- cajaVisibleParaUsuario deja
+  // pasar cualquier caja sin restricción configurada, así que nada se
+  // esconde por error mientras esa columna todavía no exista para alguna.
+  if (typeof poblarSelectCajas === "function") {
+    poblarSelectCajas("config-accion-caja", 0, c => cajaVisibleParaUsuario(c, currentUser?.email));
+  }
   if (accion?.caja) document.getElementById("config-accion-caja").value = accion.caja;
   document.getElementById("config-accion-camara").checked = !!accion?.camara;
 

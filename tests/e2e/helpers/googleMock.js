@@ -112,21 +112,32 @@ async function mockGoogleApis(page, seed = {}) {
     if (method === 'PUT') {
       const body = JSON.parse(req.postData() || '{}');
       // Un PUT en Sheets de verdad solo toca las celdas del rango pedido
-      // (ej. "A5:L5" = una fila puntual, "K1:L1" = solo el encabezado) —
-      // antes acá se ignoraba el rango y se pisaba TODA la hoja con lo que
-      // viniera en el body, lo que corrompía las demás filas apenas algún
-      // código escribía una sola fila o el encabezado (bug real que hizo
-      // fallar los tests de Notificaciones al agregar la migración del
-      // encabezado intervalo/unidad).
+      // (ej. "A5:L5" = una fila puntual, "F5" = solo esa columna de esa
+      // fila, "K1:L1" = solo el encabezado) — antes acá se ignoraba el
+      // rango y se pisaba TODA la hoja con lo que viniera en el body, lo
+      // que corrompía las demás filas apenas algún código escribía una
+      // sola fila o el encabezado (bug real que hizo fallar los tests de
+      // Notificaciones al agregar la migración del encabezado
+      // intervalo/unidad). Tampoco alcanzaba con respetar solo la FILA:
+      // un PUT de una sola columna (ej. F5, ver
+      // actualizarUsuariosPermitidosCaja en sheets.js) pisaba igual las
+      // demás columnas de esa fila con un array de un solo elemento.
       const decoded = decodeURIComponent(url);
       const rangeMatch = decoded.match(/\/values\/([^:?]+)/);
       const celdas = rangeMatch ? (rangeMatch[1].split('!')[1] || '') : '';
-      const filaMatch = celdas.match(/^[A-Z]+(\d+)/);
-      const filaGrilla = filaMatch ? parseInt(filaMatch[1], 10) : null;
+      const celdaMatch = celdas.match(/^([A-Z]+)(\d+)/);
+      const colInicio = celdaMatch ? celdaMatch[1] : null;
+      const filaGrilla = celdaMatch ? parseInt(celdaMatch[2], 10) : null;
 
-      if (body.values && estado[hoja] && filaGrilla && filaGrilla > 1) {
+      if (body.values && estado[hoja] && filaGrilla && filaGrilla > 1 && colInicio) {
         // filaGrilla 2 = primera fila de datos (índice 0 en estado[hoja]).
-        estado[hoja][filaGrilla - 2] = body.values[0];
+        // Solo sirve para columnas A-Z (única letra) -- suficiente, ninguna
+        // hoja de esta app pasa de Z columnas.
+        const idxFila = filaGrilla - 2;
+        const idxCol = colInicio.charCodeAt(0) - 65;
+        const filaActual = estado[hoja][idxFila] ? [...estado[hoja][idxFila]] : [];
+        body.values[0].forEach((valor, i) => { filaActual[idxCol + i] = valor; });
+        estado[hoja][idxFila] = filaActual;
       }
       return route.fulfill({ json: {} });
     }

@@ -250,6 +250,24 @@ const GASTOS_VARIABLES = [
 
 const FUENTES_INGRESO = ["SURA", "MEDFAN", "TATEQUIETO", "OTRO"];
 
+// Quiénes pueden manejar las cajas "de Luni" y "de Choco" en Acciones
+// rápidas (pedido explícito del usuario) -- se usa solo para completar la
+// columna "usuarios_permitidos" de la hoja Cajas la primera vez que hace
+// falta (ver verificarYCompletarUsuariosPermitidosCajas), identificando el
+// grupo de cada caja por si su nombre contiene "luni" o "choco". Una vez
+// completada, la hoja manda -- esto no se vuelve a mirar para una caja que
+// ya tenga algo en esa columna, así que editarla ahí después sí tiene efecto.
+const USUARIOS_PERMITIDOS_POR_NOMBRE = {
+  luni: [
+    "apssconmiamor@gmail.com", "byco85@gmail.com", "gastropediatra.evacol@gmail.com",
+    "sabogaldario427@gmail.com", "yeinyco@gmail.com"
+  ],
+  choco: [
+    "apssconmiamor@gmail.com", "blanjor1685@gmail.com", "byco85@gmail.com",
+    "royer.sanabria1685@gmail.com", "sabogaldario427@gmail.com"
+  ]
+};
+
 const ICONOS = {
   // Ingresos
   "Ingreso": "💰",
@@ -1478,6 +1496,10 @@ async function _cargarTodoInterno(reintentando) {
     renderCajas();
     renderMovimientos();
     poblarFiltrosCajas();
+    // Sin await a propósito -- son escrituras a Sheets que no deben demorar
+    // el arranque; si hace falta completar algo, se refleja sola apenas
+    // termine (recién importa cuando se abre Acciones rápidas).
+    verificarYCompletarUsuariosPermitidosCajas();
 
     // Presupuesto, proyección y préstamos tampoco dependen entre sí → en
     // paralelo. Cada una atrapa sus propios errores internamente, así que
@@ -2425,7 +2447,38 @@ async function borrarMovimiento(id) {
 
 // ---- HELPERS ----
 
-function poblarSelectCajas(selectId, montoMinimo = 0) {
+// Una caja sin usuarios_permitidos configurados (columna F en Cajas, ver
+// sheets.js) es visible para todos -- la restricción solo aplica a las que
+// sí tienen algo ahí. Se usa en Acciones rápidas (pedido explícito del
+// usuario: cada quien solo debe ver ahí las cajas que puede manejar), NO en
+// el selector normal de "nuevo movimiento", que sigue mostrando todas.
+function cajaVisibleParaUsuario(caja, email) {
+  return caja.usuariosPermitidos.length === 0 || caja.usuariosPermitidos.includes(email);
+}
+
+// Completa sola la columna "usuarios_permitidos" (F) de las cajas que
+// todavía no la tengan, identificando el grupo por si su nombre contiene
+// "luni" o "choco" (ver USUARIOS_PERMITIDOS_POR_NOMBRE). Una caja que no
+// matchea ninguno de los dos, o que ya tiene algo escrito ahí (así sea
+// distinto), se deja tal cual -- esto es solo para arrancar la columna la
+// primera vez, no para pisar lo que alguien ya haya configurado a mano.
+async function verificarYCompletarUsuariosPermitidosCajas() {
+  for (const caja of cajas) {
+    if (caja.usuariosPermitidos.length > 0) continue;
+    const nombreMin = caja.nombre.toLowerCase();
+    const grupo = nombreMin.includes("luni") ? "luni" : nombreMin.includes("choco") ? "choco" : null;
+    if (!grupo) continue;
+    const usuarios = USUARIOS_PERMITIDOS_POR_NOMBRE[grupo];
+    try {
+      await Sheets.actualizarUsuariosPermitidosCaja(caja.id, usuarios);
+      caja.usuariosPermitidos = usuarios;
+    } catch (err) {
+      console.error(`Error completando usuarios permitidos de "${caja.nombre}":`, err);
+    }
+  }
+}
+
+function poblarSelectCajas(selectId, montoMinimo = 0, filtro = null) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
 
@@ -2439,7 +2492,10 @@ function poblarSelectCajas(selectId, montoMinimo = 0) {
   const valorPrevio = sel.value;
   let cajasDisp = cajas;
   if (montoMinimo > 0) {
-    cajasDisp = cajas.filter(c => calcularSaldoCaja(c.nombre) >= montoMinimo);
+    cajasDisp = cajasDisp.filter(c => calcularSaldoCaja(c.nombre) >= montoMinimo);
+  }
+  if (filtro) {
+    cajasDisp = cajasDisp.filter(filtro);
   }
 
   sel.innerHTML = `<option value="">Selecciona una caja</option>` +
