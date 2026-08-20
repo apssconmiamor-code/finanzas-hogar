@@ -1613,16 +1613,6 @@ async function _cargarTodoInterno(reintentando) {
 
 // ---- RENDER CAJAS ----
 
-// Clasifica la caja por nombre y retorna la clase de color del badge
-function cajaBadgeClass(nombre) {
-  const n = nombre.toLowerCase();
-  if (/luni|bonita|yei/.test(n))                    return "badge-persona-luni";
-  if (/ahorro|meta|objetivo/.test(n))                return "badge-ahorro";
-  if (/choco|roy|royer/.test(n))                   return "badge-persona-roy";
-  if (/emergencia|imprevisto/.test(n))               return "badge-emergencia";
-  return "badge-otro";
-}
-
 // Color de fondo pastel según el nombre de la caja (tarjetas y selects de caja)
 function cajaColorFondo(nombre) {
   const n = (nombre || "").toLowerCase();
@@ -1667,19 +1657,15 @@ function renderCajas() {
   grid.innerHTML = cajas.map(c => {
     const saldoReal = calcularSaldoCaja(c.nombre);
     const saldo     = Math.max(0, saldoReal);
-    const badgeClass = cajaBadgeClass(c.nombre);
     const colorFondo = cajaColorFondo(c.nombre);
     const requiereAjuste = saldoReal < 0;
     const icono = iconoCajaImagen(c.nombre);
     return `<div class="caja-card" style="background-color:${colorFondo}" onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')" title="Ver movimientos de esta caja">
-      <div class="caja-card-top">
-        <span class="caja-moneda-badge ${badgeClass}">${c.moneda}</span>
-        <div class="caja-card-top-derecha">
-          ${requiereAjuste ? `<span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>` : ""}
-          ${icono ? `<img class="caja-card-icono" src="${icono}" alt="" />` : ""}
-        </div>
+      ${requiereAjuste ? `<div class="caja-card-top"><span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span></div>` : ""}
+      <div class="caja-nombre-fila">
+        <span class="caja-nombre">${c.nombre}</span>
+        ${icono ? `<img class="caja-card-icono" src="${icono}" alt="" />` : ""}
       </div>
-      <div class="caja-nombre">${c.nombre}</div>
       <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
     </div>`;
   }).join("");
@@ -3365,15 +3351,17 @@ function renderTablaComparacion(movsDelMes) {
   });
 
   // "Ajuste" (ver ajustarCaja): movimiento automático que nivela una caja
-  // con saldo negativo -- se guarda como Ingreso (Sheets.agregarMovimientoIngreso)
-  // pero no es un ingreso real que se presupueste, así que su estimado
-  // siempre es 0. Fila siempre presente (mismo criterio que las 4 fuentes
-  // de arriba) para que estos ajustes tengan su propio lugar en vez de
-  // mezclarse en "Otros" -- pedido explícito. Empujada ANTES del bloque de
-  // "Otros" de abajo a propósito: ese bloque solo suma a "Otros" lo que no
-  // encuentra ya en "filas", así que esta fila lo excluye de ahí sola.
+  // con saldo negativo -- se guarda con categoría real "Ingreso" en la
+  // hoja (Sheets.agregarMovimientoIngreso), pero acá se agrupa como Gasto
+  // variable a propósito: pedido explícito de que viva al final de esa
+  // sección, no mezclado entre las fuentes de Ingreso. Nunca tiene
+  // estimado (no es algo que se presupueste). Fila siempre presente
+  // (mismo criterio que las 4 fuentes de arriba). Empujada ANTES del
+  // bloque de "Otros" de abajo a propósito: ese bloque solo suma a
+  // "Otros" lo que no encuentra ya en "filas", así que esta fila lo
+  // excluye de ahí sola.
   filas.push({
-    categoria: "Ingreso", concepto: "Ajuste",
+    categoria: "Gasto variable", concepto: "Ajuste",
     estimado: 0,
     real: Math.abs(realesPorConcepto["Ajuste"] || 0)
   });
@@ -3418,6 +3406,10 @@ function renderTablaComparacion(movsDelMes) {
     const catA = ORDEN_CATEGORIA[a.categoria] ?? 3;
     const catB = ORDEN_CATEGORIA[b.categoria] ?? 3;
     if (catA !== catB) return catA - catB;
+    // "Ajuste" siempre al final de Variables, sin importar estimado ni
+    // orden alfabético (pedido explícito).
+    if (a.concepto === "Ajuste") return 1;
+    if (b.concepto === "Ajuste") return -1;
     if (a.estimado > 0 && b.estimado === 0) return -1;
     if (a.estimado === 0 && b.estimado > 0) return 1;
     return a.concepto.localeCompare(b.concepto);
@@ -3427,9 +3419,11 @@ function renderTablaComparacion(movsDelMes) {
   tbody.innerHTML = filas.map(f => {
     // Gastos: rojo si te pasaste de lo estimado. Ingresos: al revés — rojo
     // si no llegaste a lo estimado (la meta de ingreso no se cumplió).
-    const excedido = f.categoria === "Ingreso"
-      ? f.real < f.estimado
-      : f.real > f.estimado;
+    // "Ajuste" nunca se marca así -- no tiene estimado que "excederse",
+    // es una corrección de saldo, no un gasto de más.
+    const excedido = f.concepto === "Ajuste"
+      ? false
+      : (f.categoria === "Ingreso" ? f.real < f.estimado : f.real > f.estimado);
 
     // Separador sutil entre Ingresos/Fijos/Variables -- solo el nombre del
     // grupo, sin línea ni fondo fuerte (pedido explícito: "la separación
@@ -3572,12 +3566,18 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
   document.getElementById("resumen-concepto-titulo").textContent =
     `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
 
-  // Balance = Real - Estimado -- positivo (verde) cuando entró/se gastó más
-  // de lo estimado, negativo (rojo) cuando menos. Pedido explícito: la
-  // cabecera del resumen siempre muestra Estimado/Real/Balance (ya no
-  // Categoría, que además el título del modal ya deja clara con su ícono).
+  // Balance = Real - Estimado. El COLOR no es simplemente "positivo=verde"
+  // -- sigue el mismo criterio que ya usa "excedido" en la tabla: para un
+  // Gasto, gastar de más es rojo (aunque el balance en sí dé positivo);
+  // para un Ingreso, quedarse corto es rojo. Bug real reportado: la
+  // primera versión coloreaba por el signo del balance solo, así que un
+  // Gasto donde te pasaste del estimado (lo malo) se veía en verde.
+  // "Ajuste" nunca se marca en rojo -- no tiene estimado que "excederse".
+  const excedido = concepto === "Ajuste"
+    ? false
+    : (categoria === "Ingreso" ? real < estimado : real > estimado);
   const balance = real - estimado;
-  const balanceColor = balance > 0 ? "var(--green-dark)" : balance < 0 ? "var(--red)" : "var(--text)";
+  const balanceColor = balance === 0 ? "var(--text)" : (excedido ? "var(--red)" : "var(--green-dark)");
   const balanceTexto = balance === 0 ? "—" : `${balance > 0 ? "+" : "-"}${formatMonto(Math.abs(balance))}`;
 
   const cuerpo = document.getElementById("resumen-concepto-cuerpo");

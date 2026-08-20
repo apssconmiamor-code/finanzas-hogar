@@ -47,7 +47,7 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator('#detalle-caja-body')).toContainText('Ajuste');
   });
 
-  test('la tarjeta muestra el logo de la entidad junto a la moneda cuando el nombre lo menciona', async ({ page }) => {
+  test('la tarjeta muestra el logo de la entidad en la misma fila del nombre, sin la moneda', async ({ page }) => {
     await iniciarSesionFalsa(page);
     await mockGoogleApis(page, {
       'Cajas': [
@@ -60,7 +60,10 @@ test.describe('Ajustar caja', () => {
     await esperarAppLista(page);
 
     const tarjetaNequi = page.locator('.caja-card', { hasText: 'Nequi' });
-    await expect(tarjetaNequi.locator('.caja-card-icono')).toHaveAttribute('src', 'nequi.png');
+    // Pedido explícito: ya no se muestra la moneda (COP/USD/EUR) suelta.
+    await expect(tarjetaNequi).not.toContainText('COP');
+    const iconoNequi = tarjetaNequi.locator('.caja-nombre-fila .caja-card-icono');
+    await expect(iconoNequi).toHaveAttribute('src', 'nequi.png');
 
     const tarjetaRara = page.locator('.caja-card', { hasText: 'Caja rara' });
     await expect(tarjetaRara.locator('.caja-card-icono')).toHaveCount(0);

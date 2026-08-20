@@ -719,47 +719,21 @@ input, select, textarea, table {
 }
 .caja-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px rgba(47,107,79,.10); }
 .caja-card:active { transform: scale(0.98); }
-.caja-card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
-/* Moneda a la izquierda, logo de la entidad (Nequi/Bancolombia/Mercado
-   Pago/Falabella/Ahorro/Efectivo/Emergencia, ver iconoCajaImagen en app.js)
-   a la derecha -- pedido explícito. El aviso de "Requiere ajuste" (cuando
-   aplica) se agrupa junto al logo del lado derecho. */
-.caja-card-top-derecha { display: flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
-.caja-card-icono { height: 16px; width: auto; max-width: 40px; object-fit: contain; border-radius: 3px; flex-shrink: 0; }
+/* Fila de arriba: SOLO el aviso de "Requiere ajuste" cuando aplica (ya no
+   la moneda, sacada a pedido explícito) -- por eso se omite del todo
+   cuando no hace falta, en vez de dejar un renglón vacío reservado. */
+.caja-card-top { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
 .caja-alerta-ajuste {
   display: inline-flex; align-items: center; gap: 1px;
   font-size: 7px; font-weight: 700; line-height: 1;
   color: var(--amber-dark); white-space: nowrap; flex-shrink: 0;
 }
-.caja-moneda-badge {
-  font-size: 9px; font-weight: 700; border-radius: 4px;
-  padding: 2px 7px; letter-spacing: 0.5px; text-transform: uppercase;
-  /* fallback — en la práctica cajaBadgeClass() siempre asigna una de las
-     clases de abajo, pero se deja un valor neutro por si acaso */
-  color: var(--text-3); background: var(--border);
-}
-/* Luni · Bonita · Yei — azul de marca */
-.caja-moneda-badge.badge-persona-luni {
-  color: var(--brand-hover); background: var(--brand-soft);
-}
-/* Ahorro · Meta · Objetivo — verde (mismo verde que el resto de la app) */
-.caja-moneda-badge.badge-ahorro {
-  color: var(--green-dark); background: var(--green-soft);
-}
-/* Choco · Roy · Royer — gris azulado, distinto en tono de Luni pero de la
-   misma familia fría */
-.caja-moneda-badge.badge-persona-roy {
-  color: var(--slate); background: var(--slate-soft);
-}
-/* Emergencia · Imprevisto — ámbar (coherente con su rol de "atención") */
-.caja-moneda-badge.badge-emergencia {
-  color: var(--amber-dark); background: var(--amber-soft);
-}
-/* Otro nombre — gris neutro, sin tinte de color */
-.caja-moneda-badge.badge-otro {
-  color: var(--text-3); background: var(--border);
-}
-.caja-nombre { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -0.2px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Nombre + logo de la entidad (Nequi/Bancolombia/Mercado Pago/Falabella/
+   Ahorro/Efectivo/Emergencia, ver iconoCajaImagen en app.js) en la misma
+   fila -- pedido explícito. */
+.caja-nombre-fila { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.caja-card-icono { height: 16px; width: auto; max-width: 40px; object-fit: contain; border-radius: 3px; flex-shrink: 0; }
+.caja-nombre { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -0.2px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .caja-usuario { font-size: 10px; color: var(--text-4); }
 .caja-saldo { font-size: 18px; font-weight: 700; margin-top: 6px; font-family: var(--font-display); letter-spacing: -0.4px; }
 .caja-saldo.positivo { color: var(--green-dark); }
@@ -1042,14 +1016,15 @@ input, select, textarea, table {
    al padding corto de ".proy-tabla-row td" de arriba. */
 .proy-tabla-row td.proy-cell-estimado { padding-right: 20px; }
 .proy-tabla-row td.proy-cell-real { padding-left: 20px; }
-/* Separador sutil entre Ingresos/Fijos/Variables en la tabla de detalle:
-   solo una etiqueta chica y tenue, sin línea ni fondo fuerte (pedido
-   explícito del usuario: "la separación debe ser sutil"). */
+/* Separador entre Ingresos/Fijos/Variables en la tabla de detalle: ahora
+   con color de fondo propio para que la sección se note bien (pedido
+   explícito -- reemplaza un pedido anterior de mantenerlo sutil/sin
+   fondo). */
+.proy-grupo-row { background: var(--slate-soft); }
 .proy-grupo-row td {
-  padding: 14px 12px 4px; font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-4);
+  padding: 10px 12px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate);
 }
-.proy-grupo-row:first-child td { padding-top: 4px; }
 /* Legacy compat */
 .proy-fila td, .proy-fila-2 td { padding: 0; }
 /* Cronología mensual reusa .proy-tabla/.proy-fila por el estilo base de
