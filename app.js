@@ -310,7 +310,10 @@ const ICONOS = {
   "Cursos y certificaciones": "🎓",
   "Congresos": "🎤",
   "Donaciones": "🤝",
-  "Otros": "📌"
+  "Otros": "📌",
+
+  // Automático (ver ajustarCaja) -- nivela una caja con saldo negativo.
+  "Ajuste": "⚖️"
 };
 
 // ---- PERSISTENCIA DE SESIÓN (localStorage + respaldo en cookie) ----
@@ -3361,6 +3364,20 @@ function renderTablaComparacion(movsDelMes) {
     });
   });
 
+  // "Ajuste" (ver ajustarCaja): movimiento automático que nivela una caja
+  // con saldo negativo -- se guarda como Ingreso (Sheets.agregarMovimientoIngreso)
+  // pero no es un ingreso real que se presupueste, así que su estimado
+  // siempre es 0. Fila siempre presente (mismo criterio que las 4 fuentes
+  // de arriba) para que estos ajustes tengan su propio lugar en vez de
+  // mezclarse en "Otros" -- pedido explícito. Empujada ANTES del bloque de
+  // "Otros" de abajo a propósito: ese bloque solo suma a "Otros" lo que no
+  // encuentra ya en "filas", así que esta fila lo excluye de ahí sola.
+  filas.push({
+    categoria: "Ingreso", concepto: "Ajuste",
+    estimado: 0,
+    real: Math.abs(realesPorConcepto["Ajuste"] || 0)
+  });
+
   // Movimientos reales cuyo concepto no está en la lista de este mes se
   // suman al concepto "Otros" de categoría Gasto variable — SIEMPRE una
   // sola fila. realesPorConcepto usa la convención ingreso=+/gasto=-, así
@@ -3491,7 +3508,8 @@ function _movimientosRealesDeConcepto(mes, concepto, esOtros) {
   const gastosMes = getGastosMesParaEditor(mes);
   const conocidos = new Set([
     ...Object.entries(gastosMes).filter(([, v]) => v > 0).map(([c]) => c),
-    ...FUENTES_INGRESO
+    ...FUENTES_INGRESO,
+    "Ajuste" // fila propia siempre presente (ver renderTablaComparacion) -- no cae en "Otros"
   ]);
   conocidos.delete("Otros");
   return movsDelMes.filter(m => !conocidos.has(m.concepto));
@@ -3554,16 +3572,24 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
   document.getElementById("resumen-concepto-titulo").textContent =
     `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
 
+  // Balance = Real - Estimado -- positivo (verde) cuando entró/se gastó más
+  // de lo estimado, negativo (rojo) cuando menos. Pedido explícito: la
+  // cabecera del resumen siempre muestra Estimado/Real/Balance (ya no
+  // Categoría, que además el título del modal ya deja clara con su ícono).
+  const balance = real - estimado;
+  const balanceColor = balance > 0 ? "var(--green-dark)" : balance < 0 ? "var(--red)" : "var(--text)";
+  const balanceTexto = balance === 0 ? "—" : `${balance > 0 ? "+" : "-"}${formatMonto(Math.abs(balance))}`;
+
   const cuerpo = document.getElementById("resumen-concepto-cuerpo");
   if (cuerpo) {
     cuerpo.innerHTML = [
-      ["Categoría", categoria],
-      ["Estimado", estimado > 0 ? formatMonto(estimado) : "—"],
-      ["Real", real !== 0 ? formatMonto(real) : "—"]
-    ].map(([label, valor]) => `
+      ["Estimado", estimado > 0 ? formatMonto(estimado) : "—", null],
+      ["Real", real !== 0 ? formatMonto(real) : "—", null],
+      ["Balance", balanceTexto, balanceColor]
+    ].map(([label, valor, color]) => `
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${label}</span>
-        <span class="detalle-notif-valor">${valor}</span>
+        <span class="detalle-notif-valor"${color ? ` style="color:${color}"` : ""}>${valor}</span>
       </div>`).join("");
   }
 

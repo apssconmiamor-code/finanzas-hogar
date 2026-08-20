@@ -100,10 +100,15 @@ test.describe('Proyección', () => {
     await expect(page.locator('#modal-resumen-concepto')).toBeVisible();
     await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
     await expect(page.locator('#resumen-concepto-titulo')).toContainText('Alquiler');
+    // Cabecera: Estimado/Real/Balance (ya no Categoría) -- estimado y real
+    // coinciden (800.000 ambos), balance en 0 → "—", sin color de aviso.
+    await expect(page.locator('#resumen-concepto-cuerpo')).toContainText('Estimado');
+    await expect(page.locator('#resumen-concepto-cuerpo')).toContainText('Balance');
+    await expect(page.locator('#resumen-concepto-cuerpo')).not.toContainText('Categoría');
     await expect(page.locator('#resumen-concepto-cuerpo')).toContainText('800.000');
 
-    // Debajo de Categoría/Estimado/Real, la lista de movimientos reales
-    // que se tuvieron en cuenta para ese "Real".
+    // Debajo de Estimado/Real/Balance, la lista de movimientos reales que
+    // se tuvieron en cuenta para ese "Real".
     const listaMovs = page.locator('#resumen-concepto-movimientos .detalle-real-item');
     await expect(listaMovs).toHaveCount(1);
     await expect(listaMovs.first()).toContainText('Efectivo');
@@ -115,5 +120,37 @@ test.describe('Proyección', () => {
     await page.locator('#btn-resumen-concepto-modificar').click();
     await expect(page.locator('#modal-modificar-concepto')).toBeVisible();
     await expect(page.locator('#modificar-concepto-nombre')).toContainText('Alquiler');
+  });
+
+  test('"Ajuste" es una fila siempre presente en Proyección y no cae en "Otros"', async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [
+        // Simula lo que crea ajustarCaja() al nivelar una caja negativa.
+        ['M1', hoy, 'prueba@example.com', 'Ajuste', 'Ingreso', 'Efectivo', 50000, 'Ajuste 20 ago. 2026', ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await expect(page.locator('#tab-proyeccion')).toBeVisible();
+
+    // Fila propia dentro de "Ingresos", con el monto real ajustado -- no
+    // se mezcló ni duplicó en "Otros".
+    const filaAjuste = page.locator('.proy-tabla-row', { hasText: 'Ajuste' });
+    await expect(filaAjuste).toBeVisible();
+    await expect(filaAjuste).toContainText('50.000');
+    await expect(page.locator('.proy-tabla-row', { hasText: 'Otros' })).toHaveCount(0);
+
+    // El resumen muestra Balance en verde (positivo: sin estimado
+    // configurado para "Ajuste", cualquier real ajustado es "de más").
+    await filaAjuste.dblclick();
+    await expect(page.locator('#modal-resumen-concepto')).toBeVisible();
+    const valorBalance = page.locator('#resumen-concepto-cuerpo .detalle-notif-fila', { hasText: 'Balance' }).locator('.detalle-notif-valor');
+    await expect(valorBalance).toContainText('+');
+    await expect(valorBalance).toContainText('50.000');
+    await expect(valorBalance).toHaveCSS('color', 'rgb(26, 122, 54)'); // --green-dark
   });
 });
