@@ -64,18 +64,6 @@ export async function handlePushUnsubscribe(request, env, payload) {
   return jsonResponse({ ok: true });
 }
 
-// DIAGNÓSTICO TEMPORAL (agosto 2026): dispara un push real a este mismo
-// dispositivo sin esperar al Cron ni depender de la hoja Notificaciones --
-// ver el botón espejo "Enviar notificación de prueba" en notificaciones.js.
-// Sacar junto con ese botón y el bloque de debug en sw.js/sw-register.js en
-// cuanto se identifique por qué no aparece el badge en iOS.
-export async function handlePushTest(request, env, payload) {
-  const email = payload.email;
-  const cuerpo = JSON.stringify({ title: "🔔 Prueba de badge", body: "Notificación de prueba manual" });
-  const huboExito = await enviarPushATodos(env, [email], cuerpo);
-  return jsonResponse({ ok: huboExito });
-}
-
 async function obtenerSuscripciones(env, email) {
   const raw = await env.PUSH_SUBS.get(email);
   if (!raw) return [];
@@ -394,7 +382,7 @@ async function todosLosEmailsConSuscripcion(env) {
 // Si el navegador ya no reconoce la suscripción (404/410 = se desinstaló o
 // se revocó el permiso), la borra sola en vez de seguir intentando para
 // siempre. Devuelve true si al menos un dispositivo recibió el push. ----
-export async function enviarPushATodos(env, emails, payloadJson) {
+async function enviarPushATodos(env, emails, payloadJson) {
   const vapidKeys = await deserializeVapidKeys({
     publicKey: env.VAPID_PUBLIC_KEY,
     privateKey: env.VAPID_PRIVATE_KEY

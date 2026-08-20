@@ -348,7 +348,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notificaciones-list')).not.toContainText('Cita médica de Royer');
   });
 
-  test('no muestra botón de Cancelar; marcar como revisada (desde el resumen) mueve de "Pasados" a "Canceladas"', async ({ page }) => {
+  test('no muestra botón de Cancelar; marcar como revisada (desde el resumen) borra la alerta -- no hay bloque "Canceladas"', async ({ page }) => {
     const haceUnaHora = new Date(Date.now() - 3600000).toISOString();
     await mockGoogleApis(page, {
       // estado "enviada": simula una que ya disparó y está por revisar.
@@ -357,6 +357,9 @@ test.describe('Notificaciones (Web Push)', () => {
     await page.goto('/index.html');
     await esperarAppLista(page);
     await abrirNotificaciones(page);
+
+    // Ya no hay una tarjeta "Canceladas" en la cuadrícula.
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Canceladas' })).toHaveCount(0);
 
     await abrirBloqueAlerta(page, 'Pasados');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
@@ -370,12 +373,27 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
     await expect(page.locator('.notificacion-item')).toHaveCount(0);
 
-    await deslizarParaVolver(page);
-    await abrirBloqueAlerta(page, 'Canceladas');
-    await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
+    // No quedó "cancelada" en ningún lado -- se borró del todo.
+    const notificaciones = await page.evaluate(() => Sheets.getNotificaciones());
+    expect(notificaciones.find(n => n.id === 'N1')).toBeUndefined();
+  });
+
+  test('una "unica" activa pero con la fecha ya pasada (el Cron todavía no la mandó) también cuenta en "Pasados"', async ({ page }) => {
+    const ayer = new Date(Date.now() - 86400000).toISOString();
+    await mockGoogleApis(page, {
+      // Sigue "activa" -- todavía no la marcó "enviada" el Worker.
+      Notificaciones: [['N7', 'Pagar arriendo', '', 'unica', ayer, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Pasados' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await abrirBloqueAlerta(page, 'Pasados');
+    await expect(page.locator('.notificacion-item')).toContainText('Pagar arriendo');
+
     await page.locator('.notificacion-item').dblclick();
-    await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Cancelada');
-    await expect(page.locator('#btn-resumen-revisado')).toBeHidden();
+    await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
   });
 
   test('doble clic en una alarma abre un resumen, con un botón para crear un recordatorio en su bloque', async ({ page }) => {

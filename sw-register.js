@@ -51,24 +51,5 @@ if ("serviceWorker" in navigator) {
     } catch (err) {
       console.warn("SW no se pudo registrar:", err);
     }
-
-    // DIAGNÓSTICO TEMPORAL (agosto 2026) -- ver el bloque espejo en el
-    // handler "push" de sw.js. caches.match() busca en TODAS las caches
-    // sin necesidad de saber el nombre versionado actual. Se avisa una
-    // sola vez por dato nuevo (comparando el timestamp contra el último ya
-    // mostrado) para no repetir el mismo alert en cada apertura.
-    try {
-      const CLAVE_ULTIMO_DEBUG_TS = "badge_debug_ultimo_ts";
-      const resp = await caches.match("/__badge-debug__");
-      if (resp) {
-        const datos = await resp.json();
-        const yaVisto = localStorage.getItem(CLAVE_ULTIMO_DEBUG_TS);
-        if (String(datos.ts) !== yaVisto) {
-          localStorage.setItem(CLAVE_ULTIMO_DEBUG_TS, String(datos.ts));
-          console.info("[badge-debug]", datos);
-          alert("🔍 Diagnóstico badge:\n" + JSON.stringify(datos, null, 2));
-        }
-      }
-    } catch (e) {}
   });
 }

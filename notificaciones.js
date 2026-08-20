@@ -273,27 +273,6 @@ async function activarNotificacionesPush() {
   }
 }
 
-// DIAGNÓSTICO TEMPORAL (agosto 2026): dispara un push real de prueba sin
-// esperar al Cron de 5 minutos ni depender de la hoja Notificaciones -- ver
-// handlePushTest en worker/src/push.js y el debug que guarda sw.js en Cache
-// Storage. Sacar junto con el botón "🧪 Enviar notificación de prueba" y el
-// endpoint /push/test en cuanto se resuelva el badge en iOS.
-async function enviarNotificacionPrueba() {
-  const sessionToken = localStorage.getItem("worker_session");
-  if (!sessionToken) { alert("No hay sesión activa con el Worker."); return; }
-  try {
-    const res = await fetch(`${CONFIG.WORKER_URL}/push/test`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(`Worker respondió ${res.status}`);
-    SyncManager.mostrarToast("🧪 Notificación de prueba enviada");
-  } catch (err) {
-    alert("No se pudo enviar la prueba: " + err.message);
-  }
-}
-
 // Este dispositivo ya tiene el permiso + la suscripción push activa -- no
 // tiene sentido seguir ofreciendo el botón para activarlas de nuevo, ni la
 // explicación de por qué hace falta activarlas (ya se activaron acá).
@@ -517,6 +496,19 @@ function _estadoDiaAlarma(fechaODiaISO) {
   return dia < hoy ? "pasado" : "futuro";
 }
 
+// Una alerta cae en "Pasados" si todavía no fue aprobada (revisada) Y ya
+// pasó su fecha -- no depende de que el Worker ya haya alcanzado a marcarla
+// "enviada" (si el Cron todavía no corrió, igual cuenta con tal de que la
+// fecha ya pasó). "enviada" siempre cuenta (ya se disparó el push y sigue
+// sin revisar). Se usa tanto para armar el grupo "Pasados" como para
+// decidir si el resumen muestra el botón de "Marcar como revisada".
+function _esPasada(n) {
+  if (n.estado === "enviada") return true;
+  if (n.estado !== "activa") return false;
+  const proxima = _proximaOcurrencia(n);
+  return !!proxima && _estadoDiaAlarma(proxima) === "pasado";
+}
+
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
 // Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
@@ -595,7 +587,10 @@ function abrirResumenNotificacion(id) {
       </div>`).join("");
   }
 
-  document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", n.estado !== "enviada");
+  // Mismo criterio que "Pasados": se puede aprobar tanto una ya "enviada"
+  // como una que sigue "activa" pero cuya fecha ya pasó (el Cron todavía
+  // no la alcanzó a mandar).
+  document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", !_esPasada(n));
 
   const modal = document.getElementById("modal-resumen-notificacion");
   const btnEditar   = document.getElementById("btn-resumen-notif-editar");
@@ -640,8 +635,14 @@ function renderNotificaciones() {
     const proxima = _proximaOcurrencia(n);
     return proxima && _estadoDiaAlarma(proxima) === "hoy";
   });
-  const pasados       = notificaciones.filter(n => n.estado === "enviada");
-  const canceladas    = notificaciones.filter(n => n.estado === "cancelada");
+  // "Pasados" = no está aprobada (revisada) todavía Y ya pasó su fecha --
+  // no depende de que el Worker ya haya alcanzado a mandar el push (estado
+  // "enviada"): si por lo que sea el Cron todavía no corrió, igual cuenta
+  // acá con tal de que la fecha ya haya pasado (pedido explícito del
+  // usuario). Ya no existe un bloque "Canceladas" -- al aprobar una alerta
+  // de una sola vez se borra directo (ver marcarNotificacionRevisada), así
+  // que nunca queda una fila huérfana que mostrar ahí.
+  const pasados = notificaciones.filter(n => _esPasada(n));
 
   const gastosFijos = todasActivas.filter(n => n.gastoFijo);
   const porBloque = {};
@@ -656,8 +657,7 @@ function renderNotificaciones() {
 
   // Mapa clave -> tarjeta. El orden de inserción define el orden en la
   // cuadrícula: Activos/Pasados van primero (primera fila), después los
-  // bloques (Gastos fijos y Otros fijos, los del usuario después), y por
-  // último Canceladas (solo si hay alguna).
+  // bloques (Gastos fijos y Otros fijos, los del usuario después).
   const grupos = {};
   grupos.activos = { titulo: "Activos", icono: "🔔", items: activosHoy, esBloque: false, eliminable: false, esAgrupacion: true };
   grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false, esAgrupacion: true };
@@ -666,7 +666,6 @@ function renderNotificaciones() {
   bloquesPersonalizados.forEach((b, i) => {
     grupos[`bloque_${i}`] = { titulo: b.nombre, icono: b.icono, items: porBloque[b.nombre] || [], esBloque: true, eliminable: true, nombreBloque: b.nombre, valorBloque: b.nombre };
   });
-  if (canceladas.length > 0) grupos.canceladas = { titulo: "Canceladas", icono: "🗄️", items: canceladas, esBloque: false, eliminable: false };
 
   if (bloqueAlertaAbierto && !grupos[bloqueAlertaAbierto]) bloqueAlertaAbierto = null; // se borró el bloque que estaba abierto
 
@@ -755,23 +754,24 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
 }
 
 // Notificaciones de una sola vez no se cancelan solas al dispararse (ver
-// worker/src/push.js) -- se quedan en "enviada" hasta que alguien las
-// revisa acá. Recién ahí pasan a "cancelada" (su estado final) y se
-// guarda "revisadoEn" -- el Worker las borra solas 15 días después (ver
-// DIAS_ANTES_DE_BORRAR_REVISADAS en worker/src/push.js).
+// worker/src/push.js) -- se quedan en "enviada" (o "activa" si el Cron
+// todavía no llegó a mandarlas) hasta que alguien las revisa acá. Ya no
+// existe un bloque "Canceladas": una vez aprobada, una "unica" ya cumplió
+// su único propósito y se borra directo (pedido explícito del usuario --
+// antes quedaba en estado "cancelada" y el Worker recién la borraba 15
+// días después). Una recurrente solo estaba en revisión por tener
+// "recordar_en_dias" activado (ver debeQuedarEnRevision en
+// worker/src/push.js) -- al revisarla vuelve a "activa", lista para su
+// próximo ciclo normal, no se borra.
 async function marcarNotificacionRevisada(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
   try {
-    // "unica" ya cumplió su único propósito -> "cancelada" (estado final).
-    // Una recurrente solo estaba en revisión por tener "recordar_en_dias"
-    // activado (ver debeQuedarEnRevision en worker/src/push.js) -- al
-    // revisarla vuelve a "activa", lista para su próximo ciclo normal, en
-    // vez de cancelarse para siempre.
-    const esUnica = n.tipo === "unica";
-    const cambios = { estado: esUnica ? "cancelada" : "activa" };
-    if (esUnica) cambios.revisadoEn = new Date().toISOString();
-    await Sheets.editarNotificacion(id, cambios);
+    if (n.tipo === "unica") {
+      await Sheets.borrarNotificacion(id);
+    } else {
+      await Sheets.editarNotificacion(id, { estado: "activa" });
+    }
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);
   } catch (err) {
@@ -1077,9 +1077,6 @@ function setupNotificacionesListeners() {
 
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);
-
-  document.getElementById("btn-notif-prueba")
-    ?.addEventListener("click", enviarNotificacionPrueba);
 
   document.getElementById("modal-notificacion")
     ?.addEventListener("click", (e) => {

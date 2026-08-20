@@ -15,7 +15,7 @@
 //  - GET /token?email=... → con un sessionToken propio (ver abajo) válido,
 //    entrega un access_token fresco usando el refresh_token guardado.
 
-import { handlePushSubscribe, handlePushUnsubscribe, handlePushTest, revisarYEnviarNotificaciones } from "./push.js";
+import { handlePushSubscribe, handlePushUnsubscribe, revisarYEnviarNotificaciones } from "./push.js";
 import { archivarMovimientosViejos } from "./archivo.js";
 
 const TOKEN_ENDPOINT     = "https://oauth2.googleapis.com/token";
@@ -49,14 +49,6 @@ export default {
         ? await handlePushSubscribe(request, env, auth)
         : await handlePushUnsubscribe(request, env, auth);
       return withCors(resultado, env);
-    }
-
-    // DIAGNÓSTICO TEMPORAL (agosto 2026) -- ver push.js. Sacar junto con
-    // handlePushTest y el botón "Enviar notificación de prueba".
-    if (url.pathname === "/push/test") {
-      const auth = await autenticarPeticion(request, env);
-      if (!auth) return withCors(jsonResponse({ error: "session_invalida" }, 401), env);
-      return withCors(await handlePushTest(request, env, auth), env);
     }
 
     return withCors(new Response("Not found", { status: 404 }), env);
