@@ -7,12 +7,14 @@
   /* Colors — paleta principal: navy + azul (neutros fríos, no crema, para
      hilar con el acento azul en vez de competir con él) */
   --bg:          #f5f6f8;
+  --bg-hover:    #e8e8ed; /* estado hover sobre --bg (botones secundarios) -- unificado: antes .btn-google y .btn-secondary tenían cada uno su propio gris (#ebebed vs #e8e8ed), casi iguales pero no idénticos. */
   --surface:     #ffffff;
   --surface-2:   #f5f6f8;
   --border:      rgba(2,32,48,0.08);
   --border-mid:  rgba(2,32,48,0.14);
 
   --brand:       #4F7DFF;
+  --brand-rgb:   79,125,255; /* mismo azul que --brand, en RGB para usar con rgba() en sombras/resplandores de foco -- antes esos rgba() tenían un verde suelto (47,107,79) que quedó de una paleta vieja, sin relación con el azul actual. */
   --brand-hover: #23395D;
   --brand-soft:  #eaf0ff;
   --brand-light: #8fa9ff;
@@ -159,7 +161,7 @@ input, select, textarea, table {
   font-size: 16px; font-weight: 500; cursor: pointer;
   transition: all 0.15s; font-family: var(--font);
 }
-.btn-google:hover { background: #ebebed; transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn-google:hover { background: var(--bg-hover); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .btn-google:active { transform: scale(0.98); }
 
 /* ═══════════════ LAYOUT ═══════════════ */
@@ -437,7 +439,7 @@ input, select, textarea, table {
   font-family: var(--font); letter-spacing: -0.1px; white-space: nowrap;
   transition: all 0.15s;
 }
-.btn-primary:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(47,107,79,.25); }
+.btn-primary:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(var(--brand-rgb),.25); }
 .btn-primary:active { transform: scale(0.97); box-shadow: none; }
 
 .btn-secondary {
@@ -445,7 +447,7 @@ input, select, textarea, table {
   border-radius: var(--r-sm); padding: 10px 18px; font-size: 14px;
   cursor: pointer; font-family: var(--font); font-weight: 500; transition: all 0.15s;
 }
-.btn-secondary:hover { background: #e8e8ed; }
+.btn-secondary:hover { background: var(--bg-hover); }
 
 .btn-outline {
   background: transparent; color: var(--brand); border: 1.5px solid var(--brand);
@@ -465,7 +467,7 @@ input, select, textarea, table {
   outline: none; transition: border-color 0.15s, box-shadow 0.15s;
   -webkit-appearance: none;
 }
-.input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(47,107,79,.1); }
+.input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(var(--brand-rgb),.1); }
 .input::placeholder { color: var(--text-4); }
 
 .input-sm {
@@ -661,7 +663,11 @@ input, select, textarea, table {
 }
 .accion-rapida-card:active { opacity: 0.7; }
 .accion-rapida-vacia { border-style: dashed; color: var(--text-4); }
+.accion-rapida-icono-fila { display: flex; align-items: center; gap: 4px; }
 .accion-rapida-icono { font-size: 40px; line-height: 1; filter: grayscale(.35); }
+/* Logo de la entidad de la caja de esta acción (Nequi/Bancolombia/...,
+   ver iconoCajaImagen en app.js), al lado del ícono elegido. */
+.accion-rapida-caja-icono { height: 18px; width: auto; max-width: 32px; object-fit: contain; border-radius: 3px; }
 .accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
@@ -723,7 +729,7 @@ input, select, textarea, table {
      (bug real reportado: la página se salía del 100% del ancho). */
   min-width: 0;
 }
-.caja-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px rgba(47,107,79,.10); }
+.caja-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px rgba(var(--brand-rgb),.10); }
 .caja-card:active { transform: scale(0.98); }
 /* Fila de arriba: SOLO el aviso de "Requiere ajuste" cuando aplica (ya no
    la moneda, sacada a pedido explícito) -- por eso se omite del todo
@@ -935,7 +941,7 @@ input, select, textarea, table {
 }
 .proy-mes-tab.active {
   background: var(--brand); color: #fff;
-  border-color: var(--brand); box-shadow: 0 4px 12px rgba(47,107,79,.2);
+  border-color: var(--brand); box-shadow: 0 4px 12px rgba(var(--brand-rgb),.2);
 }
 
 /* KPI row */
@@ -1318,7 +1324,7 @@ input, select, textarea, table {
   width: 64px; height: 64px;
   border-radius: 50%;
   border: none;
-  background: rgba(47,107,79,0.55);
+  background: rgba(var(--brand-rgb),0.55);
   backdrop-filter: blur(6px) saturate(140%);
   -webkit-backdrop-filter: blur(6px) saturate(140%);
   color: #fff;
@@ -1336,7 +1342,7 @@ input, select, textarea, table {
 .fab-recordatorio:active { transform: scale(0.94); }
 .fab-recordatorio.arrastrando {
   opacity: 1; cursor: grabbing; transition: none;
-  box-shadow: var(--shadow-lg), 0 0 0 6px rgba(47,107,79,0.15);
+  box-shadow: var(--shadow-lg), 0 0 0 6px rgba(var(--brand-rgb),0.15);
 }
 
 /* ═══════════════ SYNC TOAST ═══════════════ */
@@ -1632,8 +1638,8 @@ input, select, textarea, table {
 
 /* Anillo de foco sutil, se desvanece solo (no queda pulsando) */
 @keyframes fh-anillo-foco {
-  from { box-shadow: 0 0 0 0 rgba(47,107,79,.35); }
-  to   { box-shadow: 0 0 0 5px rgba(47,107,79,0); }
+  from { box-shadow: 0 0 0 0 rgba(var(--brand-rgb),.35); }
+  to   { box-shadow: 0 0 0 5px rgba(var(--brand-rgb),0); }
 }
 .input:focus-visible,
 .btn-primary:focus-visible, .btn-secondary:focus-visible, .btn-outline:focus-visible,

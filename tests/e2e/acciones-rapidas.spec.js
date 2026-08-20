@@ -234,4 +234,39 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
     await expect(slot0).toContainText('Mercado');
   });
+
+  test('la tarjeta de una acción rápida muestra el logo de su caja junto al ícono elegido', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Nequi', 'COP'],
+        // Sin entidad/propósito conocido en el nombre -- sin logo.
+        ['C2', 'prueba@example.com', 'Caja rara', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Recarga');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await seleccionarCaja(page, 'config-accion-caja', 'Nequi (COP)');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await expect(slot0.locator('.accion-rapida-caja-icono')).toHaveAttribute('src', 'nequi.png');
+
+    // Otra acción en "Caja rara" (sin entidad/propósito conocido) -- sin logo.
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Varios');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await seleccionarCaja(page, 'config-accion-caja', 'Caja rara (COP)');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    const slot1 = page.locator('.accion-rapida-card[data-slot="1"]');
+    await expect(slot1.locator('.accion-rapida-caja-icono')).toHaveCount(0);
+  });
 });

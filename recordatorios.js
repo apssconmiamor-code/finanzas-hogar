@@ -743,11 +743,21 @@ function renderMenuAcciones() {
   // "Agregar" siempre va al final -- de nada sirve como referencia de
   // posición fija si las acciones ya configuradas lo van corriendo cada
   // vez que se agrega una nueva (pedido explícito del usuario).
-  grid.innerHTML = acciones.map((accion, i) => `
+  grid.innerHTML = acciones.map((accion, i) => {
+    // Logo de la entidad de la caja que esta acción usa (Nequi/Bancolombia/
+    // etc., ver iconoCajaImagen en app.js) junto al ícono elegido -- pedido
+    // explícito, para identificar de un vistazo a qué caja va cada acción
+    // sin tener que abrirla a configurar.
+    const iconoCaja = typeof iconoCajaImagen === "function" ? iconoCajaImagen(accion.caja) : null;
+    return `
     <button class="accion-rapida-card" data-slot="${i}">
-      <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
+      <span class="accion-rapida-icono-fila">
+        <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
+        ${iconoCaja ? `<img class="accion-rapida-caja-icono" src="${iconoCaja}" alt="" />` : ""}
+      </span>
       <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
-    </button>`).join("") + `
+    </button>`;
+  }).join("") + `
     <button class="accion-rapida-card" id="accion-recordatorio">
       <span class="accion-rapida-icono">📝</span>
       <span class="accion-rapida-nombre">Recordatorio</span>
