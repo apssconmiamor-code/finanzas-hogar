@@ -68,4 +68,27 @@ test.describe('Ajustar caja', () => {
     const tarjetaRara = page.locator('.caja-card', { hasText: 'Caja rara' });
     await expect(tarjetaRara.locator('.caja-card-icono')).toHaveCount(0);
   });
+
+  test('un nombre de caja muy largo envuelve en dos líneas en vez de salirse del ancho de la pantalla', async ({ page }) => {
+    // Bug real reportado: la grilla de Cuentas se salía del 100% del
+    // ancho de la pantalla con un nombre largo sin cortes.
+    const nombreLargo = 'Cuenta de Ahorros Programados Bancolombia Familiar';
+    await iniciarSesionFalsa(page);
+    await mockGoogleApis(page, {
+      'Cajas': [['C1', 'prueba@example.com', nombreLargo, 'COP']],
+    });
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    // Sin scroll horizontal de la página.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1); // tolerancia de redondeo de subpíxel
+
+    // El nombre efectivamente envolvió a más de una línea (no quedó
+    // comprimido en una sola con overflow).
+    const nombreEl = page.locator('.caja-card', { hasText: 'Cuenta de Ahorros' }).locator('.caja-nombre');
+    const alturaLinea = await nombreEl.evaluate(el => parseFloat(getComputedStyle(el).lineHeight));
+    const alturaReal  = await nombreEl.evaluate(el => el.getBoundingClientRect().height);
+    expect(alturaReal).toBeGreaterThan(alturaLinea * 1.3);
+  });
 });
