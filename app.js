@@ -1091,6 +1091,23 @@ function navegarATab(tab) {
 document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
   document.getElementById("btn-refrescar-mov")?.addEventListener("click", cargarTodo);
 
+  // Deslizar hacia abajo para refrescar (ver activarPullToRefresh en
+  // gestos.js) -- Cajas y Movimientos comparten cargarTodo (la misma carga
+  // ya trae ambas); Alertas tiene su propia carga más liviana.
+  if (typeof activarPullToRefresh === "function") {
+    activarPullToRefresh(
+      document.querySelector(".main-content"),
+      document.getElementById("pull-refresh-indicator"),
+      () => {
+        if (document.getElementById("tab-cajas")?.classList.contains("hidden") === false) return cargarTodo;
+        if (document.getElementById("tab-movimientos")?.classList.contains("hidden") === false) return cargarTodo;
+        if (document.getElementById("tab-notificaciones")?.classList.contains("hidden") === false
+          && typeof cargarNotificaciones === "function") return cargarNotificaciones;
+        return null;
+      }
+    );
+  }
+
   // Bottom nav "Más" button — opens dropdown menu
   document.getElementById("btn-bottom-menu")?.addEventListener("click", (e) => {
     e.stopPropagation();

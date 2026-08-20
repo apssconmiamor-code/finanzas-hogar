@@ -386,6 +386,26 @@ input, select, textarea, table {
 }
 @keyframes conectando-spin { to { transform: rotate(360deg); } }
 
+/* Pull-to-refresh (ver activarPullToRefresh en gestos.js). Fixed, oculto
+   arriba de la pantalla por defecto -- JS mueve/opaca vía inline style
+   mientras se arrastra el dedo; "arrastrando" solo apaga la transición para
+   que el seguimiento del dedo sea 1:1, sin el retraso del ease de abajo. */
+.pull-refresh-indicator {
+  position: fixed; top: 66px; left: 50%; margin-left: -17px;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--surface); box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; z-index: 90; opacity: 0; pointer-events: none;
+  transform: translateY(-40px);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.pull-refresh-indicator.arrastrando { transition: none; }
+.pull-refresh-indicator.listo { border-color: var(--brand); }
+.pull-refresh-indicator.cargando {
+  opacity: 1; transform: translateY(20px);
+  animation: conectando-spin 0.7s linear infinite;
+}
+
 /* Barra "reconectar" — la renovación silenciosa del token falló y hace
    falta un toque del usuario para volver a autenticar con Google */
 .reconectar-bar {
