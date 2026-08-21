@@ -273,6 +273,33 @@ async function activarNotificacionesPush() {
   }
 }
 
+// Le pide al Worker el link de suscripción a un calendario .ics (ver
+// worker/src/calendario.js) con las alertas propias (individuales) más las
+// grupales, y lo abre. En iOS, un enlace webcal:// dispara directo el
+// picker nativo de "Agregar calendario suscrito" -- una vez aceptado ahí,
+// el propio iPhone revisa el feed solo de ahí en adelante, sin volver a
+// pasar por la app. En navegadores que no reconocen ese esquema (desktop,
+// Android) el enlace https:// del mismo feed queda copiado al portapapeles
+// como respaldo, para suscribirlo a mano donde corresponda.
+async function suscribirCalendario() {
+  try {
+    const sessionToken = localStorage.getItem("worker_session");
+    const res = await fetch(`${CONFIG.WORKER_URL}/calendario/link`, {
+      headers: { Authorization: `Bearer ${sessionToken}` }
+    });
+    if (!res.ok) throw new Error(`Worker respondió ${res.status}`);
+    const { url, httpsUrl } = await res.json();
+
+    if (navigator.clipboard) {
+      try { await navigator.clipboard.writeText(httpsUrl); } catch (e) { /* sin permiso de portapapeles, no es crítico */ }
+    }
+    SyncManager.mostrarToast("🗓️ Abriendo el picker de suscripción del Calendario…");
+    window.location.href = url;
+  } catch (err) {
+    alert("No se pudo generar el enlace del calendario: " + err.message);
+  }
+}
+
 // Este dispositivo ya tiene el permiso + la suscripción push activa -- no
 // tiene sentido seguir ofreciendo el botón para activarlas de nuevo, ni la
 // explicación de por qué hace falta activarlas (ya se activaron acá).
@@ -1075,6 +1102,9 @@ function setupNotificacionesListeners() {
 
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);
+
+  document.getElementById("btn-suscribir-calendario")
+    ?.addEventListener("click", suscribirCalendario);
 
   // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
   // (ver cerrarModal, que ya sabe llamar a limpiarFormNotificacion para este modal).

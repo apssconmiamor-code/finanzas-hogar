@@ -17,6 +17,7 @@
 
 import { handlePushSubscribe, handlePushUnsubscribe, revisarYEnviarNotificaciones } from "./push.js";
 import { archivarMovimientosViejos } from "./archivo.js";
+import { handleCalendarioLink, handleCalendarioFeed } from "./calendario.js";
 
 const TOKEN_ENDPOINT     = "https://oauth2.googleapis.com/token";
 const USERINFO_ENDPOINT  = "https://www.googleapis.com/oauth2/v3/userinfo";
@@ -49,6 +50,19 @@ export default {
         ? await handlePushSubscribe(request, env, auth)
         : await handlePushUnsubscribe(request, env, auth);
       return withCors(resultado, env);
+    }
+
+    if (url.pathname === "/calendario/link") {
+      const auth = await autenticarPeticion(request, env);
+      if (!auth) return withCors(jsonResponse({ error: "session_invalida" }, 401), env);
+      return withCors(await handleCalendarioLink(request, url, env, auth), env);
+    }
+
+    // Sin withCors a propósito: lo pide el propio Calendar del dispositivo
+    // (no un fetch() del navegador), así que no hay preflight ni origen que
+    // validar -- y agregarle Access-Control-Allow-Origin no cambia nada acá.
+    if (url.pathname === "/calendario.ics") {
+      return handleCalendarioFeed(url, env);
     }
 
     return withCors(new Response("Not found", { status: 404 }), env);

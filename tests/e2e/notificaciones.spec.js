@@ -635,4 +635,29 @@ test.describe('Notificaciones (Web Push)', () => {
     // tiene sentido si este dispositivo ya las activó.
     await expect(page.locator('#notif-header-nota')).toBeHidden();
   });
+
+  test('"Ver en el Calendario" pide el link al Worker con el sessionToken y lo abre', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.addInitScript(() => {
+      localStorage.setItem('worker_session', 'FAKE_SESSION_TOKEN');
+    });
+
+    let headerRecibido = null;
+    await page.route('**finanzas-hogar-token.byco85.workers.dev/calendario/link', async (route) => {
+      headerRecibido = route.request().headers()['authorization'];
+      await route.fulfill({
+        json: {
+          url: 'webcal://finanzas-hogar-token.byco85.workers.dev/calendario.ics?email=prueba%40example.com&token=abc123',
+          httpsUrl: 'https://finanzas-hogar-token.byco85.workers.dev/calendario.ics?email=prueba%40example.com&token=abc123'
+        }
+      });
+    });
+
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await page.locator('#btn-suscribir-calendario').click();
+    await expect.poll(() => headerRecibido).toBe('Bearer FAKE_SESSION_TOKEN');
+  });
 });

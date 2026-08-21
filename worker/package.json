@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node src/push.test.mjs && node src/archivo.test.mjs"
+    "test": "node src/push.test.mjs && node src/archivo.test.mjs && node src/calendario.test.mjs"
   },
   "keywords": [],
   "author": "",

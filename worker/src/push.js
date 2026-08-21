@@ -305,8 +305,9 @@ export async function obtenerAccessTokenAutonomo(env) {
 }
 
 // ---- Leer/escribir la hoja Notificaciones directo (el Worker no tiene
-// acceso a sheets.js del frontend, así que repite las llamadas mínimas). ----
-async function leerNotificaciones(accessToken, env) {
+// acceso a sheets.js del frontend, así que repite las llamadas mínimas).
+// Exportada además para calendario.js (mismo feed de datos, para el .ics). ----
+export async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:P")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
