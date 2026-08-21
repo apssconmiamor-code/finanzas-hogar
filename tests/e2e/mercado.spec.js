@@ -132,6 +132,31 @@ test.describe('Mercado', () => {
     await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
   });
 
+  test('marcar "hay que comprarlo" mueve el producto a la sección de abajo, y un segundo doble toque lo vuelve a subir', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await agregarProducto(page, 'Pan');
+
+    // Todavía no hay sección "Para comprar" -- nada está marcado.
+    await expect(page.locator('.mercado-seccion-comprar')).toHaveCount(0);
+
+    const leche = page.locator('.mercado-item', { hasText: 'Leche' });
+    await leche.dblclick();
+    await expect(page.locator('.mercado-seccion-comprar')).toBeVisible();
+    await expect(page.locator('.mercado-seccion-comprar-titulo')).toContainText('Para comprar (1)');
+    // "Leche" ahora vive DENTRO de la sección de abajo, "Pan" sigue arriba.
+    await expect(page.locator('.mercado-seccion-comprar .mercado-item', { hasText: 'Leche' })).toBeVisible();
+    await expect(page.locator('.mercado-seccion-comprar .mercado-item', { hasText: 'Pan' })).toHaveCount(0);
+
+    // Segundo doble toque (pasada la ventana del primero): vuelve arriba,
+    // la sección de abajo desaparece del todo (no queda vacía y visible).
+    await page.waitForTimeout(500);
+    await page.locator('.mercado-seccion-comprar .mercado-item', { hasText: 'Leche' }).dblclick();
+    await expect(page.locator('.mercado-seccion-comprar')).toHaveCount(0);
+    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
+  });
+
   test('mantener presionado un producto abre Editar/Eliminar', async ({ page }) => {
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');

@@ -370,6 +370,13 @@ function renderMercadoGrid(cont) {
 }
 
 // ---- Detalle de una categoría (o "Sin categoría") ----
+// Pantalla dividida en dos: arriba los productos normales, abajo los
+// marcados "hay que comprarlo" (pedido explícito) -- doble toque los pasa
+// de una sección a la otra, en cualquier sentido.
+function _chipProductoMercado(p) {
+  return `<div class="mercado-item${p.hayQueComprar ? " mercado-item-comprar" : ""}" data-id="${p.id}" onpointerup="tapProductoMercado('${p.id}', event)">${escapeHtml(p.nombre)}</div>`;
+}
+
 function renderMercadoCategoriaDetalle(cont, categoria) {
   const cat = categoria ? mercadoCategorias.find(c => c.nombre === categoria) : null;
   const titulo = categoria ? (cat ? cat.nombre : categoria) : "Sin categoría";
@@ -378,17 +385,27 @@ function renderMercadoCategoriaDetalle(cont, categoria) {
     .filter(p => (p.categoria || "") === categoria)
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  const itemsHTML = items.length > 0
-    ? `<div class="mercado-productos-grid">${items.map(p => `
-        <div class="mercado-item${p.hayQueComprar ? " mercado-item-comprar" : ""}" data-id="${p.id}" onpointerup="tapProductoMercado('${p.id}', event)">${escapeHtml(p.nombre)}</div>`).join("")}</div>`
+  const pendientes   = items.filter(p => !p.hayQueComprar);
+  const paraComprar  = items.filter(p => p.hayQueComprar);
+
+  const seccionPendientes = items.length > 0
+    ? `<div class="mercado-productos-grid">${pendientes.map(_chipProductoMercado).join("")}</div>`
     : `<div class="notif-bloque-vacio">No hay productos acá todavía.</div>`;
+
+  const seccionParaComprar = paraComprar.length > 0
+    ? `<div class="mercado-seccion-comprar">
+        <div class="mercado-seccion-comprar-titulo">🛒 Para comprar (${paraComprar.length})</div>
+        <div class="mercado-productos-grid">${paraComprar.map(_chipProductoMercado).join("")}</div>
+      </div>`
+    : "";
 
   cont.innerHTML = `
     <div class="alerta-bloque-detalle-header">
       <span class="alerta-bloque-detalle-titulo">${icono} ${escapeHtml(titulo)} (${items.length})</span>
     </div>
     <button type="button" class="btn-primary btn-franja" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>
-    ${itemsHTML}`;
+    ${seccionPendientes}
+    ${seccionParaComprar}`;
 
   document.getElementById("btn-nuevo-producto-mercado-categoria")
     ?.addEventListener("click", () => abrirNuevoProductoMercado(categoria));
