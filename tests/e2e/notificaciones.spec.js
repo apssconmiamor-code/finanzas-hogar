@@ -659,5 +659,26 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await page.locator('#btn-suscribir-calendario').click();
     await expect.poll(() => headerRecibido).toBe('Bearer FAKE_SESSION_TOKEN');
+
+    // No hay forma de confirmar desde la web que la suscripción se
+    // completó de verdad (eso pasa afuera de la app) -- se asume que sí y
+    // el botón se oculta solo, en este dispositivo, para no seguir
+    // ofreciéndolo cada vez que se abre Alertas.
+    await expect(page.locator('#btn-suscribir-calendario')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('calendario_suscrito'))).toBe('1');
+  });
+
+  test('"Ver en el Calendario" sigue oculto tras recargar, una vez que ya se tocó en este dispositivo', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.addInitScript(() => {
+      localStorage.setItem('worker_session', 'FAKE_SESSION_TOKEN');
+      localStorage.setItem('calendario_suscrito', '1');
+    });
+
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('#btn-suscribir-calendario')).toBeHidden();
   });
 });

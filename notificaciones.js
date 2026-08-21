@@ -295,9 +295,22 @@ async function suscribirCalendario() {
     }
     SyncManager.mostrarToast("🗓️ Abriendo el picker de suscripción del Calendario…");
     window.location.href = url;
+
+    // No existe una API web para confirmar que la suscripción se completó
+    // de verdad (eso pasa afuera de la app, en Calendar/Ajustes) -- se
+    // asume que si llegó hasta acá, siguió el picker nativo, y el botón se
+    // oculta solo en ESTE dispositivo. Igual que el de Activar push, cada
+    // dispositivo lo ve una vez.
+    localStorage.setItem("calendario_suscrito", "1");
+    actualizarBotonSuscribirCalendario();
   } catch (err) {
     alert("No se pudo generar el enlace del calendario: " + err.message);
   }
+}
+
+function actualizarBotonSuscribirCalendario() {
+  document.getElementById("btn-suscribir-calendario")
+    ?.classList.toggle("hidden", localStorage.getItem("calendario_suscrito") === "1");
 }
 
 // Este dispositivo ya tiene el permiso + la suscripción push activa -- no
@@ -491,6 +504,7 @@ async function cargarNotificaciones() {
     if (cache) { try { notificaciones = JSON.parse(cache); } catch {} }
   }
   actualizarBotonActivarPush();
+  actualizarBotonSuscribirCalendario();
   renderNotificaciones();
   renderNotificacionesBadge();
   if (typeof actualizarBadgeApp === "function") actualizarBadgeApp();
