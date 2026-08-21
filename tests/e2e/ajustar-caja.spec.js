@@ -25,8 +25,8 @@ test.describe('Ajustar caja', () => {
     const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeVisible();
 
-    // Abre el detalle y confirma el saldo negativo + el botón Ajustar.
-    await tarjeta.click();
+    // Doble toque abre el detalle y confirma el saldo negativo + el botón Ajustar.
+    await tarjeta.dblclick();
     await expect(page.locator('#modal-detalle-caja')).toBeVisible();
     await expect(page.locator('#detalle-caja-resumen')).toContainText('Saldo: -$ 100.000');
     const btnAjustar = page.locator('.btn-ajustar');
@@ -39,7 +39,7 @@ test.describe('Ajustar caja', () => {
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeHidden();
 
     // Reabrir el detalle debe mostrar el saldo ya en $0 y sin botón Ajustar.
-    await tarjeta.click();
+    await tarjeta.dblclick();
     await expect(page.locator('#detalle-caja-resumen')).toContainText('Saldo: $ 0');
     await expect(page.locator('.btn-ajustar')).toBeHidden();
 
@@ -82,11 +82,14 @@ test.describe('Ajustar caja', () => {
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeHidden({ timeout: 10000 });
   });
 
-  test('un toque corto sigue abriendo el detalle directo, incluso en una tarjeta que requiere ajuste', async ({ page }) => {
+  test('un solo toque no hace nada -- ni en una tarjeta normal ni en una que requiere ajuste', async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await iniciarSesionFalsa(page);
     await mockGoogleApis(page, {
-      'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Cajas': [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+      ],
       'Movimiento de Caja': [
         ['M1', hoy, 'prueba@example.com', 'Renta', 'Gasto fijo', 'Efectivo', 100000, '', ''],
       ],
@@ -94,10 +97,22 @@ test.describe('Ajustar caja', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
-    const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
-    await tarjeta.click();
-    await expect(page.locator('#modal-detalle-caja')).toBeVisible();
+    // Tarjeta que requiere ajuste: un solo toque no abre el detalle.
+    const tarjetaEfectivo = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await tarjetaEfectivo.click();
+    await expect(page.locator('#modal-detalle-caja')).toBeHidden();
     await expect(page.locator('#modal-editar-borrar')).toBeHidden();
+
+    // Tarjeta sin problemas: tampoco.
+    const tarjetaNequi = page.locator('.caja-card', { hasText: 'Nequi' });
+    await tarjetaNequi.click();
+    await expect(page.locator('#modal-detalle-caja')).toBeHidden();
+
+    // Doble toque (ya pasada la ventana de doble toque del click anterior,
+    // para no encadenarse con él) sí lo abre.
+    await page.waitForTimeout(500);
+    await tarjetaNequi.dblclick();
+    await expect(page.locator('#modal-detalle-caja')).toBeVisible();
   });
 
   test('la tarjeta muestra el logo de la entidad en la misma fila del nombre, sin la moneda', async ({ page }) => {

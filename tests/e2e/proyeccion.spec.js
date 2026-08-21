@@ -55,7 +55,7 @@ test.describe('Proyección', () => {
     await expect(page.locator('#nuevo-concepto-duplicado')).toBeVisible();
   });
 
-  test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque ve movimientos, el segundo abre el resumen y mantener presionado abre Editar/Eliminar', async ({ page }) => {
+  test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque no hace nada, doble toque abre el resumen y mantener presionado abre Editar/Eliminar', async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await mockGoogleApis(page, {
       Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
@@ -88,19 +88,17 @@ test.describe('Proyección', () => {
 
     const filaAlquiler = page.locator('.proy-tabla-row', { hasText: 'Alquiler' });
 
-    // Un solo toque abre los movimientos reales de ese concepto.
+    // Un solo toque no hace nada (pedido explícito).
     await filaAlquiler.click();
-    await expect(page.locator('#modal-detalle-real-concepto')).toBeVisible();
-    await expect(page.locator('#detalle-real-titulo')).toContainText('Alquiler');
-    await page.locator('#btn-cerrar-detalle-real').click();
-    await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
+    await expect(page.locator('#modal-resumen-concepto')).toBeHidden();
 
-    // Un segundo toque rápido sobre la misma fila abre el resumen, de solo
-    // lectura -- Modificar/Eliminar viven en el menú de mantener presionado,
-    // no acá -- y el detalle de movimientos no se queda abierto de fondo.
+    // Un doble toque sobre la misma fila (ya pasada la ventana de doble
+    // toque del click anterior, para no encadenarse con él) abre el
+    // resumen, de solo lectura -- Modificar/Eliminar viven en el menú de
+    // mantener presionado, no acá.
+    await page.waitForTimeout(500);
     await filaAlquiler.dblclick();
     await expect(page.locator('#modal-resumen-concepto')).toBeVisible();
-    await expect(page.locator('#modal-detalle-real-concepto')).toBeHidden();
     await expect(page.locator('#resumen-concepto-titulo')).toContainText('Alquiler');
     // Cabecera: Estimado/Real/Balance (ya no Categoría) -- estimado y real
     // coinciden (800.000 ambos), balance en 0 → "—", sin color de aviso.

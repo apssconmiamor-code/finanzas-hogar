@@ -1671,6 +1671,11 @@ function iconoCajaImagen(nombre) {
   return null;
 }
 
+// Doble toque abre el detalle de la caja (resumen de solo lectura, mismo
+// criterio que el resto de la app -- pedido explícito: un solo toque ya no
+// debe hacer nada, antes abría el detalle directo).
+const tapCaja = crearManejadorDobleToque(nombre => nombre, nombre => abrirDetalleCaja(nombre));
+
 function renderCajas() {
   const grid = document.getElementById("cajas-grid");
   if (cajas.length === 0) {
@@ -1692,12 +1697,7 @@ function renderCajas() {
     const colorFondo = cajaColorFondo(c.nombre);
     const requiereAjuste = saldoReal < 0;
     const icono = iconoCajaImagen(c.nombre);
-    // El onclick nativo se omite cuando hay long-press (requiereAjuste):
-    // el toque corto se dispara desde el propio manejador de mantener
-    // presionado (onCorto) para no disparar DOS VECES abrirDetalleCaja --
-    // un click nativo se sigue generando después del pointerup aunque haya
-    // sido un toque largo, si no se quita el onclick de acá.
-    return `<div class="caja-card" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}" ${requiereAjuste ? "" : `onclick="abrirDetalleCaja('${c.nombre.replace(/'/g, "\\'")}')"`} title="Ver movimientos de esta caja">
+    return `<div class="caja-card" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}" onpointerup="tapCaja('${c.nombre.replace(/'/g, "\\'")}', event)">
       ${requiereAjuste ? `<div class="caja-card-top"><span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span></div>` : ""}
       <div class="caja-nombre-fila">
         <span class="caja-nombre">${c.nombre}</span>
@@ -1711,9 +1711,8 @@ function renderCajas() {
 
 // Mantener presionada una tarjeta ofrece "Ajustar" -- solo cuando el saldo
 // real es negativo (mismo criterio que ya usa el botón dentro del detalle,
-// ver abrirDetalleCaja/botonAjustar). El toque corto sigue abriendo el
-// detalle completo directo, sin cambios -- Cajas no tiene un resumen
-// intermedio nuevo.
+// ver abrirDetalleCaja/botonAjustar). Sin onCorto: el toque corto ya lo
+// maneja el onpointerup inline de la tarjeta (tapCaja, doble toque).
 function _conectarLargoPresionCajas(grid) {
   grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
     const nombre = card.dataset.nombre;
@@ -1724,8 +1723,7 @@ function _conectarLargoPresionCajas(grid) {
         titulo: nombre,
         labelEditar: "⚖️ Ajustar",
         onEditar: () => ajustarCaja(nombre)
-      }),
-      onCorto: () => abrirDetalleCaja(nombre)
+      })
     });
   });
 }
@@ -3539,36 +3537,26 @@ function _conectarLargoPresionTablaComparacion() {
   });
 }
 
-// Toque/clic en una fila de "Detalle por concepto": el primero abre los
-// movimientos reales que la componen ese mes (como siempre); un segundo
-// toque rápido (<400ms) sobre la MISMA fila abre el resumen con
-// Modificar/Eliminar en vez de esa lista. No se puede usar ondblclick -- el
-// bloqueo de zoom (touchend -> preventDefault en index.html) suprime la
-// síntesis nativa de dblclick en iOS Safari real (mismo bug ya resuelto
-// para Alertas y Movimientos, ver tapNotificacion/tapMovimiento). Tampoco
-// alcanza con onclick: ese mismo preventDefault() en el touchend del
-// SEGUNDO toque también suprime la síntesis del click de ESE toque puntual
-// -- por eso la fila usa onpointerup, no onclick (bug real reportado: con
-// onclick, el segundo toque nunca llegaba a registrarse en el celular
-// real, así que siempre caía en el toque simple).
-//
-// A diferencia de esos dos casos, acá el toque "simple" SÍ abre un modal
-// (los movimientos reales) -- si se abriera de inmediato, ese modal
-// taparía la fila y el segundo toque del gesto de doble toque nunca
-// llegaría a ella (bug real: el resumen no se abría). Por eso el primer
-// toque espera 400ms antes de abrir nada, dando tiempo a que llegue un
-// segundo toque que lo cancele y abra el resumen en su lugar.
+// Doble toque en una fila de "Detalle por concepto" abre el resumen con
+// Modificar/Eliminar -- un solo toque no hace nada (pedido explícito). No
+// se puede usar ondblclick -- el bloqueo de zoom (touchend ->
+// preventDefault en index.html) suprime la síntesis nativa de dblclick en
+// iOS Safari real (mismo bug ya resuelto para Alertas y Movimientos, ver
+// tapNotificacion/tapMovimiento). Tampoco alcanza con onclick: ese mismo
+// preventDefault() en el touchend del SEGUNDO toque también suprime la
+// síntesis del click de ESE toque puntual -- por eso la fila usa
+// onpointerup, no onclick (bug real reportado: con onclick, el segundo
+// toque nunca llegaba a registrarse en el celular real, así que siempre
+// caía en el toque simple).
 const tapConcepto = crearManejadorDobleToque(
   (concepto, categoria) => concepto + "|" + categoria,
-  (concepto, categoria, esOtros) => abrirResumenConcepto(concepto, categoria, esOtros),
-  { alPrimerToque: (concepto, categoria, esOtros) => abrirDetalleRealConcepto(concepto, categoria, esOtros) }
+  (concepto, categoria, esOtros) => abrirResumenConcepto(concepto, categoria, esOtros)
 );
 
-// ---- DETALLE DE MOVIMIENTOS REALES (clic en una fila) ----
+// ---- DETALLE DE MOVIMIENTOS REALES (resumen de una fila) ----
 
 // Movimientos reales del mes que cuentan para un concepto de Proyección --
-// compartido entre abrirDetalleRealConcepto (lista de "un toque") y
-// abrirResumenConcepto (mismo total + la misma lista, debajo de Categoría/
+// usado por abrirResumenConcepto (total + la misma lista, debajo de Categoría/
 // Estimado/Real). "esOtros" agrupa distinto: mismo criterio que
 // renderTablaComparacion usa para armar esa fila -- conceptos que no
 // tienen estimado este mes ni son fuente de ingreso, más los movimientos
@@ -3588,8 +3576,8 @@ function _movimientosRealesDeConcepto(mes, concepto, esOtros) {
   return movsDelMes.filter(m => !conocidos.has(m.concepto));
 }
 
-// Arma el HTML de una lista de movimientos reales (.detalle-real-item),
-// compartido entre esos mismos dos lugares -- ver _movimientosRealesDeConcepto.
+// Arma el HTML de una lista de movimientos reales (.detalle-real-item)
+// para el resumen de un concepto -- ver _movimientosRealesDeConcepto.
 function _renderListaMovimientosReales(lista, esOtros) {
   const ordenados = [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha));
   return ordenados.map(m => {
@@ -3608,33 +3596,11 @@ function _renderListaMovimientosReales(lista, esOtros) {
   }).join("");
 }
 
-function abrirDetalleRealConcepto(concepto, categoria, esOtros) {
-  const mes = proyMesActivo;
-  const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-  const lista = _movimientosRealesDeConcepto(mes, concepto, esOtros);
-  const titulo = esOtros ? "🗂️ Otros" : `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
-
-  document.getElementById("detalle-real-titulo").textContent = titulo;
-  document.getElementById("detalle-real-subtitulo").textContent = `Movimientos reales de ${mesLabel}`;
-
-  const cont = document.getElementById("detalle-real-lista");
-  cont.innerHTML = lista.length === 0
-    ? `<div class="detalle-real-vacio">No hay movimientos reales de este concepto en ${mesLabel}.</div>`
-    : _renderListaMovimientosReales(lista, esOtros);
-
-  document.getElementById("modal-detalle-real-concepto")?.classList.remove("hidden");
-}
-
-// Resumen de un concepto (segundo toque sobre su fila) -- acá viven
+// Resumen de un concepto (doble toque sobre su fila) -- acá viven
 // Modificar/Eliminar, ya no sueltos en la tabla (mismo patrón que Alertas y
 // Movimientos). "Otros" es un cajón agregador, no un concepto propio -- no
 // tiene sentido modificarlo/eliminarlo desde acá.
 function abrirResumenConcepto(concepto, categoria, esOtros) {
-  // El primer toque del doble toque ya disparó abrirDetalleRealConcepto
-  // -- se cierra antes de abrir este para que no quede de fondo, visible
-  // al cerrar el resumen.
-  document.getElementById("modal-detalle-real-concepto")?.classList.add("hidden");
-
   const mes = proyMesActivo;
   const lista = _movimientosRealesDeConcepto(mes, concepto, esOtros);
   const real = lista.reduce((s, m) => s + Math.abs(m.monto), 0);
@@ -4347,10 +4313,6 @@ function setupProyeccionListeners() {
     document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
     document.getElementById("nuevo-concepto-monto-label").textContent =
       btn.dataset.value === "Ingreso" ? "Ingreso estimado" : "Monto estimado";
-  });
-
-  document.getElementById("btn-cerrar-detalle-real")?.addEventListener("click", () => {
-    document.getElementById("modal-detalle-real-concepto").classList.add("hidden");
   });
 }
 
