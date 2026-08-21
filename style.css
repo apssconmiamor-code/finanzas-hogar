@@ -704,8 +704,9 @@ input, select, textarea, table {
 .accion-rapida-icono-fila { display: flex; align-items: center; gap: 4px; }
 .accion-rapida-icono { font-size: 40px; line-height: 1; filter: grayscale(.35); }
 /* Logo de la entidad de la caja de esta acción (Nequi/Bancolombia/...,
-   ver iconoCajaImagen en app.js), al lado del ícono elegido. */
-.accion-rapida-caja-icono { height: 18px; width: auto; max-width: 32px; object-fit: contain; border-radius: 3px; }
+   ver iconoCajaImagen en app.js), al lado del ícono elegido -- mismo alto
+   que .accion-rapida-icono (pedido explícito: mismo tamaño los dos). */
+.accion-rapida-caja-icono { height: 40px; width: auto; max-width: 70px; object-fit: contain; border-radius: 3px; }
 .accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
