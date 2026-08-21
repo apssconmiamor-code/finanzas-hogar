@@ -3,9 +3,8 @@
 // =============================================
 // Hoja "Recordatorios" en Google Sheets:
 // A: id | B: fecha | C: autor | D: texto | E: imageUrl | F: audioUrl
-// G: categoria (opcional) — cuando el recordatorio nace de un doble clic
-//    sobre una alerta (ver abrirRecordatorioDesdeAlerta en notificaciones.js),
-//    guarda el bloque de esa alerta ("Gastos fijos" o el bloque personalizado).
+// G: categoria (opcional) — bloque asociado al recordatorio, si lo trae
+//    (ver el parámetro "categoria" de abrirModalCrearRecordatorio).
 // Un recordatorio puede tener foto Y audio al mismo tiempo (no son excluyentes).
 // La foto/audio en sí se sube a Google Drive (Sheets no soporta binarios);
 // en la hoja solo quedan los links. El archivo en Drive queda con permiso
@@ -234,11 +233,10 @@ let recMediaRecorder = null;
 let recAudioChunks = [];
 let recGrabando = false;
 let recAudioStream = null; // se reutiliza mientras el modal está abierto para no repetir el permiso
-let recordatorioCategoriaActual = ""; // set por abrirRecordatorioDesdeAlerta() en notificaciones.js
+let recordatorioCategoriaActual = ""; // set por abrirModalCrearRecordatorio() de acá abajo
 
-// { texto, categoria } opcionales -- los usa abrirRecordatorioDesdeAlerta()
-// en notificaciones.js (doble clic sobre una alerta) para pre-llenar el
-// recordatorio con el bloque de esa alerta.
+// { texto, categoria } opcionales -- permiten pre-llenar el recordatorio
+// (ej. con el bloque de una alerta) al invocar esta función desde otro módulo.
 function abrirModalCrearRecordatorio({ texto = "", categoria = "" } = {}) {
   document.getElementById("recordatorio-texto").value = texto;
   recordatorioFotoData  = null;

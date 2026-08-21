@@ -559,7 +559,9 @@ function _esPasada(n) {
 // hace tiempo se ve "pasada" para siempre aunque esté funcionando bien.
 // soloRevisado: true dentro del bloque "Activos" -- ahí, en vez de la
 // fecha sola, se ve además un botón para confirmar que ya se atendió.
-function renderItemNotificacion(n, soloRevisado = false) {
+// icono: el mismo emoji del bloque (grupo.icono) -- pedido explícito, cada
+// fila de la lista se lee "icono - texto - próximo vencimiento".
+function renderItemNotificacion(n, soloRevisado = false, icono = "🔔") {
   const proxima = _proximaOcurrencia(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
@@ -570,7 +572,7 @@ function renderItemNotificacion(n, soloRevisado = false) {
   return `
     <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}', event)">
       <div class="notif-card-grid">
-        <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
+        <span class="notif-card-nombre"><span class="notif-card-icon">${icono}</span>${escapeHtml(n.titulo)}</span>
         ${botones}
       </div>
     </div>`;
@@ -619,11 +621,10 @@ function abrirResumenNotificacion(id) {
       </div>`).join("");
   }
 
-  // Mismo criterio que "Pasados": se puede aprobar tanto una ya "enviada"
-  // como una que sigue "activa" pero cuya fecha ya pasó (el Cron todavía
-  // no la alcanzó a mandar).
-  document.getElementById("btn-resumen-revisado")?.classList.toggle("hidden", !_esPasada(n));
-
+  // "Marcar como revisada" siempre visible -- se puede aprobar antes de
+  // tiempo (pedido explícito: se maneja igual que si se aprueba a la hora
+  // que es, ver marcarNotificacionRevisada más abajo, que ya no depende de
+  // si la fecha pasó o no).
   const modal = document.getElementById("modal-resumen-notificacion");
   if (modal) modal.dataset.id = id;
   modal?.classList.remove("hidden");
@@ -745,7 +746,7 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
     return fa.getTime() - fb.getTime();
   });
   const itemsHTML = itemsOrdenados.length > 0
-    ? itemsOrdenados.map(n => renderItemNotificacion(n, esActivos)).join("")
+    ? itemsOrdenados.map(n => renderItemNotificacion(n, esActivos, grupo.icono)).join("")
     : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
 
   lista.innerHTML = `
@@ -946,16 +947,6 @@ function abrirEditarNotificacion(id) {
   modal.classList.remove("hidden");
 }
 
-// ---- Doble clic en una alarma: crea un recordatorio en su mismo bloque ----
-// (reemplaza el detalle de solo lectura que había antes -- casi todo lo que
-// mostraba ya está a la vista en la tarjeta misma).
-function abrirRecordatorioDesdeAlerta(id) {
-  const n = notificaciones.find(x => x.id === id);
-  if (!n) return;
-  const categoria = n.gastoFijo ? "Gastos fijos" : (n.categoria || "");
-  abrirModalCrearRecordatorio({ texto: n.titulo, categoria });
-}
-
 // Traduce el picker "Repetir" (presets + Personalizado, mismo patrón que
 // Recordatorios de iPhone) a { tipo, intervalo, unidad } para guardar.
 function _leerRepeticionDelForm() {
@@ -1154,13 +1145,6 @@ function setupNotificacionesListeners() {
       const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
       document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
       if (id) marcarNotificacionRevisada(id);
-    });
-
-  document.getElementById("btn-resumen-crear-recordatorio")
-    ?.addEventListener("click", () => {
-      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
-      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
-      if (id) abrirRecordatorioDesdeAlerta(id);
     });
 
   document.getElementById("btn-cerrar-resumen-notificacion")

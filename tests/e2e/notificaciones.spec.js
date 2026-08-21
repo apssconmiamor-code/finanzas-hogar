@@ -409,7 +409,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
   });
 
-  test('doble clic en una alarma abre un resumen, con un botón para crear un recordatorio en su bloque', async ({ page }) => {
+  test('cada tarjeta de la lista muestra el icono del bloque junto al texto, y el resumen ya no ofrece crear un recordatorio', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
       // Fila con gasto_fijo (columna M) puesto -- vive en el bloque fijo "Gastos fijos".
@@ -420,27 +420,45 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await abrirBloqueAlerta(page, 'Gastos fijos');
-    await expect(page.locator('.notificacion-item')).toContainText('Pagar internet');
+    const tarjeta = page.locator('.notificacion-item');
+    await expect(tarjeta).toContainText('Pagar internet');
+    // Mismo emoji que el bloque "Gastos fijos" (grupos.gastosFijos.icono en notificaciones.js).
+    await expect(tarjeta.locator('.notif-card-icon')).toHaveText('📌');
 
-    await page.locator('.notificacion-item').dblclick();
+    await tarjeta.dblclick();
     await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
     await expect(page.locator('#resumen-notificacion-titulo')).toHaveText('Pagar internet');
     await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Gastos fijos');
 
-    await page.locator('#btn-resumen-crear-recordatorio').click();
-    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
-    await expect(page.locator('#modal-recordatorio-crear')).toBeVisible();
-    await expect(page.locator('#recordatorio-texto')).toHaveValue('Pagar internet');
-    await expect(page.locator('#recordatorio-categoria-badge')).toContainText('Gastos fijos');
+    // Ya no existe "Crear recordatorio" -- solo queda Marcar como revisada
+    // y la ✕ de cerrar.
+    await expect(page.locator('#btn-resumen-crear-recordatorio')).toHaveCount(0);
+    await expect(page.locator('#modal-resumen-notificacion button')).toHaveCount(2);
+  });
 
-    await page.locator('#btn-guardar-recordatorio-crear').click();
-    await expect(page.locator('#modal-recordatorio-crear')).toBeHidden();
-
-    const categoriaGuardada = await page.evaluate(async () => {
-      const lista = await Sheets.getRecordatorios();
-      return lista.find(r => r.texto === 'Pagar internet')?.categoria;
+  test('marcar como revisada ANTES de la fecha se maneja igual que si se revisa a tiempo', async ({ page }) => {
+    // Todavía "activa" y con fecha futura -- no está "pasada" (_esPasada
+    // daría false), pero el botón debe verse igual y funcionar igual.
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N9', 'Sacar la basura', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
     });
-    expect(categoriaGuardada).toBe('Gastos fijos');
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Otros');
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
+    await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
+    await page.locator('#btn-resumen-revisado').click();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
+    await expect(page.locator('.notificacion-item')).toHaveCount(0);
+
+    // "unica" revisada = se borra del todo, sin importar si era antes o
+    // después de la hora -- mismo criterio que la ya revisada a tiempo.
+    const notificaciones = await page.evaluate(() => Sheets.getNotificaciones());
+    expect(notificaciones.find(n => n.id === 'N9')).toBeUndefined();
   });
 
   test('el resumen no desborda el ancho de la pantalla ni con textos largos (bug real: se salía en celulares angostos)', async ({ page }) => {
