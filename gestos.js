@@ -28,10 +28,25 @@ const LONG_PRESS_MS  = 500;
 // la síntesis nativa de click/dblclick en iOS Safari real, por eso hay
 // que armarlo a mano comparando Date.now() contra el toque anterior en
 // vez de usar ondblclick.
+// El último argumento, si es el Event del pointerup (ver más abajo por qué
+// hace falta pasarlo), se usa para detectar si ESTE MISMO toque ya disparó
+// un mantener-presionado sobre el mismo elemento (ver
+// crearManejadorPresionSostenida) -- si es así, no cuenta como toque para
+// el resumen. Bug real reportado: al soltar el dedo después de mantener
+// presionado, se abría Editar/Eliminar Y ADEMÁS el resumen -- el atributo
+// onpointerup del HTML (este manejador) y el addEventListener del long
+// press están los dos escuchando el mismo pointerup, sin enterarse uno del
+// otro.
+function _vieneDePresionLarga(args) {
+  const ultimo = args[args.length - 1];
+  return ultimo instanceof Event && ultimo.currentTarget?.dataset.gestoPresionLarga === "1";
+}
+
 function crearManejadorDobleToque(clave, alSegundoToque, { alPrimerToque } = {}) {
   let ultimo = { key: null, tiempo: 0 };
   let timerPrimero = null;
   return (...args) => {
+    if (_vieneDePresionLarga(args)) return;
     const key = clave(...args);
     const ahora = Date.now();
     if (ultimo.key === key && ahora - ultimo.tiempo < DOBLE_TOQUE_MS) {
@@ -53,18 +68,30 @@ function crearManejadorDobleToque(clave, alSegundoToque, { alPrimerToque } = {})
 // Acciones Rápidas, ahora reusable). "onCorto" es opcional: la mayoría
 // de los ítems ya tienen su propio onpointerup para el toque simple/doble
 // (ver arriba), así que acá alcanza con no hacer nada si se soltó rápido.
+//
+// dataset.gestoPresionLarga se marca DURANTE el sostenido (apenas onLargo
+// dispara, no al soltar) -- así, cuando el dedo se levanta y dispara el
+// pointerup, tanto este manejador como el onpointerup inline del HTML (que
+// corre primero, ver crearManejadorDobleToque) ya ven el flag en "1", sin
+// importar el orden en que el navegador los llame.
 function crearManejadorPresionSostenida(el, { onLargo, onCorto } = {}) {
   let esPressLargo = false;
   let timeoutId = null;
   const iniciar = () => {
     esPressLargo = false;
-    timeoutId = setTimeout(() => { esPressLargo = true; onLargo(); }, LONG_PRESS_MS);
+    delete el.dataset.gestoPresionLarga;
+    timeoutId = setTimeout(() => {
+      esPressLargo = true;
+      el.dataset.gestoPresionLarga = "1";
+      onLargo();
+    }, LONG_PRESS_MS);
   };
   const cancelar = () => clearTimeout(timeoutId);
   el.addEventListener("pointerdown", iniciar);
   el.addEventListener("pointerup", () => {
     cancelar();
     if (!esPressLargo && onCorto) onCorto();
+    delete el.dataset.gestoPresionLarga;
   });
   el.addEventListener("pointerleave", cancelar);
   el.addEventListener("pointercancel", cancelar);

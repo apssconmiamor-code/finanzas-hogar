@@ -119,7 +119,7 @@ function renderCompras() {
     const tienePresupuesto = c.montoDestinado > 0;
 
     return `
-      <div class="compra-item" data-id="${c.id}" onpointerup="tapCompra('${c.id}')">
+      <div class="compra-item" data-id="${c.id}" onpointerup="tapCompra('${c.id}', event)">
         <div class="compra-urg-bar" style="background:${urg.color}"></div>
         <div class="compra-body">
           <div class="compra-top">

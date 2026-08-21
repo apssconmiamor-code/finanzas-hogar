@@ -207,6 +207,10 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#modal-editar-borrar')).toBeVisible();
     await expect(page.locator('#btn-editar-borrar-editar')).toBeVisible();
     await expect(page.locator('#btn-editar-borrar-eliminar')).toBeVisible();
+    // Bug real reportado: al soltar el dedo después de mantener presionado,
+    // el pointerup también disparaba el manejador de doble toque de la
+    // misma tarjeta y abría el resumen encima del menú de Editar/Eliminar.
+    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
   });
 
   test('para volver de un bloque a la cuadrícula no hay botón -- se hace con el gesto de deslizar desde el borde', async ({ page }) => {

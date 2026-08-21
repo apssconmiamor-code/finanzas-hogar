@@ -527,7 +527,7 @@ function renderItemNotificacion(n, soloRevisado = false) {
         <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
     : `<span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`;
   return `
-    <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}')">
+    <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}', event)">
       <div class="notif-card-grid">
         <span class="notif-card-nombre">${escapeHtml(n.titulo)}</span>
         ${botones}

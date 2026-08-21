@@ -1941,7 +1941,7 @@ function renderTarjetaMovimiento(m) {
     ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
     : "";
 
-  return `<div class="mov-card" data-id="${m.id}" onpointerup="tapMovimiento('${m.id}')">
+  return `<div class="mov-card" data-id="${m.id}" onpointerup="tapMovimiento('${m.id}', event)">
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
@@ -3500,7 +3500,7 @@ function renderTablaComparacion(movsDelMes) {
     const categoriaJs = f.categoria.replace(/'/g, "\\'");
     const conceptoAttr  = f.concepto.replace(/"/g, "&quot;");
     const categoriaAttr = f.categoria.replace(/"/g, "&quot;");
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"})">
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"}, event)">
       <td>
         <div class="proy-cell-concepto">
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>

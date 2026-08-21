@@ -200,7 +200,7 @@ function renderPrestamos() {
     const barColor  = pct >= 100 ? "var(--green)" : "var(--blue)";
 
     return `
-      <div class="prestamo-card ${p.pagado ? "prestamo-pagado" : ""}" data-id="${p.id}" onpointerup="tapPrestamo('${p.id}')">
+      <div class="prestamo-card ${p.pagado ? "prestamo-pagado" : ""}" data-id="${p.id}" onpointerup="tapPrestamo('${p.id}', event)">
         <div class="prest-left-bar" style="background:${p.pagado ? "var(--green)" : "var(--red)"}"></div>
         <div class="prest-body">
           <div class="prest-header">
