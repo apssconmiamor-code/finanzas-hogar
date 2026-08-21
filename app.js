@@ -1028,6 +1028,18 @@ function cerrarPantallaActual() {
       return true;
     }
   }
+  // Detalle de una categoría de Mercado (ver mercado.js) -- mismo criterio
+  // que el bloque de Alertas de arriba.
+  if (typeof categoriaMercadoAbierta !== "undefined" && categoriaMercadoAbierta !== null) {
+    const listaMercado = document.getElementById("mercado-list");
+    if (listaMercado) {
+      animarYCerrar(listaMercado, () => {
+        categoriaMercadoAbierta = null;
+        if (typeof renderMercado === "function") renderMercado();
+      });
+      return true;
+    }
+  }
   return false;
 }
 

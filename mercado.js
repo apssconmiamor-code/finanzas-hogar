@@ -1,18 +1,29 @@
 // =============================================
-// MÓDULO MERCADO — catálogo de productos para el supermercado
+// MÓDULO MERCADO — catálogo de productos, agrupados en categorías
 // =============================================
 // Hoja "Mercado" en Google Sheets:
-// A: id | B: nombre | C: categoria | D: subcategoria | E: hay_que_comprar | F: autor
+// A: id | B: nombre | C: categoria | D: subcategoria (legado, ya no se usa
+//    ni se muestra -- se deja la columna para no romper filas viejas) |
+// E: hay_que_comprar | F: autor
+//
+// Hoja "MercadoCategorias":
+// A: id | B: nombre | C: icono | D: autor
+//
+// Pantalla principal = cuadrícula de categorías (2 columnas, tarjetas),
+// mismo patrón que los bloques de Alertas -- tocar una entra a su detalle
+// (la lista de productos de esa categoría), mantener presionada la
+// tarjeta ofrece Editar/Eliminar la categoría misma. "Sin categoría" es
+// una tarjeta más (si hay productos sueltos), no editable ni borrable.
 //
 // A diferencia del resto de la app (doble toque = ver un resumen de solo
 // lectura, mantener presionado = único camino a Editar/Eliminar -- ver
-// gestos.js), acá el doble toque hace la acción central del módulo:
-// marcar/desmarcar un producto en gris = "hay que comprarlo en la próxima
-// compra de mercado" (pedido explícito). No hay un resumen de solo
-// lectura separado -- mantener presionado sigue siendo el único camino a
-// Editar/Eliminar, igual que siempre.
+// gestos.js), el doble toque sobre un PRODUCTO hace la acción central del
+// módulo: marcar/desmarcar en gris = "hay que comprarlo en la próxima
+// compra de mercado" (pedido explícito). Mantener presionado un producto
+// sigue siendo el único camino a Editar/Eliminar el producto, igual que
+// siempre.
 
-// ---- EXTENSIÓN DE Sheets PARA MERCADO ----
+// ---- EXTENSIÓN DE Sheets PARA MERCADO (productos) ----
 
 Sheets._mercadoHojaLista = false;
 
@@ -54,16 +65,15 @@ Sheets.getMercadoProductos = async function () {
     id:            r[0] || "",
     nombre:        r[1] || "",
     categoria:     r[2] || "",
-    subcategoria:  r[3] || "",
     hayQueComprar: r[4] === true || r[4] === "true" || r[4] === "TRUE",
     autor:         r[5] || ""
   }));
 };
 
-Sheets.agregarProductoMercado = async function (autor, nombre, categoria, subcategoria) {
+Sheets.agregarProductoMercado = async function (autor, nombre, categoria) {
   await this._asegurarHojaMercado();
   const id = "MK" + Date.now();
-  await this.agregar(CONFIG.SHEETS.MERCADO, [id, nombre, categoria, subcategoria, "false", autor]);
+  await this.agregar(CONFIG.SHEETS.MERCADO, [id, nombre, categoria, "", "false", autor]);
   return id;
 };
 
@@ -77,7 +87,7 @@ Sheets._escribirFilaMercado = async function (id, campos) {
     id,
     campos.nombre ?? actual[1],
     campos.categoria ?? actual[2],
-    campos.subcategoria ?? actual[3],
+    actual[3] || "", // subcategoria legado: nunca se vuelve a escribir
     campos.hayQueComprar !== undefined ? String(campos.hayQueComprar) : (actual[4] ?? "false"),
     actual[5] || ""
   ];
@@ -132,70 +142,256 @@ Sheets.borrarProductoMercado = async function (id) {
   return res.json();
 };
 
+// ---- EXTENSIÓN DE Sheets PARA MERCADO (categorías) ----
+// Hoja aparte (no ConfigUsuario, que es por usuario/dispositivo): las
+// categorías de Mercado las ve y las usa toda la familia, igual que los
+// productos mismos -- ver getMercadoProductos, sin filtro de autor.
+
+Sheets._mercadoCategoriasHojaLista = false;
+
+Sheets._asegurarHojaMercadoCategorias = async function () {
+  if (this._mercadoCategoriasHojaLista) return;
+  const metaRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${this.token}` } }
+  );
+  if (!metaRes.ok) throw new Error(`Error obteniendo metadata: ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const existe = meta.sheets.some(s => s.properties.title === CONFIG.SHEETS.MERCADO_CATEGORIAS);
+
+  if (!existe) {
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}:batchUpdate`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: CONFIG.SHEETS.MERCADO_CATEGORIAS } } }] })
+      }
+    );
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.MERCADO_CATEGORIAS + "!A1")}?valueInputOption=RAW`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ values: [["id", "nombre", "icono", "autor"]] })
+      }
+    );
+  }
+  this._mercadoCategoriasHojaLista = true;
+};
+
+Sheets.getMercadoCategorias = async function () {
+  await this._asegurarHojaMercadoCategorias();
+  const rows = await this.leer(`${CONFIG.SHEETS.MERCADO_CATEGORIAS}!A2:D`);
+  return rows.filter(r => r && r[0]).map(r => ({
+    id:     r[0] || "",
+    nombre: r[1] || "",
+    icono:  r[2] || "🗂️",
+    autor:  r[3] || ""
+  }));
+};
+
+Sheets.agregarMercadoCategoria = async function (autor, nombre, icono) {
+  await this._asegurarHojaMercadoCategorias();
+  const id = "MKC" + Date.now();
+  await this.agregar(CONFIG.SHEETS.MERCADO_CATEGORIAS, [id, nombre, icono, autor]);
+  return id;
+};
+
+Sheets._escribirFilaMercadoCategoria = async function (id, campos) {
+  const rows = await this.leer(`${CONFIG.SHEETS.MERCADO_CATEGORIAS}!A2:D`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) throw new Error("Categoría no encontrada");
+  const sheetRow = rowIndex + 2;
+  const actual = rows[rowIndex];
+  const nueva = [id, campos.nombre ?? actual[1], campos.icono ?? actual[2], actual[3] || ""];
+  const range = `${CONFIG.SHEETS.MERCADO_CATEGORIAS}!A${sheetRow}:D${sheetRow}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [nueva] })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error editando categoría: ${res.status}`);
+  return res.json();
+};
+
+Sheets.editarMercadoCategoria = function (id, campos) {
+  return this._escribirFilaMercadoCategoria(id, campos);
+};
+
+Sheets.borrarMercadoCategoria = async function (id) {
+  const rows = await this.leer(`${CONFIG.SHEETS.MERCADO_CATEGORIAS}!A2:A`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) throw new Error("Categoría no encontrada");
+  const sheetRowIndex = rowIndex + 1;
+
+  const metaRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${this.token}` } }
+  );
+  if (!metaRes.ok) throw new Error(`Error obteniendo metadata: ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const sheet = meta.sheets.find(s => s.properties.title === CONFIG.SHEETS.MERCADO_CATEGORIAS);
+  if (!sheet) throw new Error("Hoja de categorías de mercado no encontrada");
+  const sheetId = sheet.properties.sheetId;
+
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}:batchUpdate`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: sheetRowIndex, endIndex: sheetRowIndex + 1 } }
+        }]
+      })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error borrando categoría: ${res.status}`);
+  return res.json();
+};
+
 // =============================================
 // LÓGICA DE UI
 // =============================================
 
 window.productosMercado = window.productosMercado || [];
+window.mercadoCategorias = window.mercadoCategorias || [];
+
+// null = cuadrícula de categorías; "" = detalle de "Sin categoría";
+// cualquier otro string = nombre de la categoría abierta.
+let categoriaMercadoAbierta = null;
 
 // ---- CARGA ----
 async function cargarMercado() {
   try {
-    productosMercado = await Sheets.getMercadoProductos();
+    const [productos, categorias] = await Promise.all([
+      Sheets.getMercadoProductos(),
+      Sheets.getMercadoCategorias()
+    ]);
+    productosMercado = productos;
+    mercadoCategorias = categorias;
     localStorage.setItem("cache_mercado", JSON.stringify(productosMercado));
+    localStorage.setItem("cache_mercado_categorias", JSON.stringify(mercadoCategorias));
   } catch (err) {
     if (err.message === "TOKEN_EXPIRADO") return;
-    const cache = localStorage.getItem("cache_mercado");
-    if (cache) { try { productosMercado = JSON.parse(cache); } catch {} }
+    const cacheProductos = localStorage.getItem("cache_mercado");
+    if (cacheProductos) { try { productosMercado = JSON.parse(cacheProductos); } catch {} }
+    const cacheCategorias = localStorage.getItem("cache_mercado_categorias");
+    if (cacheCategorias) { try { mercadoCategorias = JSON.parse(cacheCategorias); } catch {} }
   }
   renderMercado();
 }
 
-// ---- RENDER: agrupado por categoría -> subcategoría, cada nivel A-Z ----
+// ---- RENDER: despacha entre la cuadrícula y el detalle de una categoría ----
 function renderMercado() {
   const cont = document.getElementById("mercado-list");
   if (!cont) return;
 
-  if (productosMercado.length === 0) {
-    cont.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🛒</div>
-        <div class="empty-state-text">No hay productos todavía. Agrega los que compras seguido.</div>
-      </div>`;
-    return;
+  // Si la categoría abierta se borró mientras tanto, vuelve sola a la cuadrícula.
+  if (categoriaMercadoAbierta && !mercadoCategorias.some(c => c.nombre === categoriaMercadoAbierta)) {
+    categoriaMercadoAbierta = null;
   }
 
-  // Sin categoría/subcategoría cae en "Sin categoría"/"Sin subcategoría" en
-  // vez de desaparecer -- un producto siempre tiene que verse en algún lado.
-  const porCategoria = {};
-  [...productosMercado]
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
-    .forEach(p => {
-      const cat = p.categoria || "Sin categoría";
-      const sub = p.subcategoria || "Sin subcategoría";
-      porCategoria[cat] = porCategoria[cat] || {};
-      porCategoria[cat][sub] = porCategoria[cat][sub] || [];
-      porCategoria[cat][sub].push(p);
+  if (categoriaMercadoAbierta !== null) {
+    renderMercadoCategoriaDetalle(cont, categoriaMercadoAbierta);
+  } else {
+    renderMercadoGrid(cont);
+  }
+}
+
+// No hay una acción propia si se toca justo después de mantener
+// presionado la misma tarjeta (ver _vieneDePresionLarga en gestos.js) --
+// mismo criterio que evita que el resumen se abra encima de Editar/
+// Eliminar en el resto de la app, aplicado acá a la navegación.
+function tapCategoriaMercado(nombre, event) {
+  if (typeof _vieneDePresionLarga === "function" && _vieneDePresionLarga([event])) return;
+  categoriaMercadoAbierta = nombre;
+  renderMercado();
+}
+
+// ---- Cuadrícula de categorías (2 columnas, mismo componente que los
+// bloques de Alertas -- ver renderBloquesAlertaGrid en notificaciones.js) ----
+function renderMercadoGrid(cont) {
+  const cantidadPorCategoria = {};
+  let sinCategoria = [];
+  productosMercado.forEach(p => {
+    if (!p.categoria) { sinCategoria.push(p); return; }
+    if (p.hayQueComprar) cantidadPorCategoria[p.categoria] = (cantidadPorCategoria[p.categoria] || 0) + 1;
+  });
+  const cantidadSinCategoria = sinCategoria.filter(p => p.hayQueComprar).length;
+
+  const tarjetasCategorias = mercadoCategorias.map(c => `
+    <button type="button" class="alerta-bloque-card" data-categoria="${escapeAttr(c.nombre)}" onpointerup="tapCategoriaMercado('${escapeAttr(c.nombre)}', event)">
+      ${cantidadPorCategoria[c.nombre] ? `<span class="alerta-bloque-cantidad">${cantidadPorCategoria[c.nombre]}</span>` : ""}
+      <span class="alerta-bloque-icono">${escapeHtml(c.icono)}</span>
+      <span class="alerta-bloque-nombre">${escapeHtml(c.nombre)}</span>
+    </button>`).join("");
+
+  const tarjetaSinCategoria = sinCategoria.length > 0 ? `
+    <button type="button" class="alerta-bloque-card" data-categoria="" onpointerup="tapCategoriaMercado('', event)">
+      ${cantidadSinCategoria ? `<span class="alerta-bloque-cantidad">${cantidadSinCategoria}</span>` : ""}
+      <span class="alerta-bloque-icono">🔖</span>
+      <span class="alerta-bloque-nombre">Sin categoría</span>
+    </button>` : "";
+
+  cont.innerHTML = `
+    <div class="alertas-bloques-grid">
+      ${tarjetasCategorias}
+      ${tarjetaSinCategoria}
+      <button type="button" class="alerta-bloque-card alerta-bloque-agregar" id="btn-nueva-categoria-mercado">
+        <span class="alerta-bloque-icono">➕</span>
+        <span class="alerta-bloque-nombre">Agregar categoría</span>
+      </button>
+    </div>`;
+
+  document.getElementById("btn-nueva-categoria-mercado")?.addEventListener("click", abrirNuevaCategoriaMercado);
+
+  // Mantener presionada una tarjeta de categoría ofrece Editar/Eliminar --
+  // "Sin categoría" no es una categoría real, así que no la ofrece.
+  cont.querySelectorAll(".alerta-bloque-card[data-categoria]").forEach(btn => {
+    const nombre = btn.dataset.categoria;
+    if (!nombre) return;
+    const cat = mercadoCategorias.find(c => c.nombre === nombre);
+    if (!cat) return;
+    crearManejadorPresionSostenida(btn, {
+      onLargo: () => abrirMenuEditarBorrar({
+        titulo: cat.nombre,
+        onEditar: () => abrirEditarCategoriaMercado(cat.id),
+        onBorrar: () => confirmarBorrarCategoriaMercado(cat)
+      })
     });
+  });
+}
 
-  const categoriasOrdenadas = Object.keys(porCategoria).sort((a, b) => a.localeCompare(b));
+// ---- Detalle de una categoría (o "Sin categoría") ----
+function renderMercadoCategoriaDetalle(cont, categoria) {
+  const cat = categoria ? mercadoCategorias.find(c => c.nombre === categoria) : null;
+  const titulo = categoria ? (cat ? cat.nombre : categoria) : "Sin categoría";
+  const icono = categoria ? (cat ? cat.icono : "🗂️") : "🔖";
+  const items = productosMercado
+    .filter(p => (p.categoria || "") === categoria)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  cont.innerHTML = categoriasOrdenadas.map(cat => {
-    const subcats = porCategoria[cat];
-    const subcatsOrdenadas = Object.keys(subcats).sort((a, b) => a.localeCompare(b));
-    return `
-      <div class="mercado-categoria">
-        <div class="mercado-categoria-titulo">${escapeHtml(cat)}</div>
-        ${subcatsOrdenadas.map(sub => `
-          <div class="mercado-subcategoria">
-            <div class="mercado-subcategoria-titulo">${escapeHtml(sub)}</div>
-            <div class="mercado-productos-grid">
-              ${subcats[sub].map(p => `
-                <div class="mercado-item${p.hayQueComprar ? " mercado-item-comprar" : ""}" data-id="${p.id}" onpointerup="tapProductoMercado('${p.id}', event)">${escapeHtml(p.nombre)}</div>`).join("")}
-            </div>
-          </div>`).join("")}
-      </div>`;
-  }).join("");
+  const itemsHTML = items.length > 0
+    ? `<div class="mercado-productos-grid">${items.map(p => `
+        <div class="mercado-item${p.hayQueComprar ? " mercado-item-comprar" : ""}" data-id="${p.id}" onpointerup="tapProductoMercado('${p.id}', event)">${escapeHtml(p.nombre)}</div>`).join("")}</div>`
+    : `<div class="notif-bloque-vacio">No hay productos acá todavía.</div>`;
+
+  cont.innerHTML = `
+    <div class="alerta-bloque-detalle-header">
+      <span class="alerta-bloque-detalle-titulo">${icono} ${escapeHtml(titulo)} (${items.length})</span>
+    </div>
+    <button type="button" class="btn-primary btn-franja" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>
+    ${itemsHTML}`;
+
+  document.getElementById("btn-nuevo-producto-mercado-categoria")
+    ?.addEventListener("click", () => abrirNuevoProductoMercado(categoria));
 
   _conectarLargoPresionMercado(cont);
 }
@@ -241,52 +437,27 @@ function _conectarLargoPresionMercado(cont) {
   });
 }
 
-// ---- Panel de sugerencias de categoría/subcategoría: mismo look que el
-// selector de Caja/Concepto de Movimientos (.caja-picker-panel) -- evita
-// <datalist> nativo, poco confiable en iOS Safari (ver comentario junto a
-// PANELES_CONCEPTO en app.js). A propósito NO se engancha al sistema
-// compartido de esos campos (PANELES_CONCEPTO, que reabre el panel solo
-// con cada tecla escrita): acá el panel solo se abre con el botón ▾, a
-// pedido -- bug real encontrado armando este módulo: al escribir una
-// categoría nueva sin coincidencias, el panel (posición absoluta, encima
-// del resto del formulario) se quedaba abierto tapando Guardar, y el
-// toque no llegaba al botón. Las opciones son las categorías/
-// subcategorías que el usuario ya escribió antes en otros productos, se
-// recalculan cada vez que se abre el panel.
-function _listaCategoriasMercado() {
-  return [...new Set(productosMercado.map(p => p.categoria).filter(Boolean))].sort();
-}
-function _listaSubcategoriasMercado() {
-  return [...new Set(productosMercado.map(p => p.subcategoria).filter(Boolean))].sort();
-}
-
-function _renderPanelMercado(inputId, panelId, opciones) {
-  const input = document.getElementById(inputId);
-  const panel = document.getElementById(panelId);
-  if (!input || !panel) return;
-  panel.innerHTML = opciones.length > 0
-    ? opciones.map(o => `<button type="button" class="caja-picker-option" data-value="${escapeAttr(o)}">${escapeHtml(o)}</button>`).join("")
-    : `<div class="caja-picker-empty">Sin coincidencias</div>`;
-  panel.querySelectorAll(".caja-picker-option").forEach(btn => {
-    btn.addEventListener("click", () => {
-      input.value = btn.dataset.value;
-      panel.classList.add("hidden");
-    });
-  });
-}
-
-function _abrirPanelMercado(inputId, panelId, opciones) {
-  _renderPanelMercado(inputId, panelId, opciones);
-  document.querySelectorAll(".caja-picker-panel").forEach(p => { if (p.id !== panelId) p.classList.add("hidden"); });
-  document.getElementById(panelId)?.classList.remove("hidden");
+// ---- Select de categoría del formulario de producto -- categorías ya
+// creadas de antemano (ver modal-mercado-categoria), no texto libre --
+// evita categorías duplicadas por una letra de diferencia. ----
+function poblarSelectMercadoCategoria(seleccionActual) {
+  const sel = document.getElementById("mercado-categoria");
+  if (!sel) return;
+  sel.innerHTML = `<option value="">🔖 Sin categoría</option>` +
+    mercadoCategorias.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.icono)} ${escapeHtml(c.nombre)}</option>`).join("");
+  const valores = ["", ...mercadoCategorias.map(c => c.nombre)];
+  sel.value = valores.includes(seleccionActual) ? seleccionActual : "";
 }
 
 // ---- MODAL NUEVO/EDITAR PRODUCTO (mismo modal para las dos cosas, ver
-// dataset.editId -- mismo patrón que modal-movimiento) ----
-function abrirNuevoProductoMercado() {
+// dataset.editId -- mismo patrón que modal-movimiento). "categoriaInicial"
+// pre-selecciona la categoría desde la que se abrió "+ Nuevo producto",
+// pero se puede cambiar antes de guardar. ----
+function abrirNuevoProductoMercado(categoriaInicial) {
   document.getElementById("mercado-producto-titulo").textContent = "Nuevo producto";
   document.getElementById("modal-mercado-producto").dataset.editId = "";
   limpiarFormMercado();
+  poblarSelectMercadoCategoria(categoriaInicial || "");
   document.getElementById("btn-guardar-mercado-producto").textContent = "Agregar";
   document.getElementById("modal-mercado-producto").classList.remove("hidden");
 }
@@ -297,29 +468,26 @@ function abrirEditarProductoMercado(id) {
   document.getElementById("mercado-producto-titulo").textContent = "Editar producto";
   document.getElementById("modal-mercado-producto").dataset.editId = id;
   document.getElementById("mercado-nombre").value = p.nombre;
-  document.getElementById("mercado-categoria").value = p.categoria;
-  document.getElementById("mercado-subcategoria").value = p.subcategoria;
+  poblarSelectMercadoCategoria(p.categoria);
   document.getElementById("btn-guardar-mercado-producto").textContent = "Guardar";
   document.getElementById("modal-mercado-producto").classList.remove("hidden");
 }
 
 async function guardarProductoMercado() {
-  const nombre       = document.getElementById("mercado-nombre").value.trim();
-  const categoria    = document.getElementById("mercado-categoria").value.trim();
-  const subcategoria = document.getElementById("mercado-subcategoria").value.trim();
-  const editId       = document.getElementById("modal-mercado-producto").dataset.editId;
+  const nombre    = document.getElementById("mercado-nombre").value.trim();
+  const categoria = document.getElementById("mercado-categoria").value;
+  const editId    = document.getElementById("modal-mercado-producto").dataset.editId;
 
-  if (!nombre)    { alert("Escribe el nombre del producto"); return; }
-  if (!categoria) { alert("Escribe una categoría"); return; }
+  if (!nombre) { alert("Escribe el nombre del producto"); return; }
 
   const btn = document.getElementById("btn-guardar-mercado-producto");
   btn.textContent = "Guardando..."; btn.disabled = true;
 
   try {
     if (editId) {
-      await Sheets.editarProductoMercado(editId, { nombre, categoria, subcategoria });
+      await Sheets.editarProductoMercado(editId, { nombre, categoria });
     } else {
-      await Sheets.agregarProductoMercado(currentUser?.email || "", nombre, categoria, subcategoria);
+      await Sheets.agregarProductoMercado(currentUser?.email || "", nombre, categoria);
     }
     document.getElementById("modal-mercado-producto").classList.add("hidden");
     limpiarFormMercado();
@@ -348,27 +516,83 @@ async function borrarProductoMercado(id) {
 
 function limpiarFormMercado() {
   document.getElementById("mercado-nombre").value = "";
-  document.getElementById("mercado-categoria").value = "";
-  document.getElementById("mercado-subcategoria").value = "";
+}
+
+// ---- MODAL NUEVA/EDITAR CATEGORÍA ----
+function abrirNuevaCategoriaMercado() {
+  document.getElementById("mercado-categoria-titulo").textContent = "Nueva categoría";
+  document.getElementById("modal-mercado-categoria").dataset.editId = "";
+  document.getElementById("mercado-categoria-nombre").value = "";
+  document.getElementById("mercado-categoria-icono").value = "";
+  document.getElementById("btn-guardar-mercado-categoria").textContent = "Guardar";
+  document.getElementById("modal-mercado-categoria").classList.remove("hidden");
+}
+
+function abrirEditarCategoriaMercado(id) {
+  const c = mercadoCategorias.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById("mercado-categoria-titulo").textContent = "Editar categoría";
+  document.getElementById("modal-mercado-categoria").dataset.editId = id;
+  document.getElementById("mercado-categoria-nombre").value = c.nombre;
+  document.getElementById("mercado-categoria-icono").value = c.icono;
+  document.getElementById("btn-guardar-mercado-categoria").textContent = "Guardar";
+  document.getElementById("modal-mercado-categoria").classList.remove("hidden");
+}
+
+async function guardarCategoriaMercado() {
+  const nombre = document.getElementById("mercado-categoria-nombre").value.trim();
+  const icono  = document.getElementById("mercado-categoria-icono").value.trim() || "🗂️";
+  const editId = document.getElementById("modal-mercado-categoria").dataset.editId;
+
+  if (!nombre) { alert("Escribe el nombre de la categoría"); return; }
+  const yaExiste = mercadoCategorias.some(c => c.nombre === nombre && c.id !== editId);
+  if (yaExiste) { alert("Ya existe una categoría con ese nombre"); return; }
+
+  const btn = document.getElementById("btn-guardar-mercado-categoria");
+  btn.textContent = "Guardando..."; btn.disabled = true;
+
+  try {
+    if (editId) {
+      const actual = mercadoCategorias.find(c => c.id === editId);
+      // La categoría de un producto se guarda por NOMBRE, no por id (mismo
+      // criterio que "categoria" en Notificaciones/Compras) -- si el
+      // nombre cambia, hay que migrar los productos que ya apuntaban al
+      // nombre viejo para que no queden huérfanos en "Sin categoría".
+      if (actual && actual.nombre !== nombre) {
+        const afectados = productosMercado.filter(p => p.categoria === actual.nombre);
+        for (const p of afectados) await Sheets.editarProductoMercado(p.id, { categoria: nombre });
+      }
+      await Sheets.editarMercadoCategoria(editId, { nombre, icono });
+      if (categoriaMercadoAbierta === actual?.nombre) categoriaMercadoAbierta = nombre;
+    } else {
+      await Sheets.agregarMercadoCategoria(currentUser?.email || "", nombre, icono);
+    }
+    document.getElementById("modal-mercado-categoria").classList.add("hidden");
+    await cargarMercado();
+    SyncManager.mostrarToast(`✅ Categoría "${nombre}" ${editId ? "actualizada" : "creada"}`);
+  } catch (err) {
+    alert("Error guardando la categoría: " + err.message);
+  } finally {
+    btn.textContent = "Guardar"; btn.disabled = false;
+  }
+}
+
+async function confirmarBorrarCategoriaMercado(cat) {
+  if (!confirm(`¿Eliminar la categoría "${cat.nombre}"?\n\nLos productos que tenía pasan a "Sin categoría" -- no se borran.`)) return;
+  try {
+    const afectados = productosMercado.filter(p => p.categoria === cat.nombre);
+    for (const p of afectados) await Sheets.editarProductoMercado(p.id, { categoria: "" });
+    await Sheets.borrarMercadoCategoria(cat.id);
+  } catch (err) {
+    alert("Error borrando la categoría: " + err.message);
+    return;
+  }
+  if (categoriaMercadoAbierta === cat.nombre) categoriaMercadoAbierta = null;
+  await cargarMercado();
 }
 
 // ---- SETUP LISTENERS ----
 function setupMercadoListeners() {
-  document.getElementById("btn-nuevo-producto-mercado")
-    ?.addEventListener("click", abrirNuevoProductoMercado);
-
-  document.querySelector('.btn-desplegar-concepto[data-target="mercado-categoria"]')
-    ?.addEventListener("click", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      _abrirPanelMercado("mercado-categoria", "panel-mercado-categoria", _listaCategoriasMercado());
-    });
-
-  document.querySelector('.btn-desplegar-concepto[data-target="mercado-subcategoria"]')
-    ?.addEventListener("click", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      _abrirPanelMercado("mercado-subcategoria", "panel-mercado-subcategoria", _listaSubcategoriasMercado());
-    });
-
   document.getElementById("btn-cancelar-mercado-producto")
     ?.addEventListener("click", () => {
       document.getElementById("modal-mercado-producto").classList.add("hidden");
@@ -377,6 +601,14 @@ function setupMercadoListeners() {
 
   document.getElementById("btn-guardar-mercado-producto")
     ?.addEventListener("click", guardarProductoMercado);
+
+  document.getElementById("btn-cancelar-mercado-categoria")
+    ?.addEventListener("click", () => {
+      document.getElementById("modal-mercado-categoria").classList.add("hidden");
+    });
+
+  document.getElementById("btn-guardar-mercado-categoria")
+    ?.addEventListener("click", guardarCategoriaMercado);
 
   // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
   // (ver cerrarModal).

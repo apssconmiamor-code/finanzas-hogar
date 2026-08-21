@@ -1,9 +1,14 @@
-// Mercado: catálogo de productos de supermercado, agrupados por
-// categoría/subcategoría (libres, las crea el usuario). A diferencia del
-// resto de la app, el doble toque no abre un resumen de solo lectura --
-// alterna "hay que comprarlo" (se pone gris), pedido explícito del
-// usuario. Mantener presionado sigue siendo el único camino a
-// Editar/Eliminar, igual que en los demás módulos.
+// Mercado: catálogo de productos agrupados en categorías creadas por el
+// usuario (sin subcategorías -- se sacaron, pedido explícito). La pantalla
+// principal es una cuadrícula de categorías de 2 columnas, mismo
+// componente que los bloques de Alertas (ver notificaciones.spec.js) --
+// tocar una entra a su detalle (la lista de productos), mantener
+// presionada la tarjeta ofrece Editar/Eliminar la categoría misma.
+//
+// A diferencia del resto de la app, el doble toque sobre un PRODUCTO no
+// abre un resumen de solo lectura -- alterna "hay que comprarlo" (se pone
+// gris), pedido explícito del usuario. Mantener presionado un producto
+// sigue siendo el único camino a Editar/Eliminar el producto.
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
@@ -13,14 +18,40 @@ async function abrirMercado(page) {
   await expect(page.locator('#tab-mercado')).toBeVisible();
 }
 
-async function agregarProducto(page, nombre, categoria, subcategoria) {
-  await page.locator('#btn-nuevo-producto-mercado').click();
+async function crearCategoria(page, nombre, icono) {
+  await page.locator('#btn-nueva-categoria-mercado').click();
+  await expect(page.locator('#modal-mercado-categoria')).toBeVisible();
+  await page.locator('#mercado-categoria-nombre').fill(nombre);
+  if (icono) await page.locator('#mercado-categoria-icono').fill(icono);
+  await page.locator('#btn-guardar-mercado-categoria').click();
+  await expect(page.locator('#modal-mercado-categoria')).toBeHidden();
+}
+
+async function abrirCategoria(page, nombre) {
+  await page.locator('#mercado-list .alerta-bloque-card', { hasText: nombre }).click();
+  await expect(page.locator('#mercado-list .alerta-bloque-detalle-titulo', { hasText: nombre })).toBeVisible();
+}
+
+async function agregarProducto(page, nombre, categoria) {
+  await page.locator('#btn-nuevo-producto-mercado-categoria').click();
   await expect(page.locator('#modal-mercado-producto')).toBeVisible();
   await page.locator('#mercado-nombre').fill(nombre);
-  await page.locator('#mercado-categoria').fill(categoria);
-  if (subcategoria) await page.locator('#mercado-subcategoria').fill(subcategoria);
+  if (categoria !== undefined) await page.locator('#mercado-categoria').selectOption(categoria);
   await page.locator('#btn-guardar-mercado-producto').click();
   await expect(page.locator('#modal-mercado-producto')).toBeHidden();
+}
+
+// Mismo gesto que el resto de la app para volver de una pantalla de
+// detalle sin botón (ver deslizarParaVolver en notificaciones.spec.js).
+async function deslizarParaVolver(page) {
+  await page.evaluate(() => {
+    const crearToque = (x, y) => new Touch({ identifier: Date.now(), target: document.body, clientX: x, clientY: y });
+    const inicio = crearToque(10, 300);
+    document.dispatchEvent(new TouchEvent('touchstart', { touches: [inicio], changedTouches: [inicio], bubbles: true, cancelable: true }));
+    const fin = crearToque(160, 300);
+    document.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [fin], bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(250);
 }
 
 test.describe('Mercado', () => {
@@ -32,61 +63,79 @@ test.describe('Mercado', () => {
     await abrirMercado(page);
   });
 
-  test('sin productos todavía, muestra el estado vacío', async ({ page }) => {
-    await expect(page.locator('#mercado-list .empty-state')).toBeVisible();
-    await expect(page.locator('#mercado-list')).toContainText('No hay productos todavía');
+  test('sin categorías todavía, la cuadrícula solo ofrece "Agregar categoría"', async ({ page }) => {
+    await expect(page.locator('#mercado-list .alerta-bloque-card')).toHaveCount(1);
+    await expect(page.locator('#btn-nueva-categoria-mercado')).toBeVisible();
   });
 
-  test('crear un producto lo agrupa por categoría y subcategoría', async ({ page }) => {
-    await agregarProducto(page, 'Leche', 'Alimentos', 'Lácteos');
+  test('crear una categoría la agrega a la cuadrícula; tocarla entra a su detalle vacío', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
 
-    await expect(page.locator('.mercado-categoria-titulo', { hasText: 'Alimentos' })).toBeVisible();
-    await expect(page.locator('.mercado-subcategoria-titulo', { hasText: 'Lácteos' })).toBeVisible();
+    const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
+    await expect(tarjeta).toBeVisible();
+    await expect(tarjeta.locator('.alerta-bloque-icono')).toHaveText('🥦');
+
+    await abrirCategoria(page, 'Alimentos');
+    await expect(page.locator('#btn-nuevo-producto-mercado-categoria')).toBeVisible();
+    await expect(page.locator('#mercado-list')).toContainText('No hay productos acá todavía');
+  });
+
+  test('crear un producto dentro de una categoría lo agrega ahí', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+
+    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toBeVisible();
+
+    // Persiste de verdad -- recargar y seguir viéndolo en su categoría.
+    await page.reload();
+    await esperarAppLista(page);
+    await abrirMercado(page);
+    await abrirCategoria(page, 'Alimentos');
     await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toBeVisible();
   });
 
-  test('un producto sin subcategoría cae en "Sin subcategoría", no desaparece', async ({ page }) => {
-    await agregarProducto(page, 'Detergente', 'Aseo', '');
+  test('un producto sin categoría cae en "Sin categoría", que solo aparece si hay alguno', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
 
-    await expect(page.locator('.mercado-categoria-titulo', { hasText: 'Aseo' })).toBeVisible();
-    await expect(page.locator('.mercado-subcategoria-titulo', { hasText: 'Sin subcategoría' })).toBeVisible();
-    await expect(page.locator('.mercado-item', { hasText: 'Detergente' })).toBeVisible();
+    // "Sin categoría" todavía no existe como tarjeta -- no hay productos ahí.
+    await deslizarParaVolver(page);
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Sin categoría' })).toHaveCount(0);
+
+    // Se crea un producto y se cambia su categoría a "Sin categoría" antes de guardar.
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Cosa suelta', '');
+    await deslizarParaVolver(page);
+
+    const tarjetaSinCategoria = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Sin categoría' });
+    await expect(tarjetaSinCategoria).toBeVisible();
+    await tarjetaSinCategoria.click();
+    await expect(page.locator('.mercado-item', { hasText: 'Cosa suelta' })).toBeVisible();
   });
 
-  test('categoría es obligatoria para guardar', async ({ page }) => {
-    await page.locator('#btn-nuevo-producto-mercado').click();
-    await page.locator('#mercado-nombre').fill('Pan');
-    page.once('dialog', (d) => d.accept());
-    await page.locator('#btn-guardar-mercado-producto').click();
-    // Sin categoría, no se guarda -- el modal se queda abierto.
-    await expect(page.locator('#modal-mercado-producto')).toBeVisible();
-  });
-
-  test('un solo toque no hace nada -- el doble toque alterna "hay que comprarlo" y se guarda', async ({ page }) => {
-    await agregarProducto(page, 'Leche', 'Alimentos', 'Lácteos');
+  test('un solo toque no hace nada -- el doble toque alterna "hay que comprarlo" y pone en gris', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
     const item = page.locator('.mercado-item', { hasText: 'Leche' });
 
     await item.click();
     await expect(item).not.toHaveClass(/mercado-item-comprar/);
 
+    await page.waitForTimeout(500);
     await item.dblclick();
     await expect(item).toHaveClass(/mercado-item-comprar/);
 
-    // Persiste de verdad -- recargar la página y seguir viéndolo marcado.
-    await page.reload();
-    await esperarAppLista(page);
-    await abrirMercado(page);
-    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toHaveClass(/mercado-item-comprar/);
-
-    // Un segundo doble toque (pasada la ventana del primero) lo desmarca.
-    const itemDeNuevo = page.locator('.mercado-item', { hasText: 'Leche' });
-    await page.waitForTimeout(500);
-    await itemDeNuevo.dblclick();
-    await expect(itemDeNuevo).not.toHaveClass(/mercado-item-comprar/);
+    // Se refleja como cantidad en la tarjeta de la categoría, en la cuadrícula.
+    await deslizarParaVolver(page);
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
   });
 
-  test('mantener presionado abre Editar/Eliminar -- Editar actualiza categoría, Eliminar borra', async ({ page }) => {
-    await agregarProducto(page, 'Leche', 'Alimentos', 'Lácteos');
+  test('mantener presionado un producto abre Editar/Eliminar', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
     const item = page.locator('.mercado-item', { hasText: 'Leche' });
 
     const box = await item.boundingBox();
@@ -96,42 +145,86 @@ test.describe('Mercado', () => {
     await page.mouse.up();
 
     await expect(page.locator('#modal-editar-borrar')).toBeVisible();
-    await expect(page.locator('#btn-editar-borrar-editar')).toBeVisible();
-    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeVisible();
-
     await page.locator('#btn-editar-borrar-editar').click();
     await expect(page.locator('#modal-mercado-producto')).toBeVisible();
     await expect(page.locator('#mercado-producto-titulo')).toHaveText('Editar producto');
     await expect(page.locator('#mercado-nombre')).toHaveValue('Leche');
+  });
 
-    await page.locator('#mercado-categoria').fill('Refrigerados');
-    await page.locator('#btn-guardar-mercado-producto').click();
-    await expect(page.locator('#modal-mercado-producto')).toBeHidden();
+  test('mantener presionada una tarjeta de categoría ofrece Editar/Eliminar', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
 
-    await expect(page.locator('.mercado-categoria-titulo', { hasText: 'Refrigerados' })).toBeVisible();
-    await expect(page.locator('.mercado-categoria-titulo', { hasText: 'Alimentos' })).toHaveCount(0);
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
 
-    // Eliminar
-    const itemActualizado = page.locator('.mercado-item', { hasText: 'Leche' });
-    const box2 = await itemActualizado.boundingBox();
-    await page.mouse.move(box2.x + box2.width / 2, box2.y + box2.height / 2);
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-editar')).toBeVisible();
+    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeVisible();
+    // No navegó a la categoría solo por mantener presionado.
+    await expect(page.locator('#mercado-list .alerta-bloque-detalle-titulo')).toHaveCount(0);
+  });
+
+  test('editar una categoría le cambia nombre/ícono y migra los productos que la usaban', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await deslizarParaVolver(page);
+
+    const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await page.locator('#btn-editar-borrar-editar').click();
+
+    await expect(page.locator('#modal-mercado-categoria')).toBeVisible();
+    await expect(page.locator('#mercado-categoria-titulo')).toHaveText('Editar categoría');
+    await expect(page.locator('#mercado-categoria-nombre')).toHaveValue('Alimentos');
+    await page.locator('#mercado-categoria-nombre').fill('Despensa');
+    await page.locator('#mercado-categoria-icono').fill('🧺');
+    await page.locator('#btn-guardar-mercado-categoria').click();
+    await expect(page.locator('#modal-mercado-categoria')).toBeHidden();
+
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Despensa' })).toBeVisible();
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' })).toHaveCount(0);
+
+    await page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Despensa' }).click();
+    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toBeVisible();
+  });
+
+  test('eliminar una categoría no borra sus productos -- pasan a "Sin categoría"', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await deslizarParaVolver(page);
+
+    const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.waitForTimeout(650);
     await page.mouse.up();
 
     page.once('dialog', (d) => d.accept());
     await page.locator('#btn-editar-borrar-eliminar').click();
-    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toHaveCount(0);
-    await expect(page.locator('#mercado-list .empty-state')).toBeVisible();
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' })).toHaveCount(0);
+
+    const tarjetaSinCategoria = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Sin categoría' });
+    await expect(tarjetaSinCategoria).toBeVisible();
+    await tarjetaSinCategoria.click();
+    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).toBeVisible();
   });
 
-  test('el selector de categoría sugiere categorías ya usadas antes (sin datalist nativo)', async ({ page }) => {
-    await agregarProducto(page, 'Detergente', 'Aseo', 'Cocina');
-
-    await page.locator('#btn-nuevo-producto-mercado').click();
-    await page.locator('.btn-desplegar-concepto[data-target="mercado-categoria"]').click();
-    await expect(page.locator('#panel-mercado-categoria')).toBeVisible();
-    await page.locator('#panel-mercado-categoria .caja-picker-option', { hasText: 'Aseo' }).click();
-    await expect(page.locator('#mercado-categoria')).toHaveValue('Aseo');
+  test('el gesto de deslizar desde el borde vuelve de una categoría a la cuadrícula', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await deslizarParaVolver(page);
+    await expect(page.locator('#mercado-list .alerta-bloque-detalle-titulo')).toHaveCount(0);
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' })).toBeVisible();
   });
 });

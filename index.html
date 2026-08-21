@@ -496,10 +496,6 @@
 
       <!-- ══ TAB: MERCADO ══ -->
       <section id="tab-mercado" class="tab-section hidden">
-        <div class="notif-header-acciones">
-          <button class="btn-secondary btn-franja" id="btn-nuevo-producto-mercado">+ Nuevo producto</button>
-        </div>
-        <p class="notif-header-nota">Doble toque marca/desmarca un producto para la próxima compra. Mantén presionado para editar o eliminar.</p>
         <div id="mercado-list"><div class="loading-state">Cargando…</div></div>
       </section>
 
@@ -631,23 +627,29 @@
         </div>
         <div class="form-group">
           <label>Categoría</label>
-          <div class="campo-desplegable">
-            <input class="input" id="mercado-categoria" type="text" autocomplete="off" placeholder="Ej: Alimentos"/>
-            <button type="button" class="btn-desplegar-concepto" data-target="mercado-categoria" aria-label="Mostrar categorías usadas">▾</button>
-            <div class="caja-picker-panel hidden" id="panel-mercado-categoria"></div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Subcategoría <span class="label-opcional">(opcional)</span></label>
-          <div class="campo-desplegable">
-            <input class="input" id="mercado-subcategoria" type="text" autocomplete="off" placeholder="Ej: Lácteos"/>
-            <button type="button" class="btn-desplegar-concepto" data-target="mercado-subcategoria" aria-label="Mostrar subcategorías usadas">▾</button>
-            <div class="caja-picker-panel hidden" id="panel-mercado-subcategoria"></div>
-          </div>
+          <select class="input" id="mercado-categoria"></select>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-cancelar-mercado-producto">Cancelar</button>
           <button class="btn-primary" id="btn-guardar-mercado-producto">Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: nueva/editar categoría de Mercado (mismo patrón que
+         modal-bloque-alerta de Alertas -- nombre + ícono libre) -->
+    <div id="modal-mercado-categoria" class="modal hidden">
+      <div class="modal-card" style="max-width:380px">
+        <h3 class="modal-title" id="mercado-categoria-titulo">Nueva categoría</h3>
+        <div class="form-group">
+          <input id="mercado-categoria-nombre" type="text" placeholder="Ej: Alimentos, Aseo…" class="input" maxlength="30"/>
+        </div>
+        <div class="form-group">
+          <input id="mercado-categoria-icono" type="text" placeholder="Ícono (ej: 🥦)" class="input" maxlength="4"/>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-mercado-categoria">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-mercado-categoria">Guardar</button>
         </div>
       </div>
     </div>
