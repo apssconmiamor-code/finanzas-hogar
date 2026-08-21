@@ -1180,6 +1180,7 @@ input, select, textarea, table {
   gap: 8px 12px; padding: 14px 16px;
 }
 .notif-card-nombre { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+.notif-card-icon { margin-right: 6px; }
 .notif-card-proximo { font-size: 12.5px; color: var(--text-3); }
 .notif-card-btn { font-size: 12.5px; padding: 6px 10px; white-space: nowrap; }
 .notif-btn-ancho { width: 100%; }

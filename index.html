@@ -609,6 +609,37 @@
       </div>
     </div>
 
+    <!-- Modal nuevo/editar producto de Mercado -->
+    <div id="modal-mercado-producto" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title" id="mercado-producto-titulo">Nuevo producto</h3>
+        <div class="form-group">
+          <label>Producto</label>
+          <input class="input" id="mercado-nombre" type="text" placeholder="Ej: Leche"/>
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <div class="campo-desplegable">
+            <input class="input" id="mercado-categoria" type="text" autocomplete="off" placeholder="Ej: Alimentos"/>
+            <button type="button" class="btn-desplegar-concepto" data-target="mercado-categoria" aria-label="Mostrar categorías usadas">▾</button>
+            <div class="caja-picker-panel hidden" id="panel-mercado-categoria"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Subcategoría <span class="label-opcional">(opcional)</span></label>
+          <div class="campo-desplegable">
+            <input class="input" id="mercado-subcategoria" type="text" autocomplete="off" placeholder="Ej: Lácteos"/>
+            <button type="button" class="btn-desplegar-concepto" data-target="mercado-subcategoria" aria-label="Mostrar subcategorías usadas">▾</button>
+            <div class="caja-picker-panel hidden" id="panel-mercado-subcategoria"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-mercado-producto">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-mercado-producto">Agregar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal agregar mes (con detección de huecos) -->
     <div id="modal-agregar-mes" class="modal hidden">
       <div class="modal-card">
@@ -767,16 +798,19 @@
       </div>
     </div>
 
-    <!-- Modal: resumen de una alerta (doble clic sobre su tarjeta) -->
+    <!-- Modal: resumen de una alerta (doble clic sobre su tarjeta) -- solo
+         lectura + "Marcar como revisada" (se puede aprobar en cualquier
+         momento, antes o después de la fecha; ver abrirResumenNotificacion
+         en notificaciones.js). Editar/Eliminar viven en el menú de
+         mantener presionado (gestos.js), no acá. -->
     <div id="modal-resumen-notificacion" class="modal hidden">
       <div class="modal-card" style="max-height:75vh">
-        <h3 class="modal-title" id="resumen-notificacion-titulo"></h3>
-        <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
-        <button type="button" class="btn-primary notif-btn-ancho hidden" id="btn-resumen-revisado">✅ Marcar como revisada</button>
-        <button type="button" class="btn-secondary btn-franja" id="btn-resumen-crear-recordatorio">📝 Crear recordatorio</button>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cerrar-resumen-notificacion">Cerrar</button>
+        <div class="modal-header">
+          <span class="modal-title" id="resumen-notificacion-titulo"></span>
+          <button class="modal-close" id="btn-cerrar-resumen-notificacion">✕</button>
         </div>
+        <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
+        <button type="button" class="btn-primary notif-btn-ancho" id="btn-resumen-revisado">✅ Marcar como revisada</button>
       </div>
     </div>
 
@@ -965,6 +999,7 @@
   <script src="sheets-offline.js"></script>
   <script src="prestamo.js"></script>
   <script src="compras.js"></script>
+  <script src="mercado.js"></script>
   <script src="recordatorios.js"></script>
   <script src="notificaciones.js"></script>
   <script src="badge.js"></script>

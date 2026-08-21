@@ -989,6 +989,7 @@ function cerrarModal(modalEl) {
   }
   if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
   if (modalEl.id === "modal-compra" && typeof limpiarFormCompra === "function") limpiarFormCompra();
+  if (modalEl.id === "modal-mercado-producto" && typeof limpiarFormMercado === "function") limpiarFormMercado();
   if (modalEl.id === "modal-notificacion" && typeof limpiarFormNotificacion === "function") limpiarFormNotificacion();
   modalEl.classList.add("hidden");
 }
@@ -1068,6 +1069,7 @@ function navegarATab(tab) {
     if (sec) sec.classList.remove("hidden");
     if (tab === "compromisos") { cargarPrestamos(); cargarCompras(); }
     if (tab === "notificaciones") cargarNotificaciones();
+    if (tab === "mercado" && typeof cargarMercado === "function") cargarMercado();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
     // update topbar avatar
@@ -4596,7 +4598,7 @@ function renderResumen() {
 // =============================================
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
-  compromisos: "Compromisos", notificaciones: "Alertas",
+  compromisos: "Compromisos", notificaciones: "Alertas", mercado: "Mercado",
   resumen: "Análisis"
 };
 

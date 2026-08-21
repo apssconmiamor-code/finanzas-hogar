@@ -3,7 +3,7 @@
 // =============================================
 
 const CONFIG = {
-  VERSION: "3.77.1",
+  VERSION: "3.78.0",
   GOOGLE_CLIENT_ID: "610428004631-cmp0hujrbltla9b9j03vfa8ih47dulsj.apps.googleusercontent.com",
   SPREADSHEET_ID: "1g2pyTgEc-BQ1mv2wr91klk58oy1L-2CRIJb9BoLGk6o",
 
@@ -27,6 +27,7 @@ const CONFIG = {
     CRONOLOGIA: "Cronologia",
     PRESTAMO: "Prestamo",
     COMPRAS: "Compras",
+    MERCADO: "Mercado",
     PROYECCION: "Proyeccion",
     METAS: "Metas",
     RECORDATORIOS: "Recordatorios",

@@ -5,7 +5,7 @@
 
 const SHEET_NAMES = [
   'Cajas', 'Movimiento de Caja', 'Presupuesto', 'Cronologia',
-  'Prestamo', 'Compras', 'Proyeccion', 'Recordatorios', 'Metas',
+  'Prestamo', 'Compras', 'Mercado', 'Proyeccion', 'Recordatorios', 'Metas',
   'Notificaciones', 'ConfigUsuario',
 ];
 
