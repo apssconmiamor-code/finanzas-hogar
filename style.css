@@ -708,6 +708,19 @@ input, select, textarea, table {
    que .accion-rapida-icono (pedido explícito: mismo tamaño los dos). */
 .accion-rapida-caja-icono { height: 40px; width: auto; max-width: 70px; object-fit: contain; border-radius: 3px; }
 .accion-rapida-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); }
+/* Cajas de una acción rápida: al configurarla es multi-selección (varias
+   activas a la vez, checkbox); al usarla con más de una configurada, es de
+   una sola (radio, ver poblarCajasConfigAccion/abrirUsarAccion en
+   recordatorios.js) -- mismo componente visual para las dos, el toggle de
+   selección lo maneja cada lugar por su cuenta. */
+.accion-caja-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.accion-caja-chip {
+  border: 1.5px solid var(--border-mid); border-radius: 20px;
+  padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--text);
+  background: var(--surface); cursor: pointer; user-select: none;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.accion-caja-chip.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 .modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
 .modal-subtitle { font-size: 13px; color: var(--text-3); margin-top: -8px; }
 /* Cancelar/Guardar (y Borrar, donde exista) ocupan el 100% del ancho

@@ -926,6 +926,10 @@
     <div id="modal-usar-accion" class="modal hidden">
       <div class="modal-card" style="max-width:400px">
         <h3 class="modal-title" id="usar-accion-titulo"></h3>
+        <div class="form-group" id="usar-accion-caja-wrap" style="display:none">
+          <label>¿Con qué caja?</label>
+          <div id="usar-accion-caja-opciones" class="accion-caja-chips"></div>
+        </div>
         <div class="form-group">
           <input id="usar-accion-monto" type="text" inputmode="decimal" placeholder="Monto"
             class="input" style="font-size:22px;text-align:center"/>
@@ -963,7 +967,8 @@
           <select id="config-accion-concepto" class="input"></select>
         </div>
         <div class="form-group">
-          <select id="config-accion-caja" class="input"></select>
+          <label>Caja(s) -- si eliges más de una, se elige entre esas al usar la acción</label>
+          <div id="config-accion-cajas" class="accion-caja-chips"></div>
         </div>
         <div class="form-group">
           <label class="config-accion-camara-label" for="config-accion-camara">

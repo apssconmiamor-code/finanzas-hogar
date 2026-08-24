@@ -723,6 +723,18 @@ async function _guardarAccionesRapidas(lista) {
 
 let accionSlotActual = null; // índice dentro de accionesRapidas, o -1 = configurando una nueva
 let accionFotoData = null; // { data: dataURL, type: mime } -- foto opcional al usar una acción con cámara activada
+let accionCajaElegida = null; // caja elegida al USAR una acción con más de una configurada
+
+// Una acción guarda una o más cajas ("cajas": [...]) -- las acciones ya
+// configuradas antes de este cambio solo tenían una ("caja": "..."), se
+// leen igual sin migrar nada en Sheets (pedido explícito: elegir 1 o más
+// cajas por acción, y que el usuario elija entre ellas al usarla si hay
+// más de una).
+function _cajasDeAccion(accion) {
+  if (!accion) return [];
+  if (Array.isArray(accion.cajas)) return accion.cajas;
+  return accion.caja ? [accion.caja] : [];
+}
 
 function abrirMenuAcciones() {
   renderMenuAcciones();
@@ -745,8 +757,13 @@ function renderMenuAcciones() {
     // Logo de la entidad de la caja que esta acción usa (Nequi/Bancolombia/
     // etc., ver iconoCajaImagen en app.js) junto al ícono elegido -- pedido
     // explícito, para identificar de un vistazo a qué caja va cada acción
-    // sin tener que abrirla a configurar.
-    const iconoCaja = typeof iconoCajaImagen === "function" ? iconoCajaImagen(accion.caja) : null;
+    // sin tener que abrirla a configurar. Con más de una caja configurada
+    // no hay un logo único que mostrar -- se calla en vez de mostrar el de
+    // cualquiera de las dos al azar.
+    const cajasDeEstaAccion = _cajasDeAccion(accion);
+    const iconoCaja = cajasDeEstaAccion.length === 1 && typeof iconoCajaImagen === "function"
+      ? iconoCajaImagen(cajasDeEstaAccion[0])
+      : null;
     return `
     <button class="accion-rapida-card" data-slot="${i}">
       <span class="accion-rapida-icono-fila">
@@ -812,6 +829,33 @@ function actualizarConceptoAccion() {
   sel.innerHTML = lista.map(c => `<option value="${c}">${c}</option>`).join("");
 }
 
+// Multi-selección con chips (checkbox) en vez del <select> de una sola
+// caja que había antes -- pedido explícito: elegir una o más cajas por
+// acción. Solo las que este usuario puede manejar (mismo criterio de
+// antes, ver cajaVisibleParaUsuario), y con el mismo respaldo de caché que
+// poblarSelectCajas por si "cajas" todavía no cargó de la red.
+function poblarCajasConfigAccion(cajasSeleccionadas) {
+  const cont = document.getElementById("config-accion-cajas");
+  if (!cont) return;
+  if (typeof cajas !== "undefined" && cajas.length === 0) {
+    try {
+      const cache = localStorage.getItem("cache_cajas");
+      if (cache) cajas = JSON.parse(cache);
+    } catch {}
+  }
+  const cajasDisp = (typeof cajas !== "undefined" ? cajas : [])
+    .filter(c => cajaVisibleParaUsuario(c, currentUser?.email));
+  const seleccionadas = new Set(cajasSeleccionadas || []);
+
+  cont.innerHTML = cajasDisp.map(c => `
+    <button type="button" class="accion-caja-chip${seleccionadas.has(c.nombre) ? " active" : ""}" data-caja="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</button>`
+  ).join("") || `<span class="label-opcional">No hay cajas todavía</span>`;
+
+  cont.querySelectorAll(".accion-caja-chip").forEach(chip => {
+    chip.addEventListener("click", () => chip.classList.toggle("active"));
+  });
+}
+
 // slot: índice a editar dentro de accionesRapidas, o -1 para crear una nueva.
 function abrirConfigAccion(slot) {
   accionSlotActual = slot;
@@ -822,14 +866,7 @@ function abrirConfigAccion(slot) {
   document.getElementById("config-accion-categoria").value = accion?.categoria || "Gasto fijo";
   actualizarConceptoAccion();
   if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
-  // Solo las cajas que este usuario puede manejar (pedido explícito: en
-  // Acciones rápidas, según quién entró) -- cajaVisibleParaUsuario deja
-  // pasar cualquier caja sin restricción configurada, así que nada se
-  // esconde por error mientras esa columna todavía no exista para alguna.
-  if (typeof poblarSelectCajas === "function") {
-    poblarSelectCajas("config-accion-caja", 0, c => cajaVisibleParaUsuario(c, currentUser?.email));
-  }
-  if (accion?.caja) document.getElementById("config-accion-caja").value = accion.caja;
+  poblarCajasConfigAccion(_cajasDeAccion(accion));
   document.getElementById("config-accion-camara").checked = !!accion?.camara;
 
   const btnBorrar = document.getElementById("btn-borrar-accion");
@@ -849,11 +886,11 @@ async function guardarConfigAccion() {
   const icono     = document.getElementById("config-accion-icono").value.trim() || "⚡";
   const categoria = document.getElementById("config-accion-categoria").value;
   const concepto  = document.getElementById("config-accion-concepto").value;
-  const caja      = document.getElementById("config-accion-caja").value;
+  const cajasElegidas = [...document.querySelectorAll("#config-accion-cajas .accion-caja-chip.active")].map(el => el.dataset.caja);
   const camara    = document.getElementById("config-accion-camara").checked;
 
-  if (!nombre || !categoria || !concepto || !caja) {
-    alert("Completa todos los campos");
+  if (!nombre || !categoria || !concepto || cajasElegidas.length === 0) {
+    alert("Completa todos los campos (elige al menos una caja)");
     return;
   }
 
@@ -863,7 +900,7 @@ async function guardarConfigAccion() {
 
   try {
     const acciones = [...obtenerAccionesRapidas()];
-    const nuevaAccion = { nombre, icono, categoria, concepto, caja, camara };
+    const nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, camara };
     if (accionSlotActual >= 0) acciones[accionSlotActual] = nuevaAccion;
     else acciones.push(nuevaAccion);
     await _guardarAccionesRapidas(acciones);
@@ -899,9 +936,40 @@ function abrirUsarAccion(slot, accion) {
   renderFotoAccionPreview();
   const wrapCamara = document.getElementById("usar-accion-camara-wrap");
   if (wrapCamara) wrapCamara.style.display = accion.camara ? "" : "none";
+
+  // Con una sola caja configurada se usa directo, sin preguntar (igual
+  // que siempre). Con más de una, hay que elegir entre esas -- pedido
+  // explícito -- antes de poder guardar (ver guardarUsarAccion).
+  const cajasAccion = _cajasDeAccion(accion);
+  const wrapCaja = document.getElementById("usar-accion-caja-wrap");
+  const contCaja = document.getElementById("usar-accion-caja-opciones");
+  if (cajasAccion.length > 1) {
+    accionCajaElegida = null;
+    if (wrapCaja) wrapCaja.style.display = "";
+    if (contCaja) {
+      contCaja.innerHTML = cajasAccion.map(nombre =>
+        `<button type="button" class="accion-caja-chip" data-caja="${escapeAttr(nombre)}">${escapeHtml(nombre)}</button>`
+      ).join("");
+      contCaja.querySelectorAll(".accion-caja-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          contCaja.querySelectorAll(".accion-caja-chip").forEach(c => c.classList.remove("active"));
+          chip.classList.add("active");
+          accionCajaElegida = chip.dataset.caja;
+        });
+      });
+    }
+  } else {
+    accionCajaElegida = cajasAccion[0] || null;
+    if (wrapCaja) wrapCaja.style.display = "none";
+  }
+
   cerrarMenuAcciones();
   document.getElementById("modal-usar-accion")?.classList.remove("hidden");
-  setTimeout(() => document.getElementById("usar-accion-monto")?.focus(), 150);
+  // Si hay que elegir caja primero, el teclado del monto no se adelanta a
+  // taparle los chips -- se enfoca recién cuando ya no hace falta elegir.
+  if (cajasAccion.length <= 1) {
+    setTimeout(() => document.getElementById("usar-accion-monto")?.focus(), 150);
+  }
 }
 
 function cerrarUsarAccion() {
@@ -937,6 +1005,11 @@ async function guardarUsarAccion() {
   const accion = obtenerAccionesRapidas()[accionSlotActual];
   if (!accion) { cerrarUsarAccion(); return; }
 
+  const cajasAccion = _cajasDeAccion(accion);
+  if (cajasAccion.length > 1 && !accionCajaElegida) { alert("Elige con qué caja"); return; }
+  const cajaElegida = accionCajaElegida || cajasAccion[0];
+  if (!cajaElegida) { alert("Esta acción no tiene ninguna caja configurada"); return; }
+
   const montoInput = document.getElementById("usar-accion-monto");
   const monto = typeof evaluarMonto === "function" ? evaluarMonto(montoInput.value) : parseFloat(montoInput.value);
   if (!monto) { alert("Ingresa un monto"); return; }
@@ -952,9 +1025,9 @@ async function guardarUsarAccion() {
       recibo = url;
     }
     if (accion.categoria === "Ingreso") {
-      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto, "", recibo);
+      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, "", recibo);
     } else {
-      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, accion.caja, monto, "", recibo);
+      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, "", recibo);
     }
     cerrarUsarAccion();
     if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ ${accion.nombre} registrado`);

@@ -1,17 +1,24 @@
 // El botón flotante abre un menú de pantalla completa con las "acciones
 // rápidas" que el usuario haya configurado (sin límite de cantidad) + un
 // tile fijo "Agregar" + la opción de siempre "Recordatorio". Una acción
-// rápida guarda categoría+concepto+caja; usarla solo pide el monto.
-// Mantener presionada una acción ya configurada la abre para reconfigurarla.
+// rápida guarda categoría+concepto+una o más cajas (chips de selección
+// múltiple, pedido explícito); usarla solo pide el monto -- y, si tiene
+// más de una caja configurada, primero cuál de esas usar. Mantener
+// presionada una acción ya configurada la abre para reconfigurarla.
 // Se guardan del lado del servidor (Sheets, hoja ConfigUsuario) por email,
 // así que cargan igual en cualquier dispositivo donde ese usuario inicie
 // sesión.
 
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
-const { seleccionarCaja } = require('./helpers/uiHelpers');
 
 const FOTO_FALSA = { name: 'recibo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
+
+// Chips de selección múltiple (checkbox) en vez del <select> de antes --
+// ver poblarCajasConfigAccion en recordatorios.js.
+async function elegirCajaAccion(page, nombre) {
+  await page.locator('#config-accion-cajas .accion-caja-chip', { hasText: nombre }).click();
+}
 
 test.describe('Acciones rápidas (botón flotante)', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,7 +49,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-icono').fill('💰');
     await page.locator('#config-accion-categoria').selectOption('Ingreso');
     await page.locator('#config-accion-concepto').selectOption('SURA');
-    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await elegirCajaAccion(page, 'Efectivo');
     await page.locator('#btn-guardar-config-accion').click();
 
     // Vuelve al menú y ya aparece como slot 0.
@@ -74,7 +81,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
       await page.locator('#config-accion-nombre').fill(nombre);
       await page.locator('#config-accion-categoria').selectOption('Gasto variable');
       await page.locator('#config-accion-concepto').selectOption('Mercado');
-      await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+      await elegirCajaAccion(page, 'Efectivo');
       await page.locator('#btn-guardar-config-accion').click();
       await expect(page.locator('#modal-menu-acciones')).toBeVisible();
     }
@@ -99,7 +106,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-nombre').fill('Mercado');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Mercado');
-    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await elegirCajaAccion(page, 'Efectivo');
     await page.locator('#config-accion-camara').check();
     await page.locator('#btn-guardar-config-accion').click();
 
@@ -108,7 +115,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-nombre').fill('Salud');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Salud');
-    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await elegirCajaAccion(page, 'Efectivo');
     await page.locator('#btn-guardar-config-accion').click();
 
     await page.locator('.accion-rapida-card[data-slot="1"]').click();
@@ -140,7 +147,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-icono').fill('🛒');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Mercado');
-    await seleccionarCaja(page, 'config-accion-caja', 'Efectivo (COP)');
+    await elegirCajaAccion(page, 'Efectivo');
     await page.locator('#btn-guardar-config-accion').click();
     await expect(page.locator('#modal-menu-acciones')).toBeVisible();
 
@@ -190,9 +197,9 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#fab-recordatorio').click();
     await page.locator('#btn-agregar-accion').click();
 
-    const opciones = page.locator('#config-accion-caja option');
-    await expect(opciones).toHaveCount(3); // "Selecciona una caja" + las 2 visibles (no la restringida a otra persona)
-    const textos = await opciones.allTextContents();
+    const chips = page.locator('#config-accion-cajas .accion-caja-chip');
+    await expect(chips).toHaveCount(2); // solo las 2 visibles, no la restringida a otra persona
+    const textos = await chips.allTextContents();
     expect(textos.some(t => t.includes('Efectivo'))).toBe(true);
     expect(textos.some(t => t.includes('Bancolombia compartida'))).toBe(true);
     expect(textos.some(t => t.includes('Nequi de otra persona'))).toBe(false);
@@ -252,7 +259,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-nombre').fill('Recarga');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Mercado');
-    await seleccionarCaja(page, 'config-accion-caja', 'Nequi (COP)');
+    await elegirCajaAccion(page, 'Nequi');
     await page.locator('#btn-guardar-config-accion').click();
 
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
@@ -263,10 +270,82 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#config-accion-nombre').fill('Varios');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Mercado');
-    await seleccionarCaja(page, 'config-accion-caja', 'Caja rara (COP)');
+    await elegirCajaAccion(page, 'Caja rara');
     await page.locator('#btn-guardar-config-accion').click();
 
     const slot1 = page.locator('.accion-rapida-card[data-slot="1"]');
     await expect(slot1.locator('.accion-rapida-caja-icono')).toHaveCount(0);
+  });
+
+  test('con más de una caja elegida, usar la acción pregunta con cuál -- y guarda el movimiento en la elegida', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Café');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await elegirCajaAccion(page, 'Efectivo');
+    await elegirCajaAccion(page, 'Nequi');
+    // Con dos cajas elegidas, no hay un logo único que mostrar en la tarjeta.
+    await page.locator('#btn-guardar-config-accion').click();
+
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await expect(slot0.locator('.accion-rapida-caja-icono')).toHaveCount(0);
+
+    await slot0.click();
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+    await expect(page.locator('#usar-accion-caja-wrap')).toBeVisible();
+    const opcionesCaja = page.locator('#usar-accion-caja-opciones .accion-caja-chip');
+    await expect(opcionesCaja).toHaveCount(2);
+
+    // Sin elegir caja, no deja guardar aunque ya haya un monto.
+    await page.locator('#usar-accion-monto').fill('15000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+
+    await opcionesCaja.filter({ hasText: 'Nequi' }).click();
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    // Se registró en Nequi -- se ve en el detalle de esa caja, no en Efectivo.
+    await page.locator('.nav-item[data-tab="cajas"]:visible').first().click();
+    await page.locator('.caja-card', { hasText: 'Nequi' }).dblclick();
+    await expect(page.locator('#modal-detalle-caja')).toContainText('Mercado');
+  });
+
+  test('con una sola caja elegida, usar la acción no pregunta -- sigue como antes', async ({ page }) => {
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Mercado');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await elegirCajaAccion(page, 'Efectivo');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await slot0.click();
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+    await expect(page.locator('#usar-accion-caja-wrap')).toBeHidden();
+  });
+
+  test('sin elegir ninguna caja, no deja guardar la configuración', async ({ page }) => {
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Mercado');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#btn-guardar-config-accion').click();
+    await expect(page.locator('#modal-config-accion')).toBeVisible();
   });
 });
