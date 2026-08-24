@@ -450,9 +450,9 @@ function renderMercadoCategoriaDetalle(cont, categoria) {
     <div class="alerta-bloque-detalle-header">
       <span class="alerta-bloque-detalle-titulo">${icono} ${escapeHtml(titulo)} (${items.length})</span>
     </div>
+    <button type="button" class="btn-primary btn-franja" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>
     ${seccionPendientes}
-    ${seccionParaComprar}
-    <button type="button" class="btn-primary btn-franja mercado-btn-nuevo-producto" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>`;
+    ${seccionParaComprar}`;
 
   document.getElementById("btn-nuevo-producto-mercado-categoria")
     ?.addEventListener("click", () => abrirNuevoProductoMercado(categoria));

@@ -157,7 +157,7 @@ test.describe('Mercado', () => {
     await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
   });
 
-  test('"+ Nuevo producto" vive al pie de la pantalla, después de las listas', async ({ page }) => {
+  test('"+ Nuevo producto" vive arriba, justo después del título de la categoría', async ({ page }) => {
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');
     await agregarProducto(page, 'Leche');
@@ -165,10 +165,9 @@ test.describe('Mercado', () => {
     await page.waitForTimeout(300);
 
     const hijos = page.locator('#mercado-list > *');
-    const total = await hijos.count();
-    // El último elemento de la pantalla es el botón, después del header y
-    // de las dos secciones de productos.
-    await expect(hijos.nth(total - 1)).toHaveId('btn-nuevo-producto-mercado-categoria');
+    // Segundo elemento de la pantalla (justo después del header), antes de
+    // las secciones de productos.
+    await expect(hijos.nth(1)).toHaveId('btn-nuevo-producto-mercado-categoria');
   });
 
   test('"Compra realizada" pide confirmación y sube todo lo marcado de vuelta arriba', async ({ page }) => {
