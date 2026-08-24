@@ -1163,6 +1163,7 @@ input, select, textarea, table {
    identidad visual. Acá solo queda la grilla de productos dentro de una
    categoría. */
 .mercado-productos-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.mercado-btn-whatsapp { margin-top: 20px; max-width: 480px; }
 /* Doble toque alterna "hay que comprarlo" -- único módulo de la app donde
    el doble toque muta algo en vez de solo abrir un resumen de solo
    lectura (pedido explícito, ver mercado.js). El gris del estado marcado

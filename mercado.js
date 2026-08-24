@@ -340,6 +340,8 @@ function renderMercadoGrid(cont) {
       <span class="alerta-bloque-nombre">Sin categoría</span>
     </button>` : "";
 
+  const totalParaComprar = productosMercado.filter(p => p.hayQueComprar).length;
+
   cont.innerHTML = `
     <div class="alertas-bloques-grid">
       ${tarjetasCategorias}
@@ -348,9 +350,14 @@ function renderMercadoGrid(cont) {
         <span class="alerta-bloque-icono">➕</span>
         <span class="alerta-bloque-nombre">Agregar categoría</span>
       </button>
-    </div>`;
+    </div>
+    ${totalParaComprar > 0 ? `
+      <button type="button" class="btn-primary btn-franja mercado-btn-whatsapp" id="btn-whatsapp-mercado">
+        💬 Enviar lista por WhatsApp (${totalParaComprar})
+      </button>` : ""}`;
 
   document.getElementById("btn-nueva-categoria-mercado")?.addEventListener("click", abrirNuevaCategoriaMercado);
+  document.getElementById("btn-whatsapp-mercado")?.addEventListener("click", enviarListaMercadoPorWhatsapp);
 
   // Mantener presionada una tarjeta de categoría ofrece Editar/Eliminar --
   // "Sin categoría" no es una categoría real, así que no la ofrece.
@@ -367,6 +374,43 @@ function renderMercadoGrid(cont) {
       })
     });
   });
+}
+
+// ---- Compartir la lista de "hay que comprar" por WhatsApp ----
+// Enlace público de "click to chat" (wa.me) -- no la API de Negocios de
+// verdad (esa pide número verificado por Meta, credenciales y factura por
+// mensaje; no tiene sentido para una lista casera). Este link abre
+// WhatsApp con el mensaje ya escrito, listo para elegir a quién mandárselo
+// y tocar enviar -- ni cuenta ni configuración de por medio.
+function _generarTextoListaMercado() {
+  const porComprar = productosMercado.filter(p => p.hayQueComprar);
+  if (porComprar.length === 0) return null;
+
+  const porCategoria = {};
+  porComprar.forEach(p => {
+    const cat = p.categoria || "Sin categoría";
+    (porCategoria[cat] = porCategoria[cat] || []).push(p);
+  });
+  const categoriasOrdenadas = Object.keys(porCategoria).sort((a, b) => a.localeCompare(b));
+
+  let texto = "🛒 *Lista del mercado*\n";
+  categoriasOrdenadas.forEach(cat => {
+    const icono = cat === "Sin categoría" ? "🔖" : (mercadoCategorias.find(c => c.nombre === cat)?.icono || "🗂️");
+    texto += `\n${icono} *${cat}*\n`;
+    [...porCategoria[cat]].sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(p => {
+      texto += `• ${p.nombre}\n`;
+    });
+  });
+  return texto;
+}
+
+// Número fijo (Colombia, +57) al que se manda la lista -- pedido explícito.
+const MERCADO_WHATSAPP_NUMERO = "573122132279";
+
+function enviarListaMercadoPorWhatsapp() {
+  const texto = _generarTextoListaMercado();
+  if (!texto) { alert("No hay productos marcados para comprar todavía."); return; }
+  window.open(`https://wa.me/${MERCADO_WHATSAPP_NUMERO}?text=${encodeURIComponent(texto)}`, "_blank");
 }
 
 // ---- Detalle de una categoría (o "Sin categoría") ----

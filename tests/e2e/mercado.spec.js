@@ -157,6 +157,44 @@ test.describe('Mercado', () => {
     await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
   });
 
+  test('el botón de WhatsApp solo aparece con algo marcado, y abre wa.me con el número y la lista agrupada por categoría', async ({ page }) => {
+    // Sin nada marcado, el botón no está.
+    await expect(page.locator('#btn-whatsapp-mercado')).toHaveCount(0);
+
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await agregarProducto(page, 'Pan');
+    await page.locator('.mercado-item', { hasText: 'Leche' }).dblclick();
+    await page.waitForTimeout(300);
+
+    // Sigue sin aparecer en la cuadrícula: "Pan" no está marcado, solo "Leche".
+    await deslizarParaVolver(page);
+    await expect(page.locator('#btn-whatsapp-mercado')).toContainText('(1)');
+
+    // wa.me es un servicio real (redirige a api.whatsapp.com) -- se
+    // responde localmente para no depender de red real ni de a dónde
+    // termine redirigiendo (abort() tampoco sirve: la navegación falla y
+    // popup.url() pasa a ser la página de error de Chrome, no el link
+    // original). page.route() no alcanza -- el link abre una PESTAÑA
+    // nueva, otro Page -- hace falta interceptar a nivel de contexto.
+    await page.context().route('**://wa.me/**', (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: '' }));
+
+    const [popup] = await Promise.all([
+      page.context().waitForEvent('page'),
+      page.locator('#btn-whatsapp-mercado').click()
+    ]);
+    const url = new URL(popup.url());
+    expect(url.hostname).toBe('wa.me');
+    expect(url.pathname).toBe('/573122132279');
+    const texto = decodeURIComponent(url.search.replace('?text=', ''));
+    expect(texto).toContain('Lista del mercado');
+    expect(texto).toContain('Alimentos');
+    expect(texto).toContain('Leche');
+    expect(texto).not.toContain('Pan'); // no está marcado, no entra a la lista
+    await popup.close();
+  });
+
   test('mantener presionado un producto abre Editar/Eliminar', async ({ page }) => {
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');
