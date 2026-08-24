@@ -157,6 +157,61 @@ test.describe('Mercado', () => {
     await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
   });
 
+  test('"+ Nuevo producto" vive al pie de la pantalla, después de las listas', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await page.locator('.mercado-item', { hasText: 'Leche' }).dblclick();
+    await page.waitForTimeout(300);
+
+    const hijos = page.locator('#mercado-list > *');
+    const total = await hijos.count();
+    // El último elemento de la pantalla es el botón, después del header y
+    // de las dos secciones de productos.
+    await expect(hijos.nth(total - 1)).toHaveId('btn-nuevo-producto-mercado-categoria');
+  });
+
+  test('"Compra realizada" pide confirmación y sube todo lo marcado de vuelta arriba', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await agregarProducto(page, 'Leche');
+    await agregarProducto(page, 'Pan');
+    await agregarProducto(page, 'Huevos');
+
+    await page.locator('.mercado-item', { hasText: 'Leche' }).dblclick();
+    await page.waitForTimeout(300);
+    await page.locator('.mercado-item', { hasText: 'Pan' }).dblclick();
+    await page.waitForTimeout(300);
+    // "Huevos" queda sin marcar a propósito -- no debe verse afectado.
+
+    await expect(page.locator('.mercado-seccion-comprar-titulo')).toContainText('Para comprar (2)');
+    const btnCompraRealizada = page.locator('#btn-compra-realizada-mercado');
+    await expect(btnCompraRealizada).toBeVisible();
+
+    // Cancelar el diálogo no cambia nada.
+    page.once('dialog', (d) => d.dismiss());
+    await btnCompraRealizada.click();
+    await expect(page.locator('.mercado-seccion-comprar-titulo')).toContainText('Para comprar (2)');
+
+    // Confirmar lo sube todo -- la sección desaparece, "Huevos" sigue como estaba.
+    let mensajeDialogo = null;
+    page.once('dialog', (d) => { mensajeDialogo = d.message(); d.accept(); });
+    await btnCompraRealizada.click();
+    await expect.poll(() => mensajeDialogo).not.toBeNull();
+    expect(mensajeDialogo).toContain('2');
+    await expect(page.locator('.mercado-seccion-comprar')).toHaveCount(0);
+    await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
+    await expect(page.locator('.mercado-item', { hasText: 'Pan' })).not.toHaveClass(/mercado-item-comprar/);
+    await expect(page.locator('.mercado-item', { hasText: 'Huevos' })).not.toHaveClass(/mercado-item-comprar/);
+
+    // Persiste de verdad -- recargar y seguir viéndolo sin marcar.
+    await page.reload();
+    await esperarAppLista(page);
+    await abrirMercado(page);
+    await abrirCategoria(page, 'Alimentos');
+    await expect(page.locator('.mercado-seccion-comprar')).toHaveCount(0);
+  });
+
   test('el botón de WhatsApp solo aparece con algo marcado, y abre wa.me con el número y la lista agrupada por categoría', async ({ page }) => {
     // Sin nada marcado, el botón no está.
     await expect(page.locator('#btn-whatsapp-mercado')).toHaveCount(0);

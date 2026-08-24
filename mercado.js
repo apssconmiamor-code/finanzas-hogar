@@ -438,7 +438,10 @@ function renderMercadoCategoriaDetalle(cont, categoria) {
 
   const seccionParaComprar = paraComprar.length > 0
     ? `<div class="mercado-seccion-comprar">
-        <div class="mercado-seccion-comprar-titulo">🛒 Para comprar (${paraComprar.length})</div>
+        <div class="mercado-seccion-comprar-header">
+          <span class="mercado-seccion-comprar-titulo">🛒 Para comprar (${paraComprar.length})</span>
+          <button type="button" class="btn-secondary mercado-btn-compra-realizada" id="btn-compra-realizada-mercado">✅ Compra realizada</button>
+        </div>
         <div class="mercado-productos-grid">${paraComprar.map(_chipProductoMercado).join("")}</div>
       </div>`
     : "";
@@ -447,14 +450,43 @@ function renderMercadoCategoriaDetalle(cont, categoria) {
     <div class="alerta-bloque-detalle-header">
       <span class="alerta-bloque-detalle-titulo">${icono} ${escapeHtml(titulo)} (${items.length})</span>
     </div>
-    <button type="button" class="btn-primary btn-franja" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>
     ${seccionPendientes}
-    ${seccionParaComprar}`;
+    ${seccionParaComprar}
+    <button type="button" class="btn-primary btn-franja mercado-btn-nuevo-producto" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>`;
 
   document.getElementById("btn-nuevo-producto-mercado-categoria")
     ?.addEventListener("click", () => abrirNuevoProductoMercado(categoria));
 
+  document.getElementById("btn-compra-realizada-mercado")
+    ?.addEventListener("click", () => confirmarCompraRealizadaMercado(categoria));
+
   _conectarLargoPresionMercado(cont);
+}
+
+// "Compra realizada": marca de un toque TODOS los productos "para
+// comprar" de esta categoría como ya no pendientes (vuelven arriba) --
+// pedido explícito, con confirmación antes de aplicarlo porque no se
+// puede deshacer de un toque como el marcado individual.
+async function confirmarCompraRealizadaMercado(categoria) {
+  const items = productosMercado.filter(p => (p.categoria || "") === categoria && p.hayQueComprar);
+  if (items.length === 0) return;
+  if (!confirm(`¿Confirmar que ya compraste los ${items.length} producto(s) marcados?\n\nVuelven a la lista de arriba, sin marcar.`)) return;
+
+  items.forEach(p => { p.hayQueComprar = false; });
+  renderMercado();
+
+  try {
+    for (const p of items) {
+      await Sheets.editarProductoMercado(p.id, { hayQueComprar: false });
+    }
+    localStorage.setItem("cache_mercado", JSON.stringify(productosMercado));
+  } catch (err) {
+    // Si falló a mitad de camino, algunos ya pueden haber quedado
+    // guardados en Sheets -- se recarga desde el servidor en vez de
+    // revertir a ciegas, para no mostrar algo que ya no es cierto.
+    alert("Algo no se guardó bien: " + err.message);
+    await cargarMercado();
+  }
 }
 
 // Doble toque = alternar "hay que comprarlo" (ver cabecera del archivo --

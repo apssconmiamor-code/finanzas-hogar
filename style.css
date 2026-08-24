@@ -1193,10 +1193,14 @@ input, select, textarea, table {
    vuelve arriba si se vuelve a tocar. Un borde superior separa las dos
    zonas de un vistazo, sin ser un bloque tan marcado como .slate-soft. */
 .mercado-seccion-comprar { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-mid); }
+.mercado-seccion-comprar-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .mercado-seccion-comprar-titulo {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--slate); margin-bottom: 10px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate);
 }
+.mercado-btn-compra-realizada { font-size: 12.5px; padding: 6px 12px; flex-shrink: 0; }
+/* "+ Nuevo producto" vive al pie de la pantalla de la categoría -- pedido
+   explícito -- en vez de arriba entre el título y las listas. */
+.mercado-btn-nuevo-producto { margin-top: 20px; }
 
 /* ═══════════════ NOTIFICACIONES ═══════════════ */
 .notif-header-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
