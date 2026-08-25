@@ -130,16 +130,21 @@ function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
 // =============================================
 // Reusa el mismo "mantener presionado" de siempre (LONG_PRESS_MS) en vez de
 // inventar un gesto nuevo que compita con él. A los 500ms sostenido la
-// tarjeta se "arma" (se levanta un poco, y recién ahí se bloquea el scroll
-// nativo -- antes de armar, un dedo que se mueve debe poder seguir
-// scrolleando la cuadrícula como siempre). Si desde ahí el dedo se mueve,
-// arranca el arrastre en vivo, intercambiando lugar con la tarjeta vecina
-// apenas el centro de la que se arrastra cae encima de otra. Si en cambio
-// se suelta sin moverse, pasa lo de siempre en esa tarjeta (onLargo --
-// Editar/Eliminar o Configurar según el módulo). Reemplaza a
-// crearManejadorPresionSostenida en las cuadrículas que necesitan orden --
-// mismo contrato de dataset.gestoPresionLarga, para no romper el doble-
-// toque de las tarjetas que lo usan (ej. Cajas, ver tapCaja en app.js).
+// tarjeta se "arma" (se levanta y se queda así -- no desaparece sola hasta
+// que se arrastra de verdad o se suelta, ver .arrastrando-listo en
+// style.css). Si desde ahí el dedo se mueve, arranca el arrastre en vivo,
+// en cualquier dirección (estas tarjetas tienen touch-action:none fijo en
+// style.css -- sin eso, el scroll vertical nativo del teléfono se queda con
+// el gesto apenas el dedo sube o baja, y solo el movimiento horizontal, que
+// no compite con el scroll, le llega de verdad al JS -- bug real
+// reportado: se podía arrastrar de lado pero no de arriba a abajo),
+// intercambiando lugar con la tarjeta vecina apenas el centro de la que se
+// arrastra cae encima de otra. Si en cambio se suelta sin moverse, pasa lo
+// de siempre en esa tarjeta (onLargo -- Editar/Eliminar o Configurar según
+// el módulo). Reemplaza a crearManejadorPresionSostenida en las
+// cuadrículas que necesitan orden -- mismo contrato de
+// dataset.gestoPresionLarga, para no romper el doble-toque de las
+// tarjetas que lo usan (ej. Cajas, ver tapCaja en app.js).
 const ARRASTRE_UMBRAL_PX = 10;
 const ARRASTRE_SCROLL_BORDE_PX = 60;
 const ARRASTRE_SCROLL_VELOCIDAD_PX = 10;
@@ -223,14 +228,11 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
 
   const mover = (e) => {
     if (!esPressLargo) return;
-    // Recién ahora (armado, después de los 500ms quieto) se bloquea el
-    // scroll nativo -- con preventDefault en vez de tocar touch-action en
-    // vivo: cambiar touch-action A MITAD de un toque hace que WebKit/iOS
-    // corte el gesto con un pointercancel espontáneo (bug real: en el
-    // iPhone, mantener presionado dejaba de abrir Editar/Eliminar apenas
-    // este código se agregó -- ver tests/e2e/ajustar-caja.spec.js). Este es
-    // el primer pointermove desde que se armó (nada se movió durante los
-    // 500ms quieto), así que todavía se puede frenar el scroll nativo acá.
+    // El scroll nativo ya está bloqueado de fábrica en estas tarjetas
+    // (touch-action:none en style.css, fijo -- no se prende/apaga a mitad
+    // del toque, porque eso hace que WebKit/iOS corte el gesto con un
+    // pointercancel espontáneo, ver tests/e2e/ajustar-caja.spec.js). Este
+    // preventDefault es un respaldo extra, sin costo.
     e.preventDefault();
     if (!arrastrando) {
       if (Math.hypot(e.clientX - startX, e.clientY - startY) < ARRASTRE_UMBRAL_PX) return;

@@ -821,14 +821,34 @@ input, select, textarea, table {
    las 4 cuadrículas de tarjetas de 2 columnas, mismo diseño de tarjeta, ver
    crearManejadorArrastrable en gestos.js). ".arrastrando-listo" es la
    "levantada" apenas se arma el arrastre (mantener presionado 500ms, sin
-   soltar todavía); ".arrastrando" es mientras se mueve de verdad -- ahí se
-   apaga la transición porque el transform ya lo controla el JS a cada
-   pointermove (con transición de por medio se ve con retraso/tironeado). */
+   soltar todavía) -- se mantiene así hasta que se arrastra de verdad o se
+   suelta, nunca desaparece sola. ".arrastrando" es mientras se mueve de
+   verdad -- ahí se apaga la transición porque el transform ya lo controla
+   el JS a cada pointermove (con transición de por medio se ve con
+   retraso/tironeado en vez de seguir al dedo en vivo).
+   touch-action:none es necesario para poder arrastrar en las DOS
+   direcciones -- sin esto, en un teléfono real el scroll nativo vertical de
+   la página se queda con el gesto apenas el dedo se mueve hacia arriba/
+   abajo, y solo el movimiento horizontal (que no compite con el scroll)
+   le llega al JS (bug real reportado: se podía arrastrar de lado pero no
+   de arriba a abajo). Va fijo en la tarjeta, no se prende/apaga a mitad
+   del toque -- cambiarlo en vivo hace que WebKit corte el gesto con un
+   pointercancel espontáneo (ver el comentario en gestos.js). */
 .accion-rapida-card, .alerta-bloque-card, .caja-card {
   transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  touch-action: none;
 }
-.arrastrando-listo { transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,.18); z-index: 2; }
-.arrastrando { transition: none; box-shadow: 0 12px 28px rgba(0,0,0,.28); z-index: 3; cursor: grabbing; opacity: .96; }
+/* Especificidad iguala a ".caja-card:active" (que si no, le ganaba al
+   "levantado" mientras el dedo seguía apoyado -- bug real reportado: la
+   tarjeta se agrandaba un instante y enseguida volvía a su tamaño normal,
+   como si la "opción de mover" desapareciera sola) -- y al estar declarada
+   después en la hoja de estilos, gana el empate. */
+.accion-rapida-card.arrastrando-listo, .alerta-bloque-card.arrastrando-listo, .caja-card.arrastrando-listo {
+  transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,.18); z-index: 2;
+}
+.accion-rapida-card.arrastrando, .alerta-bloque-card.arrastrando, .caja-card.arrastrando {
+  transition: none; box-shadow: 0 12px 28px rgba(0,0,0,.28); z-index: 3; cursor: grabbing; opacity: .96;
+}
 
 /* ═══════════════ RESUMEN BAR ═══════════════ */
 .resumen-bar {
