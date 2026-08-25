@@ -132,18 +132,27 @@ function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
 // inventar un gesto nuevo que compita con él. A los 500ms sostenido la
 // tarjeta se "arma" (se levanta y se queda así -- no desaparece sola hasta
 // que se arrastra de verdad o se suelta, ver .arrastrando-listo en
-// style.css) y RECIÉN AHÍ se bloquea el scroll nativo del teléfono
-// (touch-action:none, puesto en ese momento -- no fijo de entrada, ver
-// iniciar más abajo, porque bloquearlo siempre rompía el scroll normal de
-// una lista larga de tarjetas). Si desde ahí el dedo se mueve, arranca el
-// arrastre en vivo, en cualquier dirección, intercambiando lugar con la
-// tarjeta vecina apenas el centro de la que se arrastra cae encima de
-// otra. Si en cambio se suelta sin moverse, pasa lo de siempre en esa
-// tarjeta (onLargo -- Editar/Eliminar o Configurar según el módulo).
-// Reemplaza a crearManejadorPresionSostenida en las cuadrículas que
-// necesitan orden -- mismo contrato de dataset.gestoPresionLarga, para no
-// romper el doble-toque de las tarjetas que lo usan (ej. Cajas, ver
-// tapCaja en app.js).
+// style.css). Si desde ahí el dedo se mueve, arranca el arrastre en vivo,
+// en cualquier dirección, intercambiando lugar con la tarjeta vecina
+// apenas el centro de la que se arrastra cae encima de otra. Si en cambio
+// se suelta sin moverse, pasa lo de siempre en esa tarjeta (onLargo --
+// Editar/Eliminar o Configurar según el módulo). Reemplaza a
+// crearManejadorPresionSostenida en las cuadrículas que necesitan orden --
+// mismo contrato de dataset.gestoPresionLarga, para no romper el doble-
+// toque de las tarjetas que lo usan (ej. Cajas, ver tapCaja en app.js).
+//
+// El scroll nativo se frena con e.preventDefault() en mover() (recién
+// cuando ya está armado), NUNCA tocando touch-action -- se probaron las
+// otras dos combinaciones y las dos rompían algo real en un teléfono de
+// verdad: touch-action:none FIJO en la tarjeta bloqueaba el scroll de una
+// lista larga incluso en un toque corto que ni llegaba a armar el
+// arrastre; y prenderlo/apagarlo A MITAD del mismo toque (aunque sea recién
+// al armar, y aunque sea solo para dedo, no mouse) hace que WebKit corte
+// el gesto a mitad de camino -- la tarjeta se soltaba sola (volvía a su
+// tamaño normal) sin que el dedo se hubiera levantado. Con preventDefault
+// alcanza: como nada se movió durante los 500ms quieto, el pointermove que
+// dispara el arrastre es el PRIMERO de todo el toque, y frenarlo ahí
+// todavía evita que el navegador se quede con el scroll.
 const ARRASTRE_UMBRAL_PX = 10;
 const ARRASTRE_SCROLL_BORDE_PX = 60;
 const ARRASTRE_SCROLL_VELOCIDAD_PX = 10;
@@ -205,19 +214,16 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
   let startX = 0, startY = 0;
   let baseDx = 0, baseDy = 0;
   let contenedorScroll = null;
-  let esToque = false;
 
   const limpiar = () => {
     el.classList.remove("arrastrando-listo", "arrastrando");
     el.style.transform = "";
-    el.style.touchAction = "";
   };
 
   const iniciar = (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     esPressLargo = false;
     arrastrando = false;
-    esToque = e.pointerType !== "mouse";
     baseDx = 0; baseDy = 0;
     startX = e.clientX; startY = e.clientY;
     delete el.dataset.gestoPresionLarga;
@@ -225,19 +231,6 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
       esPressLargo = true;
       el.dataset.gestoPresionLarga = "1";
       el.classList.add("arrastrando-listo");
-      // Recién ACÁ (armada, después de sostener quieto) se bloquea el
-      // scroll nativo -- antes de armar, un dedo que se mueve debe poder
-      // seguir scrolleando la cuadrícula como siempre. Un touch-action:none
-      // FIJO en la tarjeta (lo que había antes) bloqueaba cualquier scroll
-      // que empezara sobre ella, arme o no arme -- bug real reportado: en
-      // una lista de varios bloques, deslizar para abajo para scrollear
-      // terminaba abriendo el bloque bajo el dedo en vez de moverse. Solo
-      // hace falta para dedo/lápiz: el mouse no tiene scroll nativo que
-      // pise el arrastre, y tocarle touch-action a un puntero mouse es
-      // justo lo que hacía que WebKit cortara el gesto con un pointercancel
-      // espontáneo (ver tests/e2e/ajustar-caja.spec.js) -- por eso queda
-      // afuera acá.
-      if (esToque) el.style.touchAction = "none";
     }, LONG_PRESS_MS);
   };
 
