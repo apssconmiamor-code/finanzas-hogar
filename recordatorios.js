@@ -871,6 +871,7 @@ function abrirConfigAccion(slot) {
   actualizarConceptoAccion();
   if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
   poblarCajasConfigAccion(_cajasDeAccion(accion));
+  document.getElementById("config-accion-descripcion").checked = !!accion?.pedirDescripcion;
   document.getElementById("config-accion-camara").checked = !!accion?.camara;
 
   const btnBorrar = document.getElementById("btn-borrar-accion");
@@ -891,6 +892,7 @@ async function guardarConfigAccion() {
   const categoria = document.getElementById("config-accion-categoria").value;
   const concepto  = document.getElementById("config-accion-concepto").value;
   const cajasElegidas = [...document.querySelectorAll("#config-accion-cajas .accion-caja-chip.active")].map(el => el.dataset.caja);
+  const pedirDescripcion = document.getElementById("config-accion-descripcion").checked;
   const camara    = document.getElementById("config-accion-camara").checked;
 
   if (!nombre || !categoria || !concepto || cajasElegidas.length === 0) {
@@ -904,7 +906,7 @@ async function guardarConfigAccion() {
 
   try {
     const acciones = [...obtenerAccionesRapidas()];
-    const nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, camara };
+    const nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, pedirDescripcion, camara };
     if (accionSlotActual >= 0) acciones[accionSlotActual] = nuevaAccion;
     else acciones.push(nuevaAccion);
     await _guardarAccionesRapidas(acciones);
@@ -936,6 +938,10 @@ function abrirUsarAccion(slot, accion) {
   accionSlotActual = slot;
   document.getElementById("usar-accion-titulo").textContent = `${accion.icono || "⚡"} ${accion.nombre}`;
   document.getElementById("usar-accion-monto").value = "";
+  const inputDescripcion = document.getElementById("usar-accion-descripcion");
+  if (inputDescripcion) inputDescripcion.value = "";
+  const wrapDescripcion = document.getElementById("usar-accion-descripcion-wrap");
+  if (wrapDescripcion) wrapDescripcion.style.display = accion.pedirDescripcion ? "" : "none";
   accionFotoData = null;
   renderFotoAccionPreview();
   const wrapCamara = document.getElementById("usar-accion-camara-wrap");
@@ -1018,6 +1024,10 @@ async function guardarUsarAccion() {
   const monto = typeof evaluarMonto === "function" ? evaluarMonto(montoInput.value) : parseFloat(montoInput.value);
   if (!monto) { alert("Ingresa un monto"); return; }
 
+  const descripcion = accion.pedirDescripcion
+    ? (document.getElementById("usar-accion-descripcion")?.value.trim() || "")
+    : "";
+
   const btn = document.getElementById("btn-guardar-usar-accion");
   btn.textContent = "Guardando..."; btn.disabled = true;
   try {
@@ -1029,9 +1039,9 @@ async function guardarUsarAccion() {
       recibo = url;
     }
     if (accion.categoria === "Ingreso") {
-      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, "", recibo);
+      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);
     } else {
-      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, "", recibo);
+      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);
     }
     cerrarUsarAccion();
     if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ ${accion.nombre} registrado`);

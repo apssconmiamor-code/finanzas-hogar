@@ -140,6 +140,45 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     }, { timeout: 10000 }).toContain('drive.google.com');
   });
 
+  test('acción configurada con "Pedir descripción" muestra el campo al usarla y la guarda en el movimiento', async ({ page }) => {
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+
+    await page.locator('#config-accion-nombre').fill('Mercado');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Mercado');
+    await elegirCajaAccion(page, 'Efectivo');
+    await page.locator('#config-accion-descripcion').check();
+    await page.locator('#btn-guardar-config-accion').click();
+
+    // Otra acción SIN pedir descripción para confirmar que el campo no aparece cuando no se pidió.
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Salud');
+    await page.locator('#config-accion-categoria').selectOption('Gasto variable');
+    await page.locator('#config-accion-concepto').selectOption('Salud');
+    await elegirCajaAccion(page, 'Efectivo');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    await page.locator('.accion-rapida-card[data-slot="1"]').click();
+    await expect(page.locator('#usar-accion-descripcion-wrap')).toBeHidden();
+    await page.locator('#btn-cancelar-usar-accion').click();
+
+    // La acción con "Pedir descripción" sí muestra el campo, y queda guardado en el movimiento.
+    await page.locator('#fab-recordatorio').click();
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await slot0.click();
+    await expect(page.locator('#usar-accion-descripcion-wrap')).toBeVisible();
+    await page.locator('#usar-accion-descripcion').fill('Compra de la semana');
+    await page.locator('#usar-accion-monto').fill('50000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    await expect.poll(async () => {
+      const frescos = await page.evaluate(() => Sheets.getMovimientos());
+      return frescos.find((m) => m.concepto === 'Mercado')?.descripcion || '';
+    }, { timeout: 10000 }).toBe('Compra de la semana');
+  });
+
   test('mantener presionada una acción ya configurada la abre para reconfigurar, y borrarla la quita del menú', async ({ page }) => {
     await page.locator('#fab-recordatorio').click();
     await page.locator('#btn-agregar-accion').click();

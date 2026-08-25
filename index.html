@@ -946,6 +946,10 @@
           <input id="usar-accion-monto" type="text" inputmode="decimal" placeholder="Monto"
             class="input" style="font-size:22px;text-align:center"/>
         </div>
+        <div class="form-group" id="usar-accion-descripcion-wrap" style="display:none">
+          <textarea id="usar-accion-descripcion" rows="2" placeholder="Detalle, notas…"
+            class="input" style="resize:none;min-height:60px;font-size:15px;line-height:1.4"></textarea>
+        </div>
         <div class="form-group" id="usar-accion-camara-wrap" style="display:none">
           <input id="usar-accion-camara-file" type="file" accept="image/*" capture="environment" style="display:none"/>
           <button type="button" class="fotos-btn" id="btn-usar-accion-camara">📷 Cámara</button>
@@ -981,6 +985,12 @@
         <div class="form-group">
           <label>Caja(s) -- si eliges más de una, se elige entre esas al usar la acción</label>
           <div id="config-accion-cajas" class="accion-caja-chips"></div>
+        </div>
+        <div class="form-group">
+          <label class="config-accion-camara-label" for="config-accion-descripcion">
+            <input type="checkbox" id="config-accion-descripcion"/>
+            <span>Pedir descripción al usar esta acción</span>
+          </label>
         </div>
         <div class="form-group">
           <label class="config-accion-camara-label" for="config-accion-camara">
