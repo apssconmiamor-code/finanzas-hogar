@@ -288,6 +288,17 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
 
   el.addEventListener("pointerdown", iniciar);
   el.addEventListener("pointermove", mover);
+  // Safari no siempre respeta un preventDefault() hecho desde un evento
+  // pointermove para frenar el scroll (aunque si sea el primer movimiento
+  // del toque) -- WebKit expone touch y pointer como dos modelos de
+  // eventos separados, y el segundo no siempre cancela el gesto táctil de
+  // verdad (bug real reportado: en vertical el scroll nativo igual se
+  // activaba y sacaba del arrastre, mientras que en horizontal, que no
+  // compite con ningún scroll, andaba bien). Un preventDefault() más,
+  // desde el touchmove NATIVO y sin passive, sí lo frena -- touchstart/
+  // touchend no hacen falta acá, esto es solo para bloquear el scroll una
+  // vez armado, el resto de la lógica ya vive en mover().
+  el.addEventListener("touchmove", (e) => { if (esPressLargo) e.preventDefault(); }, { passive: false });
   el.addEventListener("pointerup", () => {
     cancelar();
     const fueArrastre = arrastrando;

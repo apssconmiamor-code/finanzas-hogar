@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v189";
+const CACHE_NAME = "finanzas-v190";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
