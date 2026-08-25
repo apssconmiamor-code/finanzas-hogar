@@ -213,7 +213,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
   });
 
-  test('para volver de un bloque a la cuadrícula no hay botón -- se hace con el gesto de deslizar desde el borde', async ({ page }) => {
+  test('para volver de un bloque a la cuadrícula: gesto de deslizar desde el borde, o la flecha "‹" del header', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
@@ -221,9 +221,14 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await abrirBloqueAlerta(page, 'Otros');
     await expect(page.locator('.alerta-bloque-detalle-titulo')).toContainText('Otros');
-    await expect(page.locator('#btn-volver-bloque')).toHaveCount(0);
 
     await deslizarParaVolver(page);
+    await expect(page.locator('.alertas-bloques-grid')).toBeVisible();
+
+    // La flecha hace lo mismo -- pedido explícito: siempre visible, no
+    // depender solo del gesto (poco descubrible).
+    await abrirBloqueAlerta(page, 'Otros');
+    await page.locator('#btn-volver-bloque-alerta').click();
     await expect(page.locator('.alertas-bloques-grid')).toBeVisible();
   });
 

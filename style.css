@@ -763,20 +763,41 @@ input, select, textarea, table {
   .modal-card::before { display: none; }
 }
 
-/* ═══════════════ CAJAS ═══════════════ */
-/* Botón sutil arriba de la cuadrícula que arma el "modo selección" de
-   Sumar cajas (ver toggleModoSumaCajas en app.js) -- discreto (borde fino,
-   sin relleno) para no competir con las tarjetas, pero se tiñe de color
-   marca mientras el modo está activo para que quede claro que las
-   tarjetas ahora se tocan para sumar, no para abrir su detalle. */
-.cajas-header { display: flex; justify-content: flex-end; margin-bottom: 12px; }
-.btn-sumar-cajas {
+/* Botón sutil reusable -- nació como "Sumar" en Cajas (ver
+   .btn-sumar-cajas/toggleModoSumaCajas en app.js: discreto, borde fino,
+   sin relleno, para no competir con el contenido de al lado) y ahora es
+   el estilo de fábrica para cualquier acción secundaria de "agregar algo"
+   -- pedido explícito: mismo estilo y ubicación en Proyección
+   (+ mes/+ Concepto, antes botones sueltos sin estilo propio) y Mercado
+   (+ Nuevo producto, antes un botón primario grande de ancho completo). */
+.btn-sutil, .btn-sumar-cajas, .btn-agregar-mes {
   background: none; border: 1px solid var(--border); border-radius: 20px;
   padding: 5px 14px; font-size: 12.5px; font-weight: 600; color: var(--text-4);
   cursor: pointer; transition: all 0.15s; font-family: var(--font);
+  white-space: nowrap; flex-shrink: 0;
 }
-.btn-sumar-cajas:hover { color: var(--text-2); border-color: var(--border-mid); }
+.btn-sutil:hover, .btn-sumar-cajas:hover, .btn-agregar-mes:hover { color: var(--text-2); border-color: var(--border-mid); }
+/* Estado activo -- solo lo usa "Sumar" en Cajas mientras el modo
+   selección está prendido. */
 .btn-sumar-cajas.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+
+/* Flecha para volver, estilo iOS ("‹" -- mismo lugar donde va el título de
+   la pantalla) -- pedido explícito: que siempre haya una forma visible de
+   volver ahí, no solo el gesto de deslizar desde el borde (que ya existe
+   pero no se nota a simple vista). Mismo cerrarPantallaActual() que ya
+   dispara ese gesto (ver app.js). */
+.btn-volver {
+  flex-shrink: 0; width: 30px; height: 30px; padding: 0; margin: -4px 0;
+  border: none; background: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 600; line-height: 1; color: var(--brand);
+  cursor: pointer; font-family: var(--font);
+}
+.btn-volver:hover { background: var(--bg); }
+.btn-volver:active { opacity: 0.6; }
+
+/* ═══════════════ CAJAS ═══════════════ */
+.cajas-header { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 
 .cajas-grid {
   display: grid;

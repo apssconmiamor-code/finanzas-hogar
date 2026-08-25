@@ -778,11 +778,14 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
 
   lista.innerHTML = `
     <div class="alerta-bloque-detalle-header">
+      <button type="button" class="btn-volver" id="btn-volver-bloque-alerta" title="Volver" aria-label="Volver">‹</button>
       <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
       ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque">🗑️</button>` : ""}
     </div>
     ${grupo.esBloque ? `<button type="button" class="btn-primary btn-franja" id="btn-nueva-notificacion-bloque">+ Nueva</button>` : ""}
     ${itemsHTML}`;
+
+  document.getElementById("btn-volver-bloque-alerta")?.addEventListener("click", () => cerrarPantallaActual());
 
   document.getElementById("btn-nueva-notificacion-bloque")?.addEventListener("click", () => {
     abrirNuevaNotificacionEnBloque(grupo.valorBloque);

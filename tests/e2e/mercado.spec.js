@@ -157,17 +157,19 @@ test.describe('Mercado', () => {
     await expect(page.locator('.mercado-item', { hasText: 'Leche' })).not.toHaveClass(/mercado-item-comprar/);
   });
 
-  test('"+ Nuevo producto" vive arriba, justo después del título de la categoría', async ({ page }) => {
+  test('"+ Nuevo producto" vive en el header, sutil (mismo estilo que "Sumar" en Cajas)', async ({ page }) => {
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');
     await agregarProducto(page, 'Leche');
     await page.locator('.mercado-item', { hasText: 'Leche' }).dblclick();
     await page.waitForTimeout(300);
 
-    const hijos = page.locator('#mercado-list > *');
-    // Segundo elemento de la pantalla (justo después del header), antes de
-    // las secciones de productos.
-    await expect(hijos.nth(1)).toHaveId('btn-nuevo-producto-mercado-categoria');
+    // Vive dentro del header (junto al título), no suelto como un botón
+    // primario de ancho completo debajo.
+    const btn = page.locator('#btn-nuevo-producto-mercado-categoria');
+    await expect(page.locator('.alerta-bloque-detalle-header')).toContainText('Alimentos');
+    await expect(page.locator('.alerta-bloque-detalle-header ' + '#btn-nuevo-producto-mercado-categoria')).toBeVisible();
+    await expect(btn).toHaveClass(/btn-sutil/);
   });
 
   test('"Compra realizada" pide confirmación y sube todo lo marcado de vuelta arriba', async ({ page }) => {
@@ -341,6 +343,14 @@ test.describe('Mercado', () => {
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');
     await deslizarParaVolver(page);
+    await expect(page.locator('#mercado-list .alerta-bloque-detalle-titulo')).toHaveCount(0);
+    await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' })).toBeVisible();
+  });
+
+  test('la flecha "‹" del header también vuelve a la cuadrícula, sin depender del gesto de deslizar', async ({ page }) => {
+    await crearCategoria(page, 'Alimentos', '🥦');
+    await abrirCategoria(page, 'Alimentos');
+    await page.locator('#btn-volver-mercado-categoria').click();
     await expect(page.locator('#mercado-list .alerta-bloque-detalle-titulo')).toHaveCount(0);
     await expect(page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' })).toBeVisible();
   });
