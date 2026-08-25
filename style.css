@@ -764,6 +764,20 @@ input, select, textarea, table {
 }
 
 /* ═══════════════ CAJAS ═══════════════ */
+/* Botón sutil arriba de la cuadrícula que arma el "modo selección" de
+   Sumar cajas (ver toggleModoSumaCajas en app.js) -- discreto (borde fino,
+   sin relleno) para no competir con las tarjetas, pero se tiñe de color
+   marca mientras el modo está activo para que quede claro que las
+   tarjetas ahora se tocan para sumar, no para abrir su detalle. */
+.cajas-header { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.btn-sumar-cajas {
+  background: none; border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 14px; font-size: 12.5px; font-weight: 600; color: var(--text-4);
+  cursor: pointer; transition: all 0.15s; font-family: var(--font);
+}
+.btn-sumar-cajas:hover { color: var(--text-2); border-color: var(--border-mid); }
+.btn-sumar-cajas.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+
 .cajas-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -817,21 +831,30 @@ input, select, textarea, table {
 .caja-saldo.positivo { color: var(--green-dark); }
 .caja-saldo.negativo { color: var(--red); }
 
-/* Menú de mantener presionado sobre una caja (ver modal-caja-menu en
-   index.html) -- lista vertical de botones en vez de los dos lado a lado
-   de modal-editar-borrar, porque acá puede haber 1 o 2 opciones sueltas,
-   no un par editar/eliminar fijo. */
-.caja-menu-opciones { display: flex; flex-direction: column; gap: 8px; }
-.caja-menu-btn { width: 100%; text-align: center; }
+/* Tarjeta elegida en modo "Sumar" -- mismo criterio visual que el resto de
+   selecciones activas de la app (borde + halo del color de marca). */
+.caja-card-seleccionada { border-color: var(--brand) !important; box-shadow: 0 0 0 2px rgba(var(--brand-rgb),.25); }
 
-/* Sumar cajas (ver modal-sumar-cajas) -- una línea por moneda, para no
-   mezclar montos de monedas distintas en un solo número sin sentido. */
-.sumar-cajas-total {
-  margin-top: 16px; padding: 14px; background: var(--bg); border-radius: var(--r-md);
-  display: flex; flex-direction: column; gap: 4px; align-items: center;
+/* Barra flotante con el total de "Sumar cajas" (ver sumar-cajas-barra en
+   index.html) -- fondo transparente de vidrio esmerilado, mismo lenguaje
+   visual que .fab-recordatorio, y pointer-events:none porque es solo
+   informativa (no tiene ningún botón adentro) -- así no le roba toques a
+   las tarjetas que queden debajo cerca del borde de la pantalla. Una línea
+   por moneda si las cajas elegidas no comparten la misma. */
+.sumar-cajas-barra {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  width: calc(100% - 32px); max-width: 420px;
+  z-index: 400; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 18px; border-radius: 16px;
+  background: rgba(var(--brand-rgb),0.10);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(var(--brand-rgb),0.2);
+  box-shadow: var(--shadow-lg);
 }
-.sumar-cajas-total-linea { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; }
-.sumar-cajas-total-vacio { font-size: 13px; color: var(--text-4); text-align: center; }
+.sumar-cajas-barra-vacio { font-size: 13px; color: var(--text-3); }
+.sumar-cajas-barra-total { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
 
 /* Arrastrar para reordenar (Acciones rápidas, Mercado, Alertas, Cajas --
    las 4 cuadrículas de tarjetas de 2 columnas, mismo diseño de tarjeta, ver

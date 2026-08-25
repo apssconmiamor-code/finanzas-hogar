@@ -228,6 +228,13 @@
 
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
       <section id="tab-cajas" class="tab-section">
+        <!-- Botón sutil que arma un "modo selección": tocar una caja la
+             suma/resta del total en vez de abrir su detalle o arrastrarla
+             (ver toggleModoSumaCajas en app.js). Nada de mantener
+             presionado ni ventana aparte -- pedido explícito. -->
+        <div class="cajas-header">
+          <button type="button" class="btn-sumar-cajas" id="btn-sumar-cajas" onclick="toggleModoSumaCajas()">Sumar</button>
+        </div>
         <div id="cajas-grid" class="cajas-grid">
           <div class="loading-state">Cargando…</div>
         </div>
@@ -541,6 +548,11 @@
     <!-- ══ BOTÓN FLOTANTE: nuevo recordatorio (arrastrable, todas las pestañas) ══ -->
     <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">⚡</button>
 
+    <!-- Barra flotante con el total de "Sumar cajas" -- fondo transparente,
+         solo visible mientras el modo selección está activo (ver
+         renderSumarCajasBarra en app.js). -->
+    <div id="sumar-cajas-barra" class="sumar-cajas-barra hidden"></div>
+
     <!-- ══ MODALES GLOBALES ══ -->
 
     <!-- Modal detalle cuenta -->
@@ -552,35 +564,6 @@
         </div>
         <div id="detalle-caja-resumen" class="detalle-caja-resumen"></div>
         <div id="detalle-caja-body" style="flex:1;overflow:hidden"></div>
-      </div>
-    </div>
-
-    <!-- Menú de mantener presionado sobre una caja sin arrastrarla -- no
-         reusa modal-editar-borrar porque no es un editar/eliminar: siempre
-         ofrece "Sumar cajas", y además "Ajustar" cuando el saldo es
-         negativo (ver abrirMenuCajaLargoPresion en app.js). -->
-    <div id="modal-caja-menu" class="modal hidden">
-      <div class="modal-card" style="max-width:360px">
-        <div class="modal-header">
-          <span id="caja-menu-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-caja-menu').classList.add('hidden')">✕</button>
-        </div>
-        <div id="caja-menu-opciones" class="caja-menu-opciones"></div>
-      </div>
-    </div>
-
-    <!-- Sumar cajas: elegir varias (chips, igual que al configurar una
-         acción rápida) y ver el total -- si hay más de una moneda entre las
-         elegidas, se muestra un total por cada una en vez de mezclarlas. -->
-    <div id="modal-sumar-cajas" class="modal hidden">
-      <div class="modal-card" style="max-width:420px">
-        <div class="modal-header">
-          <span class="modal-title">Sumar cajas</span>
-          <button class="modal-close" onclick="document.getElementById('modal-sumar-cajas').classList.add('hidden')">✕</button>
-        </div>
-        <p class="modal-subtitle">Elegí las cajas que querés sumar</p>
-        <div id="sumar-cajas-opciones" class="accion-caja-chips"></div>
-        <div id="sumar-cajas-total" class="sumar-cajas-total"></div>
       </div>
     </div>
 

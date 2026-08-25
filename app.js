@@ -1120,6 +1120,14 @@ function cerrarPantallaActual() {
 
 function setupEventListeners() {
 function navegarATab(tab) {
+    // El modo "Sumar cajas" (y su barra flotante, que vive fuera de
+    // #tab-cajas) no tendría cómo apagarse solo si el usuario cambia de
+    // pestaña con el modo activo -- se resetea acá.
+    if (tab !== "cajas" && typeof modoSumaCajasActivo !== "undefined" && modoSumaCajasActivo) {
+      modoSumaCajasActivo = false;
+      cajasSeleccionadasParaSumar = new Set();
+      renderCajas();
+    }
     document.querySelectorAll(".nav-item").forEach(b =>
       b.classList.toggle("active", b.dataset.tab === tab));
     document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
@@ -1740,6 +1748,7 @@ const tapCaja = crearManejadorDobleToque(nombre => nombre, nombre => abrirDetall
 
 function renderCajas() {
   const grid = document.getElementById("cajas-grid");
+  renderBotonSumarCajas();
   if (cajas.length === 0) {
     // Sin confirmación por red todavía (recién abierta, caché vacía, o la
     // carga falló) → no invitar a "crear una" cuando en realidad puede que
@@ -1751,15 +1760,21 @@ function renderCajas() {
       : `<div class="empty-state" style="grid-column:1/-1">
           <div class="empty-state-icon">📡</div>
           <div class="empty-state-text">No se pudieron cargar tus cajas — revisa tu conexión o toca Reconectar.</div></div>`;
+    renderSumarCajasBarra();
     return;
   }
+  // En modo "Sumar cajas" el toque simple selecciona en vez de abrir el
+  // detalle -- por eso no lleva el onpointerup de tapCaja (doble toque)
+  // mientras el modo está activo (ver toggleModoSumaCajas más abajo).
   grid.innerHTML = cajas.map(c => {
     const saldoReal = calcularSaldoCaja(c.nombre);
     const saldo     = Math.max(0, saldoReal);
     const colorFondo = cajaColorFondo(c.nombre);
     const requiereAjuste = saldoReal < 0;
     const icono = iconoCajaImagen(c.nombre);
-    return `<div class="caja-card" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}" onpointerup="tapCaja('${c.nombre.replace(/'/g, "\\'")}', event)">
+    const seleccionada = modoSumaCajasActivo && cajasSeleccionadasParaSumar.has(c.nombre);
+    const tapNormal = modoSumaCajasActivo ? "" : ` onpointerup="tapCaja('${c.nombre.replace(/'/g, "\\'")}', event)"`;
+    return `<div class="caja-card${seleccionada ? " caja-card-seleccionada" : ""}" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}"${tapNormal}>
       ${requiereAjuste ? `<div class="caja-card-top"><span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span></div>` : ""}
       <div class="caja-nombre-fila">
         <span class="caja-nombre">${c.nombre}</span>
@@ -1768,78 +1783,71 @@ function renderCajas() {
       <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
     </div>`;
   }).join("");
-  _conectarLargoPresionCajas(grid);
+  if (modoSumaCajasActivo) _conectarSeleccionCajas(grid);
+  else _conectarLargoPresionCajas(grid);
+  renderSumarCajasBarra();
 }
 
-// Mantener presionada una tarjeta ofrece "Sumar cajas" siempre, y además
-// "Ajustar" cuando el saldo real es negativo (mismo criterio que ya usa el
-// botón dentro del detalle, ver abrirDetalleCaja/botonAjustar) -- ver
-// abrirMenuCajaLargoPresion más abajo. Arrastrarla desde ahí la reordena
-// (ver crearManejadorArrastrable en gestos.js), sin importar el saldo. Sin
-// onCorto: el toque corto ya lo maneja el onpointerup inline de la tarjeta
-// (tapCaja, doble toque) -- mismo contrato de dataset.gestoPresionLarga que
-// usa ese doble toque para saber si el toque vino de un mantener presionado
-// o un arrastre, así que no hace falta tocarlo acá.
+// Mantener presionada una tarjeta ofrece "Ajustar" -- solo cuando el saldo
+// real es negativo (mismo criterio que ya usa el botón dentro del detalle,
+// ver abrirDetalleCaja/botonAjustar) -- y arrastrarla desde ahí la reordena
+// (ver crearManejadorArrastrable en gestos.js), sin importar el saldo. Solo
+// se conecta fuera del modo "Sumar cajas" (ver _conectarSeleccionCajas):
+// mientras ese modo está activo, el toque simple selecciona en vez de abrir
+// el detalle o arrastrar. Sin onCorto: el toque corto ya lo maneja el
+// onpointerup inline de la tarjeta (tapCaja, doble toque) -- mismo
+// contrato de dataset.gestoPresionLarga que usa ese doble toque para saber
+// si el toque vino de un mantener presionado o un arrastre, así que no
+// hace falta tocarlo acá.
 function _conectarLargoPresionCajas(grid) {
   grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
     const nombre = card.dataset.nombre;
     const saldoReal = calcularSaldoCaja(nombre);
     crearManejadorArrastrable(card, grid, ".caja-card[data-nombre]", {
-      onLargo: () => abrirMenuCajaLargoPresion(nombre, saldoReal),
+      onLargo: saldoReal < 0 ? () => abrirMenuEditarBorrar({
+        titulo: nombre,
+        labelEditar: "⚖️ Ajustar",
+        onEditar: () => ajustarCaja(nombre)
+      }) : undefined,
       onReordenar: () => _reordenarCajasDesdeGrid(grid)
     });
   });
 }
 
-// ---- Menú de mantener presionado sobre una caja ----
-// No reusa abrirMenuEditarBorrar (gestos.js) porque no es un editar/
-// eliminar: "Sumar cajas" no encaja en ese molde, así que arma su propia
-// lista de botones (ver modal-caja-menu en index.html).
-function abrirMenuCajaLargoPresion(nombre, saldoReal) {
-  document.getElementById("caja-menu-titulo").textContent = nombre;
-  const opciones = document.getElementById("caja-menu-opciones");
-  opciones.innerHTML = `
-    <button type="button" class="btn-secondary caja-menu-btn" id="btn-caja-menu-sumar">🧮 Sumar cajas</button>
-    ${saldoReal < 0 ? `<button type="button" class="btn-secondary caja-menu-btn" id="btn-caja-menu-ajustar">⚖️ Ajustar</button>` : ""}
-  `;
-  document.getElementById("btn-caja-menu-sumar").addEventListener("click", () => {
-    document.getElementById("modal-caja-menu").classList.add("hidden");
-    abrirSumarCajas(nombre);
-  });
-  document.getElementById("btn-caja-menu-ajustar")?.addEventListener("click", () => {
-    document.getElementById("modal-caja-menu").classList.add("hidden");
-    ajustarCaja(nombre);
-  });
-  document.getElementById("modal-caja-menu").classList.remove("hidden");
-}
-
 // ---- Sumar cajas ----
-// Deja elegir varias (chips, mismo componente que al configurar una acción
-// rápida -- ver poblarCajasConfigAccion en recordatorios.js) y ver el
-// total. Arranca con la caja que se mantuvo presionada ya elegida.
+// Botón sutil arriba de la cuadrícula (ver #btn-sumar-cajas en index.html)
+// que arma un modo selección: tocar una caja la suma/resta del total, que
+// se ve en una barra flotante abajo -- sin ventana aparte ni mantener
+// presionado (pedido explícito).
+let modoSumaCajasActivo = false;
 let cajasSeleccionadasParaSumar = new Set();
 
-function abrirSumarCajas(nombrePreseleccionado) {
-  cajasSeleccionadasParaSumar = new Set(nombrePreseleccionado ? [nombrePreseleccionado] : []);
-  renderSumarCajasOpciones();
-  document.getElementById("modal-sumar-cajas").classList.remove("hidden");
+function toggleModoSumaCajas() {
+  modoSumaCajasActivo = !modoSumaCajasActivo;
+  cajasSeleccionadasParaSumar = new Set();
+  renderCajas();
 }
 
-function renderSumarCajasOpciones() {
-  const cont = document.getElementById("sumar-cajas-opciones");
-  cont.innerHTML = cajas.map(c => `
-    <button type="button" class="accion-caja-chip${cajasSeleccionadasParaSumar.has(c.nombre) ? " active" : ""}" data-caja="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</button>`
-  ).join("");
-  cont.querySelectorAll(".accion-caja-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const nombre = chip.dataset.caja;
+function renderBotonSumarCajas() {
+  const btn = document.getElementById("btn-sumar-cajas");
+  if (!btn) return;
+  btn.textContent = modoSumaCajasActivo ? "Listo" : "Sumar";
+  btn.classList.toggle("active", modoSumaCajasActivo);
+}
+
+// Reemplaza a _conectarLargoPresionCajas mientras el modo está activo --
+// nada de doble toque, mantener presionado ni arrastre: un toque simple
+// alterna la selección.
+function _conectarSeleccionCajas(grid) {
+  grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
+    card.addEventListener("pointerup", () => {
+      const nombre = card.dataset.nombre;
       if (cajasSeleccionadasParaSumar.has(nombre)) cajasSeleccionadasParaSumar.delete(nombre);
       else cajasSeleccionadasParaSumar.add(nombre);
-      chip.classList.toggle("active");
-      renderSumarCajasTotal();
+      card.classList.toggle("caja-card-seleccionada");
+      renderSumarCajasBarra();
     });
   });
-  renderSumarCajasTotal();
 }
 
 // Un total por moneda -- sumar COP con USD en un solo número no tendría
@@ -1847,10 +1855,13 @@ function renderSumarCajasOpciones() {
 // línea por cada una. Usa el saldo tal como se ve en la tarjeta (nunca
 // negativo, ver renderCajas) para que el total coincida con lo que el
 // usuario ya está mirando en la cuadrícula.
-function renderSumarCajasTotal() {
-  const cont = document.getElementById("sumar-cajas-total");
+function renderSumarCajasBarra() {
+  const barra = document.getElementById("sumar-cajas-barra");
+  if (!barra) return;
+  if (!modoSumaCajasActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
+  barra.classList.remove("hidden");
   if (cajasSeleccionadasParaSumar.size === 0) {
-    cont.innerHTML = `<div class="sumar-cajas-total-vacio">Elegí una o más cajas para ver el total</div>`;
+    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá las cajas que querés sumar</span>`;
     return;
   }
   const porMoneda = {};
@@ -1860,8 +1871,8 @@ function renderSumarCajasTotal() {
     const saldo = Math.max(0, calcularSaldoCaja(nombre));
     porMoneda[moneda] = (porMoneda[moneda] || 0) + saldo;
   });
-  cont.innerHTML = Object.entries(porMoneda)
-    .map(([moneda, total]) => `<div class="sumar-cajas-total-linea">${formatMonto(total, moneda)}</div>`)
+  barra.innerHTML = Object.entries(porMoneda)
+    .map(([moneda, total]) => `<span class="sumar-cajas-barra-total">${formatMonto(total, moneda)}</span>`)
     .join("");
 }
 
