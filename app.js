@@ -73,6 +73,52 @@ let currentUser = null;
 let cajas = [];
 let movimientos = [];
 
+// ---- ORDEN DE LAS CAJAS (arrastrar para reordenar, pedido explícito) ----
+// Las cajas en sí (hoja "Cajas") son compartidas por toda la familia, pero
+// el orden en que cada quien las quiere ver es personal -- se guarda por
+// usuario en ConfigUsuario, mismo patrón que acciones_rapidas/
+// alertas_bloques/orden_mercado_categorias. Guarda IDs (no nombres) para no
+// desordenarse si alguien renombra una caja.
+let ordenCajas = [];
+
+function _ordenCajasCacheKey() {
+  return `cache_orden_cajas_${currentUser?.email || "anon"}`;
+}
+
+async function cargarOrdenCajas() {
+  try {
+    const valor = await Sheets.getConfigUsuario(currentUser.email, "orden_cajas");
+    ordenCajas = Array.isArray(valor) ? valor : [];
+    localStorage.setItem(_ordenCajasCacheKey(), JSON.stringify(ordenCajas));
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") return;
+    const cache = localStorage.getItem(_ordenCajasCacheKey());
+    if (cache) { try { ordenCajas = JSON.parse(cache); } catch { ordenCajas = []; } }
+  }
+}
+
+// Cajas nuevas (todavía sin entrar en ordenCajas) quedan al final, en el
+// orden en que ya venían de Sheets -- así una caja recién creada no se
+// cuela al principio.
+function _aplicarOrdenCajas() {
+  if (ordenCajas.length === 0) return;
+  const indice = new Map(ordenCajas.map((id, i) => [id, i]));
+  cajas.sort((a, b) => {
+    const ia = indice.has(a.id) ? indice.get(a.id) : Infinity;
+    const ib = indice.has(b.id) ? indice.get(b.id) : Infinity;
+    return ia - ib;
+  });
+}
+
+// Se llama al soltar tras arrastrar una caja a un lugar nuevo. No espera a
+// que Sheets confirme para re-renderizar -- el orden ya vive en
+// memoria+localStorage de una.
+function _guardarOrdenCajas(nuevoOrdenIds) {
+  ordenCajas = nuevoOrdenIds;
+  localStorage.setItem(_ordenCajasCacheKey(), JSON.stringify(nuevoOrdenIds));
+  Sheets.guardarConfigUsuario(currentUser.email, "orden_cajas", nuevoOrdenIds);
+}
+
 // El Service Worker ahora se auto-actualiza solo (ver sw-register.js) --
 // este texto es puramente informativo, ya no hace falta tocarlo para
 // sincronizar nada.
@@ -1576,8 +1622,10 @@ async function cargarTodo(reintentando = false) {
 async function _cargarTodoInterno(reintentando) {
   try {
     // Cajas y movimientos son lecturas independientes → en paralelo (antes
-    // eran 2 round-trips secuenciales a la API de Sheets).
-    [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos()]);
+    // eran 2 round-trips secuenciales a la API de Sheets). El orden personal
+    // de las cajas (arrastrar para reordenar) viaja en el mismo Promise.all.
+    [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos(), cargarOrdenCajas()]);
+    _aplicarOrdenCajas();
     _cajasVerificadasEnRed = true;
     renderCajas();
     renderMovimientos();
@@ -1725,21 +1773,41 @@ function renderCajas() {
 
 // Mantener presionada una tarjeta ofrece "Ajustar" -- solo cuando el saldo
 // real es negativo (mismo criterio que ya usa el botón dentro del detalle,
-// ver abrirDetalleCaja/botonAjustar). Sin onCorto: el toque corto ya lo
-// maneja el onpointerup inline de la tarjeta (tapCaja, doble toque).
+// ver abrirDetalleCaja/botonAjustar) -- y arrastrarla desde ahí la reordena
+// (ver crearManejadorArrastrable en gestos.js), sin importar el saldo. Sin
+// onCorto: el toque corto ya lo maneja el onpointerup inline de la tarjeta
+// (tapCaja, doble toque) -- mismo contrato de dataset.gestoPresionLarga que
+// usa ese doble toque para saber si el toque vino de un mantener presionado
+// o un arrastre, así que no hace falta tocarlo acá.
 function _conectarLargoPresionCajas(grid) {
   grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
     const nombre = card.dataset.nombre;
     const saldoReal = calcularSaldoCaja(nombre);
-    if (saldoReal >= 0) return;
-    crearManejadorPresionSostenida(card, {
-      onLargo: () => abrirMenuEditarBorrar({
+    crearManejadorArrastrable(card, grid, ".caja-card[data-nombre]", {
+      onLargo: saldoReal < 0 ? () => abrirMenuEditarBorrar({
         titulo: nombre,
         labelEditar: "⚖️ Ajustar",
         onEditar: () => ajustarCaja(nombre)
-      })
+      }) : undefined,
+      onReordenar: () => _reordenarCajasDesdeGrid(grid)
     });
   });
+}
+
+// Se llama al soltar tras arrastrar una caja a un lugar nuevo. Igual que
+// Mercado (ver _guardarOrdenMercadoCategorias), el orden es personal por
+// usuario -- guarda IDs en ConfigUsuario para no desordenarse si alguien
+// renombra una caja.
+function _reordenarCajasDesdeGrid(grid) {
+  const nuevoOrdenIds = Array.from(grid.querySelectorAll(".caja-card[data-nombre]"))
+    .map(card => cajas.find(c => c.nombre === card.dataset.nombre)?.id)
+    .filter(Boolean);
+  _guardarOrdenCajas(nuevoOrdenIds);
+  // El arrastre ya reordenó el DOM en pantalla, pero "cajas" (la fuente de
+  // la que se reconstruye la cuadrícula) todavía no -- sin esto, el render
+  // de abajo la regresa a como estaba antes del arrastre.
+  _aplicarOrdenCajas();
+  renderCajas();
 }
 
 function abrirDetalleCaja(nombre) {

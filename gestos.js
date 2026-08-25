@@ -123,6 +123,165 @@ function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
   modal.classList.remove("hidden");
 }
 
+// =============================================
+// ARRASTRAR PARA REORDENAR (cuadrículas de 2 columnas con tarjetas: Acciones
+// rápidas, Mercado, Alertas, Cajas -- mismo diseño de tarjeta en las 4,
+// pedido explícito de poder acomodarlas en el orden que el usuario quiera)
+// =============================================
+// Reusa el mismo "mantener presionado" de siempre (LONG_PRESS_MS) en vez de
+// inventar un gesto nuevo que compita con él. A los 500ms sostenido la
+// tarjeta se "arma" (se levanta un poco, y recién ahí se bloquea el scroll
+// nativo -- antes de armar, un dedo que se mueve debe poder seguir
+// scrolleando la cuadrícula como siempre). Si desde ahí el dedo se mueve,
+// arranca el arrastre en vivo, intercambiando lugar con la tarjeta vecina
+// apenas el centro de la que se arrastra cae encima de otra. Si en cambio
+// se suelta sin moverse, pasa lo de siempre en esa tarjeta (onLargo --
+// Editar/Eliminar o Configurar según el módulo). Reemplaza a
+// crearManejadorPresionSostenida en las cuadrículas que necesitan orden --
+// mismo contrato de dataset.gestoPresionLarga, para no romper el doble-
+// toque de las tarjetas que lo usan (ej. Cajas, ver tapCaja en app.js).
+const ARRASTRE_UMBRAL_PX = 10;
+const ARRASTRE_SCROLL_BORDE_PX = 60;
+const ARRASTRE_SCROLL_VELOCIDAD_PX = 10;
+
+// Busca el ancestro real que scrollea (el que tiene contenido más alto que
+// su propio alto) -- en esta app son .modal-card (Acciones rápidas, en
+// pantalla completa) o .main-content (Cajas/Mercado/Alertas, pestañas de
+// abajo). Si ninguno scrollea, no hay auto-scroll que hacer.
+function _contenedorScrollDeArrastre(el) {
+  let nodo = el.parentElement;
+  while (nodo && nodo !== document.body) {
+    if (nodo.scrollHeight > nodo.clientHeight + 4) return nodo;
+    nodo = nodo.parentElement;
+  }
+  return null;
+}
+
+function _autoScrollDuranteArrastre(contenedor, clientY) {
+  if (!contenedor) return;
+  const rect = contenedor.getBoundingClientRect();
+  if (clientY - rect.top < ARRASTRE_SCROLL_BORDE_PX) {
+    contenedor.scrollTop -= ARRASTRE_SCROLL_VELOCIDAD_PX;
+  } else if (rect.bottom - clientY < ARRASTRE_SCROLL_BORDE_PX) {
+    contenedor.scrollTop += ARRASTRE_SCROLL_VELOCIDAD_PX;
+  }
+}
+
+// Si el centro de "el" (la tarjeta que se arrastra) cae dentro de otra
+// tarjeta hermana que cumpla "selector", intercambia sus lugares en el DOM
+// -- como es una cuadrícula CSS grid, el resto se reacomoda solo (con
+// transición, ver .accion-rapida-card/.alerta-bloque-card/.caja-card en
+// style.css). "selector" filtra a propósito: nunca se intercambia con
+// tarjetas fijas como "Agregar" o "Sin categoría", que quedan afuera del
+// reordenamiento.
+function _intentarSwapArrastre(grid, selector, el) {
+  const rectEl = el.getBoundingClientRect();
+  const centerX = rectEl.left + rectEl.width / 2;
+  const centerY = rectEl.top + rectEl.height / 2;
+  const hermanos = grid.querySelectorAll(selector);
+  for (const hermano of hermanos) {
+    if (hermano === el) continue;
+    const r = hermano.getBoundingClientRect();
+    if (centerX < r.left || centerX > r.right || centerY < r.top || centerY > r.bottom) continue;
+    const vaDespues = !!(el.compareDocumentPosition(hermano) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (vaDespues) hermano.insertAdjacentElement("afterend", el);
+    else hermano.insertAdjacentElement("beforebegin", el);
+    return true;
+  }
+  return false;
+}
+
+// "onReordenar" se llama una sola vez al soltar, después de un arrastre
+// real -- quien llama lee el nuevo orden directo del DOM (ver ej.
+// _reordenarAccionesRapidasDesdeGrid en recordatorios.js) y lo persiste.
+function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onCorto, onReordenar } = {}) {
+  let esPressLargo = false;
+  let arrastrando = false;
+  let timeoutId = null;
+  let startX = 0, startY = 0;
+  let baseDx = 0, baseDy = 0;
+  let contenedorScroll = null;
+
+  const limpiar = () => {
+    el.classList.remove("arrastrando-listo", "arrastrando");
+    el.style.transform = "";
+  };
+
+  const iniciar = (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    esPressLargo = false;
+    arrastrando = false;
+    baseDx = 0; baseDy = 0;
+    startX = e.clientX; startY = e.clientY;
+    delete el.dataset.gestoPresionLarga;
+    timeoutId = setTimeout(() => {
+      esPressLargo = true;
+      el.dataset.gestoPresionLarga = "1";
+      el.classList.add("arrastrando-listo");
+    }, LONG_PRESS_MS);
+  };
+
+  const mover = (e) => {
+    if (!esPressLargo) return;
+    // Recién ahora (armado, después de los 500ms quieto) se bloquea el
+    // scroll nativo -- con preventDefault en vez de tocar touch-action en
+    // vivo: cambiar touch-action A MITAD de un toque hace que WebKit/iOS
+    // corte el gesto con un pointercancel espontáneo (bug real: en el
+    // iPhone, mantener presionado dejaba de abrir Editar/Eliminar apenas
+    // este código se agregó -- ver tests/e2e/ajustar-caja.spec.js). Este es
+    // el primer pointermove desde que se armó (nada se movió durante los
+    // 500ms quieto), así que todavía se puede frenar el scroll nativo acá.
+    e.preventDefault();
+    if (!arrastrando) {
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) < ARRASTRE_UMBRAL_PX) return;
+      arrastrando = true;
+      contenedorScroll = _contenedorScrollDeArrastre(el);
+      el.classList.remove("arrastrando-listo");
+      el.classList.add("arrastrando");
+      try { el.setPointerCapture(e.pointerId); } catch {}
+    }
+    el.style.transform = `translate(${baseDx + (e.clientX - startX)}px, ${baseDy + (e.clientY - startY)}px)`;
+    if (_intentarSwapArrastre(grid, selectorArrastrable, el)) {
+      // FLIP: recalcula el transform para que, tras el cambio de lugar en
+      // el DOM, la tarjeta siga viéndose exactamente donde estaba bajo el
+      // dedo (si no, pegaría un salto del tamaño de una celda).
+      const conTransform = el.getBoundingClientRect();
+      el.style.transform = "none";
+      const sinTransform = el.getBoundingClientRect();
+      baseDx += conTransform.left - sinTransform.left;
+      baseDy += conTransform.top - sinTransform.top;
+      startX = e.clientX; startY = e.clientY;
+      el.style.transform = `translate(${baseDx}px, ${baseDy}px)`;
+      // insertAdjacentElement saca a "el" del árbol y lo vuelve a insertar --
+      // por las dudas de que algún navegador suelte el pointer capture ahí
+      // mismo, se reafirma después de cada intercambio (barato, y evita que
+      // el arrastre se quede a medias sin disparar onReordenar).
+      try { el.setPointerCapture(e.pointerId); } catch {}
+    }
+    _autoScrollDuranteArrastre(contenedorScroll, e.clientY);
+  };
+
+  const cancelar = () => clearTimeout(timeoutId);
+
+  el.addEventListener("pointerdown", iniciar);
+  el.addEventListener("pointermove", mover);
+  el.addEventListener("pointerup", () => {
+    cancelar();
+    const fueArrastre = arrastrando;
+    limpiar();
+    if (fueArrastre) onReordenar?.();
+    else if (esPressLargo) onLargo?.();
+    else if (onCorto) onCorto();
+    delete el.dataset.gestoPresionLarga;
+  });
+  el.addEventListener("pointerleave", () => {
+    if (arrastrando) return; // el puntero queda capturado en "el" durante el arrastre real -- esto es solo para el "armado" sin arrastrar todavía
+    cancelar();
+    el.classList.remove("arrastrando-listo");
+  });
+  el.addEventListener("pointercancel", () => { cancelar(); limpiar(); });
+}
+
 // Deslizar hacia abajo desde arriba de la lista = "Refrescar" -- el
 // overscroll-behavior-y:contain del body bloquea el pull-to-refresh nativo
 // de iOS a propósito (evita el rebote raro del layout fijo de la app), así

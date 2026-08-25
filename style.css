@@ -817,6 +817,19 @@ input, select, textarea, table {
 .caja-saldo.positivo { color: var(--green-dark); }
 .caja-saldo.negativo { color: var(--red); }
 
+/* Arrastrar para reordenar (Acciones rápidas, Mercado, Alertas, Cajas --
+   las 4 cuadrículas de tarjetas de 2 columnas, mismo diseño de tarjeta, ver
+   crearManejadorArrastrable en gestos.js). ".arrastrando-listo" es la
+   "levantada" apenas se arma el arrastre (mantener presionado 500ms, sin
+   soltar todavía); ".arrastrando" es mientras se mueve de verdad -- ahí se
+   apaga la transición porque el transform ya lo controla el JS a cada
+   pointermove (con transición de por medio se ve con retraso/tironeado). */
+.accion-rapida-card, .alerta-bloque-card, .caja-card {
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.arrastrando-listo { transform: scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,.18); z-index: 2; }
+.arrastrando { transition: none; box-shadow: 0 12px 28px rgba(0,0,0,.28); z-index: 3; cursor: grabbing; opacity: .96; }
+
 /* ═══════════════ RESUMEN BAR ═══════════════ */
 .resumen-bar {
   display: grid; grid-template-columns: 1fr 1fr 1fr;

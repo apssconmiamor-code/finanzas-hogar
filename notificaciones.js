@@ -470,6 +470,22 @@ async function _guardarBloquesAlertas(bloques) {
   await Sheets.guardarConfigUsuario(currentUser.email, "alertas_bloques", bloques);
 }
 
+// Se llama al soltar tras arrastrar un bloque a un lugar nuevo (ver
+// crearManejadorArrastrable en gestos.js). "bloque_N" en data-clave es el
+// índice DENTRO de bloquesAlertas al momento de este render -- se usa para
+// mapear el orden ya reordenado del DOM de vuelta al arreglo real.
+// _guardarBloquesAlertas actualiza bloquesAlertas de una (antes del await a
+// Sheets); renderNotificaciones reconstruye la cuadrícula con los índices
+// ya al día para el próximo arrastre.
+function _reordenarBloquesAlertaDesdeGrid(grid) {
+  const bloques = obtenerBloquesAlertas();
+  const nuevoOrden = Array.from(grid.querySelectorAll('.alerta-bloque-card[data-clave^="bloque_"]'))
+    .map(btn => bloques[parseInt(btn.dataset.clave.slice("bloque_".length), 10)])
+    .filter(Boolean);
+  _guardarBloquesAlertas(nuevoOrden);
+  renderNotificaciones();
+}
+
 async function agregarBloqueAlerta(nombre, icono) {
   const bloques = obtenerBloquesAlertas();
   if (!nombre || nombre === "Gastos fijos" || bloques.some(b => b.nombre === nombre)) return false;
@@ -716,11 +732,22 @@ function renderBloquesAlertaGrid(lista, grupos) {
       </button>
     </div>`;
 
+  const grid = lista.querySelector(".alertas-bloques-grid");
+  const abrir = (clave) => { bloqueAlertaAbierto = clave; renderNotificaciones(); };
+
   lista.querySelectorAll(".alerta-bloque-card[data-clave]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      bloqueAlertaAbierto = btn.dataset.clave;
-      renderNotificaciones();
-    });
+    const clave = btn.dataset.clave;
+    // Solo los bloques que el usuario creó (bloque_N) se pueden arrastrar
+    // para reordenar -- los fijos (Activos/Pasados/Gastos fijos/Otros)
+    // siempre van primero, en ese orden (pedido explícito: no mezclarlos).
+    if (clave.startsWith("bloque_")) {
+      crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-clave^="bloque_"]', {
+        onCorto: () => abrir(clave),
+        onReordenar: () => _reordenarBloquesAlertaDesdeGrid(grid)
+      });
+    } else {
+      btn.addEventListener("click", () => abrir(clave));
+    }
   });
 
   document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {

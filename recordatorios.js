@@ -721,6 +721,21 @@ async function _guardarAccionesRapidas(lista) {
   await Sheets.guardarConfigUsuario(currentUser.email, "acciones_rapidas", lista);
 }
 
+// Se llama al soltar tras arrastrar una tarjeta a un lugar nuevo (ver
+// crearManejadorArrastrable en gestos.js) -- el DOM ya quedó reordenado
+// visualmente durante el arrastre, así que alcanza con leerlo tal cual para
+// saber el nuevo orden. _guardarAccionesRapidas actualiza accionesRapidas
+// de una (antes del await a Sheets), y renderMenuAcciones reconstruye la
+// cuadrícula con los data-slot ya al día para el próximo arrastre.
+function _reordenarAccionesRapidasDesdeGrid(grid) {
+  const actuales = obtenerAccionesRapidas();
+  const nuevoOrden = Array.from(grid.querySelectorAll(".accion-rapida-card[data-slot]"))
+    .map(card => actuales[parseInt(card.dataset.slot, 10)])
+    .filter(Boolean);
+  _guardarAccionesRapidas(nuevoOrden);
+  renderMenuAcciones();
+}
+
 let accionSlotActual = null; // índice dentro de accionesRapidas, o -1 = configurando una nueva
 let accionFotoData = null; // { data: dataURL, type: mime } -- foto opcional al usar una acción con cámara activada
 let accionCajaElegida = null; // caja elegida al USAR una acción con más de una configurada
@@ -782,30 +797,19 @@ function renderMenuAcciones() {
       <span class="accion-rapida-nombre">Agregar</span>
     </button>`;
 
-  // Toque corto = usar la acción; mantener presionado ~500ms = configurarla.
+  // Toque corto = usar la acción; mantener presionado ~500ms = configurarla;
+  // mantener presionado y ARRASTRAR = reordenarla (ver crearManejadorArrastrable
+  // en gestos.js -- pedido explícito de poder acomodar las tarjetas).
   grid.querySelectorAll(".accion-rapida-card[data-slot]").forEach((card) => {
     const slot = parseInt(card.dataset.slot, 10);
-    let esPressLargo = false;
-    let timeoutId = null;
-
-    const iniciar = () => {
-      esPressLargo = false;
-      timeoutId = setTimeout(() => {
-        esPressLargo = true;
-        abrirConfigAccion(slot);
-      }, 500);
-    };
-    const cancelar = () => clearTimeout(timeoutId);
-
-    card.addEventListener("pointerdown", iniciar);
-    card.addEventListener("pointerup", () => {
-      cancelar();
-      if (esPressLargo) return;
-      const accion = obtenerAccionesRapidas()[slot];
-      if (accion) abrirUsarAccion(slot, accion);
+    crearManejadorArrastrable(card, grid, ".accion-rapida-card[data-slot]", {
+      onCorto: () => {
+        const accion = obtenerAccionesRapidas()[slot];
+        if (accion) abrirUsarAccion(slot, accion);
+      },
+      onLargo: () => abrirConfigAccion(slot),
+      onReordenar: () => _reordenarAccionesRapidasDesdeGrid(grid)
     });
-    card.addEventListener("pointerleave", cancelar);
-    card.addEventListener("pointercancel", cancelar);
   });
 
   document.getElementById("btn-agregar-accion")?.addEventListener("click", () => abrirConfigAccion(-1));

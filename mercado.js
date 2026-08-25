@@ -267,15 +267,77 @@ window.mercadoCategorias = window.mercadoCategorias || [];
 // cualquier otro string = nombre de la categoría abierta.
 let categoriaMercadoAbierta = null;
 
+// ---- ORDEN DE LAS CATEGORÍAS (arrastrar para reordenar, pedido explícito)
+// ----
+// Las categorías en sí (Sheets "MercadoCategorias") son compartidas por
+// toda la familia, pero el orden en que cada quien las quiere ver es
+// personal -- se guarda por usuario en ConfigUsuario, mismo patrón que
+// acciones_rapidas/alertas_bloques (ver recordatorios.js/notificaciones.js).
+// Guarda IDs (no nombres) para no desordenarse si alguien renombra una
+// categoría.
+let ordenMercadoCategorias = [];
+
+function _ordenMercadoCategoriasCacheKey() {
+  return `cache_orden_mercado_categorias_${currentUser?.email || "anon"}`;
+}
+
+async function cargarOrdenMercadoCategorias() {
+  try {
+    const valor = await Sheets.getConfigUsuario(currentUser.email, "orden_mercado_categorias");
+    ordenMercadoCategorias = Array.isArray(valor) ? valor : [];
+    localStorage.setItem(_ordenMercadoCategoriasCacheKey(), JSON.stringify(ordenMercadoCategorias));
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") return;
+    const cache = localStorage.getItem(_ordenMercadoCategoriasCacheKey());
+    if (cache) { try { ordenMercadoCategorias = JSON.parse(cache); } catch { ordenMercadoCategorias = []; } }
+  }
+}
+
+// Categorías nuevas (todavía sin entrar en ordenMercadoCategorias) quedan al
+// final, en el orden en que ya venían de Sheets -- así una categoría recién
+// creada no se cuela al principio.
+function _aplicarOrdenMercadoCategorias() {
+  if (ordenMercadoCategorias.length === 0) return;
+  const indice = new Map(ordenMercadoCategorias.map((id, i) => [id, i]));
+  mercadoCategorias.sort((a, b) => {
+    const ia = indice.has(a.id) ? indice.get(a.id) : Infinity;
+    const ib = indice.has(b.id) ? indice.get(b.id) : Infinity;
+    return ia - ib;
+  });
+}
+
+// Se llama al soltar tras arrastrar una categoría a un lugar nuevo. No
+// espera a que Sheets confirme para re-renderizar -- el orden ya vive en
+// memoria+localStorage de una.
+function _guardarOrdenMercadoCategorias(nuevoOrdenIds) {
+  ordenMercadoCategorias = nuevoOrdenIds;
+  localStorage.setItem(_ordenMercadoCategoriasCacheKey(), JSON.stringify(nuevoOrdenIds));
+  Sheets.guardarConfigUsuario(currentUser.email, "orden_mercado_categorias", nuevoOrdenIds);
+}
+
+function _reordenarCategoriasMercadoDesdeGrid(grid) {
+  const nuevoOrdenIds = Array.from(grid.querySelectorAll('.alerta-bloque-card[data-categoria]:not([data-categoria=""])'))
+    .map(btn => mercadoCategorias.find(c => c.nombre === btn.dataset.categoria)?.id)
+    .filter(Boolean);
+  _guardarOrdenMercadoCategorias(nuevoOrdenIds);
+  // El arrastre ya reordenó el DOM en pantalla, pero mercadoCategorias (la
+  // fuente de la que se reconstruye la cuadrícula) todavía no -- sin esto,
+  // el render de abajo la regresa a como estaba antes del arrastre.
+  _aplicarOrdenMercadoCategorias();
+  renderMercado();
+}
+
 // ---- CARGA ----
 async function cargarMercado() {
   try {
     const [productos, categorias] = await Promise.all([
       Sheets.getMercadoProductos(),
-      Sheets.getMercadoCategorias()
+      Sheets.getMercadoCategorias(),
+      cargarOrdenMercadoCategorias()
     ]);
     productosMercado = productos;
     mercadoCategorias = categorias;
+    _aplicarOrdenMercadoCategorias();
     localStorage.setItem("cache_mercado", JSON.stringify(productosMercado));
     localStorage.setItem("cache_mercado_categorias", JSON.stringify(mercadoCategorias));
   } catch (err) {
@@ -284,6 +346,7 @@ async function cargarMercado() {
     if (cacheProductos) { try { productosMercado = JSON.parse(cacheProductos); } catch {} }
     const cacheCategorias = localStorage.getItem("cache_mercado_categorias");
     if (cacheCategorias) { try { mercadoCategorias = JSON.parse(cacheCategorias); } catch {} }
+    _aplicarOrdenMercadoCategorias();
   }
   renderMercado();
 }
@@ -327,7 +390,7 @@ function renderMercadoGrid(cont) {
   const cantidadSinCategoria = sinCategoria.filter(p => p.hayQueComprar).length;
 
   const tarjetasCategorias = mercadoCategorias.map(c => `
-    <button type="button" class="alerta-bloque-card" data-categoria="${escapeAttr(c.nombre)}" onpointerup="tapCategoriaMercado('${escapeAttr(c.nombre)}', event)">
+    <button type="button" class="alerta-bloque-card" data-categoria="${escapeAttr(c.nombre)}">
       ${cantidadPorCategoria[c.nombre] ? `<span class="alerta-bloque-cantidad">${cantidadPorCategoria[c.nombre]}</span>` : ""}
       <span class="alerta-bloque-icono">${escapeHtml(c.icono)}</span>
       <span class="alerta-bloque-nombre">${escapeHtml(c.nombre)}</span>
@@ -359,19 +422,25 @@ function renderMercadoGrid(cont) {
   document.getElementById("btn-nueva-categoria-mercado")?.addEventListener("click", abrirNuevaCategoriaMercado);
   document.getElementById("btn-whatsapp-mercado")?.addEventListener("click", enviarListaMercadoPorWhatsapp);
 
-  // Mantener presionada una tarjeta de categoría ofrece Editar/Eliminar --
-  // "Sin categoría" no es una categoría real, así que no la ofrece.
+  // Mantener presionada una tarjeta de categoría ofrece Editar/Eliminar, y
+  // arrastrarla desde ahí la reordena (ver crearManejadorArrastrable en
+  // gestos.js) -- "Sin categoría" no es una categoría real (no se puede
+  // editar/borrar/reordenar), así que se salta y sigue con su onpointerup
+  // inline de siempre (tapCategoriaMercado, ver el template más arriba).
+  const grid = cont.querySelector(".alertas-bloques-grid");
   cont.querySelectorAll(".alerta-bloque-card[data-categoria]").forEach(btn => {
     const nombre = btn.dataset.categoria;
     if (!nombre) return;
     const cat = mercadoCategorias.find(c => c.nombre === nombre);
     if (!cat) return;
-    crearManejadorPresionSostenida(btn, {
+    crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-categoria]:not([data-categoria=""])', {
+      onCorto: () => { categoriaMercadoAbierta = nombre; renderMercado(); },
       onLargo: () => abrirMenuEditarBorrar({
         titulo: cat.nombre,
         onEditar: () => abrirEditarCategoriaMercado(cat.id),
         onBorrar: () => confirmarBorrarCategoriaMercado(cat)
-      })
+      }),
+      onReordenar: () => _reordenarCategoriasMercadoDesdeGrid(grid)
     });
   });
 }
