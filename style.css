@@ -817,6 +817,22 @@ input, select, textarea, table {
 .caja-saldo.positivo { color: var(--green-dark); }
 .caja-saldo.negativo { color: var(--red); }
 
+/* Menú de mantener presionado sobre una caja (ver modal-caja-menu en
+   index.html) -- lista vertical de botones en vez de los dos lado a lado
+   de modal-editar-borrar, porque acá puede haber 1 o 2 opciones sueltas,
+   no un par editar/eliminar fijo. */
+.caja-menu-opciones { display: flex; flex-direction: column; gap: 8px; }
+.caja-menu-btn { width: 100%; text-align: center; }
+
+/* Sumar cajas (ver modal-sumar-cajas) -- una línea por moneda, para no
+   mezclar montos de monedas distintas en un solo número sin sentido. */
+.sumar-cajas-total {
+  margin-top: 16px; padding: 14px; background: var(--bg); border-radius: var(--r-md);
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+}
+.sumar-cajas-total-linea { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.4px; }
+.sumar-cajas-total-vacio { font-size: 13px; color: var(--text-4); text-align: center; }
+
 /* Arrastrar para reordenar (Acciones rápidas, Mercado, Alertas, Cajas --
    las 4 cuadrículas de tarjetas de 2 columnas, mismo diseño de tarjeta, ver
    crearManejadorArrastrable en gestos.js). ".arrastrando-listo" es la

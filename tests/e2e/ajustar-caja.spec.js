@@ -47,6 +47,18 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator('#detalle-caja-body')).toContainText('Ajuste');
   });
 
+  // Mantener presionar y soltar SIN arrastrar abre un menú propio (no el
+  // compartido de Editar/Eliminar -- ver abrirMenuCajaLargoPresion en
+  // app.js): "Sumar cajas" siempre, y "Ajustar" además cuando el saldo es
+  // negativo.
+  async function mantenerPresionada(page, tarjeta) {
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+  }
+
   test('mantener presionada una tarjeta que requiere ajuste ofrece "Ajustar" directo, sin pasar por el detalle', async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await iniciarSesionFalsa(page);
@@ -62,24 +74,91 @@ test.describe('Ajustar caja', () => {
     const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeVisible();
 
-    const box = await tarjeta.boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(650);
-    await page.mouse.up();
+    await mantenerPresionada(page, tarjeta);
 
-    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
-    await expect(page.locator('#editar-borrar-titulo')).toHaveText('Efectivo');
-    await expect(page.locator('#btn-editar-borrar-eliminar')).toBeHidden();
-    const btnAjustar = page.locator('#btn-editar-borrar-editar');
+    await expect(page.locator('#modal-caja-menu')).toBeVisible();
+    await expect(page.locator('#caja-menu-titulo')).toHaveText('Efectivo');
+    await expect(page.locator('#btn-caja-menu-sumar')).toBeVisible();
+    const btnAjustar = page.locator('#btn-caja-menu-ajustar');
     await expect(btnAjustar).toBeVisible();
     await expect(btnAjustar).toHaveText('⚖️ Ajustar');
     // El detalle no se abrió solo por mantener presionado.
     await expect(page.locator('#modal-detalle-caja')).toBeHidden();
 
     await btnAjustar.click();
-    await expect(page.locator('#modal-editar-borrar')).toBeHidden();
+    await expect(page.locator('#modal-caja-menu')).toBeHidden();
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeHidden({ timeout: 10000 });
+  });
+
+  test('mantener presionada una tarjeta SIN ajuste pendiente solo ofrece "Sumar cajas"', async ({ page }) => {
+    await mockGoogleApis(page, { 'Cajas': [['C1', 'prueba@example.com', 'Efectivo', 'COP']] });
+    await iniciarSesionFalsa(page);
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await mantenerPresionada(page, tarjeta);
+
+    await expect(page.locator('#modal-caja-menu')).toBeVisible();
+    await expect(page.locator('#btn-caja-menu-sumar')).toBeVisible();
+    await expect(page.locator('#btn-caja-menu-ajustar')).toBeHidden();
+  });
+
+  test('Sumar cajas: arranca con la caja presionada elegida, y suma el total al elegir otra', async ({ page }) => {
+    await mockGoogleApis(page, {
+      'Cajas': [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+      ],
+      'Movimiento de Caja': [
+        ['M1', '2024-01-01', 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 100000, '', ''],
+        ['M2', '2024-01-01', 'prueba@example.com', 'SURA', 'Ingreso', 'Nequi', 50000, '', ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjetaEfectivo = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await mantenerPresionada(page, tarjetaEfectivo);
+    await page.locator('#btn-caja-menu-sumar').click();
+
+    await expect(page.locator('#modal-sumar-cajas')).toBeVisible();
+    await expect(page.locator('#sumar-cajas-opciones .accion-caja-chip.active')).toHaveText('Efectivo');
+    await expect(page.locator('#sumar-cajas-total')).toContainText('100.000');
+
+    await page.locator('#sumar-cajas-opciones .accion-caja-chip', { hasText: 'Nequi' }).click();
+    await expect(page.locator('#sumar-cajas-total')).toContainText('150.000');
+
+    // Deseleccionar Efectivo deja solo el saldo de Nequi.
+    await page.locator('#sumar-cajas-opciones .accion-caja-chip', { hasText: 'Efectivo' }).click();
+    await expect(page.locator('#sumar-cajas-total')).toContainText('50.000');
+    await expect(page.locator('#sumar-cajas-total')).not.toContainText('150.000');
+  });
+
+  test('Sumar cajas: con monedas distintas muestra un total por cada moneda', async ({ page }) => {
+    await mockGoogleApis(page, {
+      'Cajas': [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Dólares', 'USD'],
+      ],
+      'Movimiento de Caja': [
+        ['M1', '2024-01-01', 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 100000, '', ''],
+        ['M2', '2024-01-01', 'prueba@example.com', 'SURA', 'Ingreso', 'Dólares', 200, '', ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/');
+    await esperarAppLista(page);
+
+    const tarjeta = page.locator('.caja-card', { hasText: 'Efectivo' });
+    await mantenerPresionada(page, tarjeta);
+    await page.locator('#btn-caja-menu-sumar').click();
+    await page.locator('#sumar-cajas-opciones .accion-caja-chip', { hasText: 'Dólares' }).click();
+
+    await expect(page.locator('.sumar-cajas-total-linea')).toHaveCount(2);
+    await expect(page.locator('#sumar-cajas-total')).toContainText('100.000');
+    await expect(page.locator('#sumar-cajas-total')).toContainText('200');
   });
 
   test('un solo toque no hace nada -- ni en una tarjeta normal ni en una que requiere ajuste', async ({ page }) => {

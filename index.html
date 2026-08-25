@@ -555,6 +555,35 @@
       </div>
     </div>
 
+    <!-- Menú de mantener presionado sobre una caja sin arrastrarla -- no
+         reusa modal-editar-borrar porque no es un editar/eliminar: siempre
+         ofrece "Sumar cajas", y además "Ajustar" cuando el saldo es
+         negativo (ver abrirMenuCajaLargoPresion en app.js). -->
+    <div id="modal-caja-menu" class="modal hidden">
+      <div class="modal-card" style="max-width:360px">
+        <div class="modal-header">
+          <span id="caja-menu-titulo" class="modal-title"></span>
+          <button class="modal-close" onclick="document.getElementById('modal-caja-menu').classList.add('hidden')">✕</button>
+        </div>
+        <div id="caja-menu-opciones" class="caja-menu-opciones"></div>
+      </div>
+    </div>
+
+    <!-- Sumar cajas: elegir varias (chips, igual que al configurar una
+         acción rápida) y ver el total -- si hay más de una moneda entre las
+         elegidas, se muestra un total por cada una en vez de mezclarlas. -->
+    <div id="modal-sumar-cajas" class="modal hidden">
+      <div class="modal-card" style="max-width:420px">
+        <div class="modal-header">
+          <span class="modal-title">Sumar cajas</span>
+          <button class="modal-close" onclick="document.getElementById('modal-sumar-cajas').classList.add('hidden')">✕</button>
+        </div>
+        <p class="modal-subtitle">Elegí las cajas que querés sumar</p>
+        <div id="sumar-cajas-opciones" class="accion-caja-chips"></div>
+        <div id="sumar-cajas-total" class="sumar-cajas-total"></div>
+      </div>
+    </div>
+
     <!-- Modal resumen de un movimiento (doble clic en su tarjeta) -->
     <div id="modal-resumen-movimiento" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
       <div class="modal-card" style="max-width:480px;max-height:75vh">
