@@ -242,16 +242,35 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
       el.classList.add("arrastrando");
       try { el.setPointerCapture(e.pointerId); } catch {}
     }
+    // El auto-scroll va ANTES de calcular el transform (no después): "el"
+    // vive dentro del contenedor que se acaba de mover, así que si el
+    // scroll cambia hay que sumarle esa misma cantidad a baseDy en el
+    // mismo tick -- si no, recién se compensa en el próximo pointermove y
+    // por un instante la tarjeta pinta lejos del dedo (bug real reportado:
+    // "a veces el bloque está lejos del punto donde está tocando").
+    if (contenedorScroll) {
+      const scrollPrevio = contenedorScroll.scrollTop;
+      _autoScrollDuranteArrastre(contenedorScroll, e.clientY);
+      baseDy += contenedorScroll.scrollTop - scrollPrevio;
+    }
     el.style.transform = `translate(${baseDx + (e.clientX - startX)}px, ${baseDy + (e.clientY - startY)}px)`;
+    // Posición pintada ANTES de que _intentarSwapArrastre mueva a "el" en
+    // el DOM -- hace falta medirla ACÁ, antes del swap, no después: una vez
+    // que el DOM ya cambió, getBoundingClientRect() devuelve la geometría
+    // de la celda NUEVA (el layout se recalcula con el nuevo orden) aunque
+    // el transform todavía sea el viejo, así que "antes" y "después"
+    // terminaban mezclados y la tarjeta se alejaba del dedo con cada
+    // intercambio (bug real reportado: "a veces el bloque está lejos del
+    // punto donde está tocando").
+    const rectAntesDelSwap = el.getBoundingClientRect();
     if (_intentarSwapArrastre(grid, selectorArrastrable, el)) {
       // FLIP: recalcula el transform para que, tras el cambio de lugar en
       // el DOM, la tarjeta siga viéndose exactamente donde estaba bajo el
       // dedo (si no, pegaría un salto del tamaño de una celda).
-      const conTransform = el.getBoundingClientRect();
       el.style.transform = "none";
       const sinTransform = el.getBoundingClientRect();
-      baseDx += conTransform.left - sinTransform.left;
-      baseDy += conTransform.top - sinTransform.top;
+      baseDx = rectAntesDelSwap.left - sinTransform.left;
+      baseDy = rectAntesDelSwap.top - sinTransform.top;
       startX = e.clientX; startY = e.clientY;
       el.style.transform = `translate(${baseDx}px, ${baseDy}px)`;
       // insertAdjacentElement saca a "el" del árbol y lo vuelve a insertar --
@@ -260,7 +279,6 @@ function crearManejadorArrastrable(el, grid, selectorArrastrable, { onLargo, onC
       // el arrastre se quede a medias sin disparar onReordenar).
       try { el.setPointerCapture(e.pointerId); } catch {}
     }
-    _autoScrollDuranteArrastre(contenedorScroll, e.clientY);
   };
 
   const cancelar = () => clearTimeout(timeoutId);
