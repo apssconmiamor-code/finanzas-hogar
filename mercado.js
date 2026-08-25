@@ -415,7 +415,7 @@ function renderMercadoGrid(cont) {
       </button>
     </div>
     ${totalParaComprar > 0 ? `
-      <button type="button" class="btn-primary btn-franja mercado-btn-whatsapp" id="btn-whatsapp-mercado">
+      <button type="button" class="btn-sutil mercado-btn-whatsapp" id="btn-whatsapp-mercado">
         💬 Enviar lista por WhatsApp (${totalParaComprar})
       </button>` : ""}`;
 

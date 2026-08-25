@@ -1267,7 +1267,12 @@ input, select, textarea, table {
    identidad visual. Acá solo queda la grilla de productos dentro de una
    categoría. */
 .mercado-productos-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.mercado-btn-whatsapp { margin-top: 20px; max-width: 420px; margin-left: auto; margin-right: auto; }
+/* Sutil como "Sumar" en Cajas (ver .btn-sutil) -- antes era un botón
+   primario grande de ancho completo. .btn-sutil es inline por naturaleza
+   (un botón normal), así que hace falta display:block acá para que
+   margin:auto lo siga centrando debajo de la cuadrícula, en vez de
+   quedarse pegado a la izquierda. */
+.mercado-btn-whatsapp { display: block; width: fit-content; margin: 20px auto 0; }
 /* Doble toque alterna "hay que comprarlo" -- único módulo de la app donde
    el doble toque muta algo en vez de solo abrir un resumen de solo
    lectura (pedido explícito, ver mercado.js). El gris del estado marcado
