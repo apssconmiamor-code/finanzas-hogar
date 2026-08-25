@@ -1209,7 +1209,7 @@ input, select, textarea, table {
    identidad visual. Acá solo queda la grilla de productos dentro de una
    categoría. */
 .mercado-productos-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.mercado-btn-whatsapp { margin-top: 20px; max-width: 480px; }
+.mercado-btn-whatsapp { margin-top: 20px; max-width: 420px; margin-left: auto; margin-right: auto; }
 /* Doble toque alterna "hay que comprarlo" -- único módulo de la app donde
    el doble toque muta algo en vez de solo abrir un resumen de solo
    lectura (pedido explícito, ver mercado.js). El gris del estado marcado
@@ -1291,30 +1291,33 @@ input, select, textarea, table {
   letter-spacing: 0.4px; color: var(--text-4); margin-top: 4px;
 }
 
-/* Cuadrícula de bloques del panel de Alertas -- mismo espíritu que
-   .acciones-rapidas-grid/.accion-rapida-card (2 columnas, ícono + nombre),
-   pero con tarjetas de alto fijo en vez de cuadradas: acá van inline al
-   principio de la pestaña (que puede ser bien ancha en pantallas grandes),
-   no centradas en un modal chico -- con aspect-ratio 1:1 quedaban gigantes. */
+/* Cuadrícula de bloques del panel de Alertas -- MISMO tamaño y diseño que
+   .acciones-rapidas-grid/.accion-rapida-card (2 columnas, tarjetas
+   cuadradas), pedido explícito: las tres cuadrículas (Acciones rápidas,
+   Alertas, Mercado -- ver el comentario "MERCADO" más abajo, reusa estas
+   mismas clases) se ven idénticas. Antes tenían alto fijo en vez de
+   cuadradas para no quedar gigantes en pantallas anchas (van inline al
+   principio de la pestaña, no centradas en un modal chico) -- el mismo
+   max-width acotado de .acciones-rapidas-grid resuelve eso igual. */
 .alertas-bloques-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  max-width: 480px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  max-width: 420px; margin: 0 auto;
 }
 .alerta-bloque-card {
-  position: relative; width: 100%; min-height: 96px; padding: 16px 10px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  border-radius: var(--r-md); border: 1.5px solid var(--border-mid);
+  position: relative; aspect-ratio: 1 / 1; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border-radius: 4px; border: 1.5px solid var(--border-mid);
   background: var(--surface); cursor: pointer; user-select: none;
-  font-family: var(--font); box-shadow: var(--shadow-sm); box-sizing: border-box;
+  font-family: var(--font); box-sizing: border-box;
 }
 .alerta-bloque-card:active { opacity: 0.7; }
-.alerta-bloque-agregar { border-style: dashed; color: var(--text-4); box-shadow: none; }
+.alerta-bloque-agregar { border-style: dashed; color: var(--text-4); }
 /* Activos/Pasados son agrupaciones por estado (cruzan todos los bloques),
    no un bloque en sí -- un crema clarito y transparente las distingue de
    un vistazo de las tarjetas de bloque (blancas). */
 .alerta-bloque-card-agrupacion { background: rgba(255, 159, 10, 0.08); border-color: rgba(255, 159, 10, 0.25); }
-.alerta-bloque-icono { font-size: 26px; line-height: 1; }
-.alerta-bloque-nombre { font-size: 13px; font-weight: 600; color: var(--text-2); text-align: center; }
+.alerta-bloque-icono { font-size: 40px; line-height: 1; }
+.alerta-bloque-nombre { font-size: 14px; font-weight: 600; color: var(--text-2); text-align: center; }
 .alerta-bloque-cantidad {
   position: absolute; top: 8px; right: 8px;
   min-width: 18px; height: 18px; padding: 0 5px;
