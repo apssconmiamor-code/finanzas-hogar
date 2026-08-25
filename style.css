@@ -865,17 +865,15 @@ input, select, textarea, table {
    verdad -- ahí se apaga la transición porque el transform ya lo controla
    el JS a cada pointermove (con transición de por medio se ve con
    retraso/tironeado en vez de seguir al dedo en vivo).
-   touch-action:none es necesario para poder arrastrar en las DOS
-   direcciones -- sin esto, en un teléfono real el scroll nativo vertical de
-   la página se queda con el gesto apenas el dedo se mueve hacia arriba/
-   abajo, y solo el movimiento horizontal (que no compite con el scroll)
-   le llega al JS (bug real reportado: se podía arrastrar de lado pero no
-   de arriba a abajo). Va fijo en la tarjeta, no se prende/apaga a mitad
-   del toque -- cambiarlo en vivo hace que WebKit corte el gesto con un
-   pointercancel espontáneo (ver el comentario en gestos.js). */
+   Sin touch-action:none acá (a propósito, ver gestos.js): ponerlo fijo
+   bloqueaba CUALQUIER scroll que empezara tocando una tarjeta, arme o no
+   arme el arrastre -- bug real reportado: en una lista de varios bloques,
+   deslizar para abajo para scrollear terminaba abriendo el bloque bajo el
+   dedo en vez de moverse. gestos.js lo prende recién cuando arma (500ms
+   quieto), y solo para dedo/lápiz -- así un dedo que se mueve ANTES de
+   armar sigue scrolleando la cuadrícula como siempre. */
 .accion-rapida-card, .alerta-bloque-card, .caja-card {
   transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-  touch-action: none;
 }
 /* Especificidad iguala a ".caja-card:active" (que si no, le ganaba al
    "levantado" mientras el dedo seguía apoyado -- bug real reportado: la
