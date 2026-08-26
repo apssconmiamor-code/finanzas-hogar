@@ -406,6 +406,12 @@ function renderMercadoGrid(cont) {
   const totalParaComprar = productosMercado.filter(p => p.hayQueComprar).length;
 
   cont.innerHTML = `
+    ${totalParaComprar > 0 ? `
+      <div class="cajas-header">
+        <button type="button" class="btn-sutil" id="btn-whatsapp-mercado">
+          💬 Enviar lista por WhatsApp (${totalParaComprar})
+        </button>
+      </div>` : ""}
     <div class="alertas-bloques-grid">
       ${tarjetasCategorias}
       ${tarjetaSinCategoria}
@@ -413,11 +419,7 @@ function renderMercadoGrid(cont) {
         <span class="alerta-bloque-icono">➕</span>
         <span class="alerta-bloque-nombre">Agregar categoría</span>
       </button>
-    </div>
-    ${totalParaComprar > 0 ? `
-      <button type="button" class="btn-sutil mercado-btn-whatsapp" id="btn-whatsapp-mercado">
-        💬 Enviar lista por WhatsApp (${totalParaComprar})
-      </button>` : ""}`;
+    </div>`;
 
   document.getElementById("btn-nueva-categoria-mercado")?.addEventListener("click", abrirNuevaCategoriaMercado);
   document.getElementById("btn-whatsapp-mercado")?.addEventListener("click", enviarListaMercadoPorWhatsapp);
