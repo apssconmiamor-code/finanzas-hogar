@@ -36,8 +36,12 @@ function actualizarBadgeApp() {
 
   const total = _badgeLeerCache("cache_notificaciones").filter(n => n.estado === "enviada").length;
 
-  if (total > 0) navigator.setAppBadge(total).catch(() => {});
-  else navigator.clearAppBadge().catch(() => {});
+  // clearAppBadge() antes de volver a poner el número: en iOS, pasar de un
+  // valor a otro >0 directo con setAppBadge() a veces no repinta el ícono
+  // (bug conocido de WebKit) y se queda pegado en el número anterior.
+  navigator.clearAppBadge().catch(() => {}).then(() => {
+    if (total > 0) navigator.setAppBadge(total).catch(() => {});
+  });
 }
 
 function limpiarBadgeApp() {
