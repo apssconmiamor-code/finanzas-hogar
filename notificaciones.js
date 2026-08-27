@@ -125,7 +125,11 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     campos.destinatario ?? actual[6],
     actual[7] || "",
     campos.estado ?? actual[8],
-    actual[9] || "",
+    // ultimo_envio normalmente solo lo toca el Worker -- la única excepción
+    // es marcarNotificacionRevisada() en una recurrente atendida ANTES de
+    // su hora: ahí sí se manda para marcarla "ya atendida hoy" (ver ese
+    // comentario para el porqué).
+    campos.ultimoEnvio ?? actual[9] ?? "",
     campos.intervalo ?? actual[10] ?? "",
     campos.unidad ?? actual[11] ?? "",
     campos.gastoFijo ?? actual[12] ?? "",
@@ -566,6 +570,17 @@ function _esPasada(n) {
   return !!proxima && _estadoDiaAlarma(proxima) === "pasado";
 }
 
+// Una recurrente "activa" cuenta como ya atendida hoy si ultimoEnvio cae en
+// el día de hoy -- lo escribe el Worker al dispararla de verdad, o
+// marcarNotificacionRevisada() si se revisó a mano ANTES de su hora (ver
+// ese comentario). Se usa para sacarla de "Activos" (y de su bloque) el
+// resto del día sin tocar el ancla (fechaHora), que queda fija para
+// siempre -- vuelve a contar sola en su próximo ciclo, cuando ultimoEnvio
+// ya no sea "hoy".
+function _yaAtendidaHoy(n) {
+  return n.estado === "activa" && n.tipo !== "unica" && !!n.ultimoEnvio && _diaLocal(n.ultimoEnvio) === _diaLocal(new Date());
+}
+
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
 // Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
@@ -669,7 +684,12 @@ function renderNotificaciones() {
   const todasActivas = notificaciones.filter(n => n.estado === "activa");
   // Usa la PRÓXIMA ocurrencia real, no el ancla cruda -- si no, una
   // recurrente que hoy le toca pero se creó otro día nunca contaría acá.
+  // Excluye las ya atendidas hoy (ver _yaAtendidaHoy) -- si no, revisar una
+  // recurrente ANTES de su hora no la sacaba de acá en todo el día (bug
+  // real reportado). Sigue viéndose igual dentro de su bloque de categoría,
+  // esto solo aplica al "pendiente de hoy".
   const activosHoy    = todasActivas.filter(n => {
+    if (_yaAtendidaHoy(n)) return false;
     const proxima = _proximaOcurrencia(n);
     return proxima && _estadoDiaAlarma(proxima) === "hoy";
   });
@@ -833,6 +853,15 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
 // "recordar_en_dias" activado (ver debeQuedarEnRevision en
 // worker/src/push.js) -- al revisarla vuelve a "activa", lista para su
 // próximo ciclo normal, no se borra.
+//
+// Revisar una recurrente ANTES de su hora (bug real reportado: se quedaba
+// en la lista todo el día igual, como si no se hubiera tocado nada) --
+// como el ancla (fechaHora) no se mueve nunca, la única forma de que
+// "hoy" deje de contar es anotar ultimo_envio = ahora, el mismo campo que
+// usa el Worker para "yaEnviadaHoy" (ver estaVencida en
+// worker/src/push.js): así ni vuelve a aparecer en Activos hoy (ver
+// _yaAtendidaHoy más abajo) ni el Worker manda el push de más tarde para
+// algo que ya se marcó atendido.
 async function marcarNotificacionRevisada(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
@@ -840,7 +869,7 @@ async function marcarNotificacionRevisada(id) {
     if (n.tipo === "unica") {
       await Sheets.borrarNotificacion(id);
     } else {
-      await Sheets.editarNotificacion(id, { estado: "activa" });
+      await Sheets.editarNotificacion(id, { estado: "activa", ultimoEnvio: new Date().toISOString() });
     }
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);

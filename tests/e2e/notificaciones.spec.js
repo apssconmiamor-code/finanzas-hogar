@@ -466,6 +466,44 @@ test.describe('Notificaciones (Web Push)', () => {
     expect(notificaciones.find(n => n.id === 'N9')).toBeUndefined();
   });
 
+  test('revisar una recurrente ANTES de su hora la saca de "Activos" el resto del día (bug real: se quedaba ahí igual)', async ({ page }) => {
+    // Ancla de hace 2 meses, "cada 1 mes" -- le toca justo hoy (mismo
+    // patrón que el test de color de arriba), pero todavía en 1 hora, no
+    // se disparó -- sigue "activa" y sin ultimo_envio.
+    const ahora = new Date();
+    const ancla = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 2, ahora.getUTCDate(), 23, 59, 0)).toISOString();
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N10', 'Pagar arriendo', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'mes'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+
+    await abrirBloqueAlerta(page, 'Otros');
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
+    await page.locator('#btn-resumen-revisado').click();
+    await expect(page.locator('#modal-resumen-notificacion')).toBeHidden();
+
+    // Recurrente revisada = NO se borra (le toca su próximo ciclo igual),
+    // pero desaparece de "Activos" por hoy -- ya no queda pendiente de
+    // revisar hasta la próxima vez que le toque.
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveCount(0);
+
+    const notificaciones = await page.evaluate(() => Sheets.getNotificaciones());
+    const n = notificaciones.find(x => x.id === 'N10');
+    expect(n).toBeDefined();
+    expect(n.estado).toBe('activa');
+    // ultimoEnvio queda en hoy -- así ni vuelve a aparecer en Activos ni el
+    // Worker la re-dispara más tarde para algo que ya se marcó atendido.
+    expect(n.ultimoEnvio.slice(0, 10)).toBe(ahora.toISOString().slice(0, 10));
+  });
+
   test('el resumen no desborda el ancho de la pantalla ni con textos largos (bug real: se salía en celulares angostos)', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 720 });
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
