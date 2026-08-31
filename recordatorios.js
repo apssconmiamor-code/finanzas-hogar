@@ -844,7 +844,14 @@ function actualizarConceptoAccion() {
 }
 
 // Mismo respaldo de caché que poblarCajasConfigAccion, por si "cajas"
-// todavía no cargó de la red cuando se abre este modal.
+// todavía no cargó de la red cuando se abre este modal. A diferencia de
+// esa función, acá NO se filtra por cajaVisibleParaUsuario -- mismo
+// criterio que ya usa "Nueva transferencia" en el formulario normal (ver
+// poblarSelectCajas("mov-caja-origen"/"mov-caja-destino") en app.js, sin
+// el filtro de visibilidad que sí lleva el campo "Caja" de Ingreso/Gasto):
+// una transferencia mueve plata ENTRE cajas, así que origen y destino
+// tienen que poder ser cualquier caja, no solo las que este usuario
+// administra.
 function poblarSelectsTransferenciaAccion(origenSeleccionada, destinoSeleccionada) {
   const selOrigen  = document.getElementById("config-accion-caja-origen");
   const selDestino = document.getElementById("config-accion-caja-destino");
@@ -855,8 +862,7 @@ function poblarSelectsTransferenciaAccion(origenSeleccionada, destinoSeleccionad
       if (cache) cajas = JSON.parse(cache);
     } catch {}
   }
-  const cajasDisp = (typeof cajas !== "undefined" ? cajas : [])
-    .filter(c => cajaVisibleParaUsuario(c, currentUser?.email));
+  const cajasDisp = typeof cajas !== "undefined" ? cajas : [];
   const opciones = (placeholder) => `<option value="">${placeholder}</option>` +
     cajasDisp.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join("");
   selOrigen.innerHTML  = opciones("Caja origen…");

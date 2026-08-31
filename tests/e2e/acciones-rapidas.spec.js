@@ -332,6 +332,31 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     expect(textos.some(t => t.includes('Nequi de otra persona'))).toBe(false);
   });
 
+  test('Transferencia rápida: origen/destino muestran TODAS las cajas, incluidas las restringidas a otra persona', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        // Restringida a otro email -- a diferencia del chip de Ingreso/Gasto
+        // (ver test de arriba), acá SÍ debe verse: una transferencia mueve
+        // plata entre cajas, no depende de quién las administra (mismo
+        // criterio que "Nueva transferencia" en el formulario normal).
+        ['C2', 'prueba@example.com', 'Nequi de otra persona', 'COP', 0, 'otra.persona@example.com'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+
+    const opcionesOrigen = await page.locator('#config-accion-caja-origen option').allTextContents();
+    const opcionesDestino = await page.locator('#config-accion-caja-destino option').allTextContents();
+    expect(opcionesOrigen.some(t => t.includes('Nequi de otra persona'))).toBe(true);
+    expect(opcionesDestino.some(t => t.includes('Nequi de otra persona'))).toBe(true);
+  });
+
   test('una caja nueva llamada "Luni ..." o "Choco ..." se completa sola con quién puede manejarla', async ({ page }) => {
     await mockGoogleApis(page, {
       Cajas: [
