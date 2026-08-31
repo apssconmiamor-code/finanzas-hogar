@@ -590,41 +590,57 @@ function _esPasada(n) {
   return !!proxima && _estadoDiaAlarma(proxima) === "pasado";
 }
 
-// Una recurrente "activa" cuenta como ya atendida hoy si ultimoEnvio cae en
-// el día de hoy -- lo escribe el Worker al dispararla de verdad, o
-// marcarNotificacionRevisada() si se revisó a mano ANTES de su hora (ver
-// ese comentario). Se usa para sacarla de "Activos" (y de su bloque) el
-// resto del día sin tocar el ancla (fechaHora), que queda fija para
-// siempre -- vuelve a contar sola en su próximo ciclo, cuando ultimoEnvio
-// ya no sea "hoy".
-function _yaAtendidaHoy(n) {
-  return n.estado === "activa" && n.tipo !== "unica" && !!n.ultimoEnvio && _diaLocal(n.ultimoEnvio) === _diaLocal(new Date());
-}
-
 // "👀 Revisada" (la vi, pero todavía no la hice) -- distinto de "✅
 // Realizada" (ver marcarNotificacionRevisada/marcarNotificacionVista más
-// abajo). Se usa para sacarla de "Activos" igual que _yaAtendidaHoy (ya no
-// hace falta seguir mostrándola si ya la viste), y el Worker la usa para
-// dejar de insistir con push + Calendar cada 30 min por hoy (ver
-// worker/src/push.js) -- vuelve a insistir sola al otro día si sigue sin
-// estar "Realizada".
+// abajo). Se usa para sacarla de "Activos" el resto del día sin tocar el
+// ancla (fechaHora), que queda fija para siempre -- vuelve a contar sola
+// al otro día, cuando vistoEn ya no sea "hoy". El Worker usa el mismo
+// campo para dejar de insistir con push + Calendar cada 30 min por hoy
+// (ver worker/src/push.js).
+//
+// A propósito NO se usa ultimoEnvio para esto (como sí se hacía antes,
+// bug real reportado): ese campo también lo pisa el Worker en CUALQUIER
+// disparo normal, tenga o no recordar_en_dias -- una recurrente sin ese
+// campo dispara y se queda "activa" a propósito (ver debeQuedarEnRevision
+// en worker/src/push.js), así que "ultimoEnvio es de hoy" no distingue
+// "ya la marcaste" de "recién sonó y seguís sin verla". vistoEn, en
+// cambio, SOLO lo toca el usuario (acá o al revisar antes de tiempo, ver
+// marcarNotificacionRevisada), nunca el Worker -- sin ambigüedad.
 function _yaVistaHoy(n) {
   return !!n.vistoEn && _diaLocal(n.vistoEn) === _diaLocal(new Date());
+}
+
+// Fecha que corresponde mostrar/ordenar en la tarjeta de una alerta --
+// para una "enviada" (ya se disparó, esperando revisión) es CUÁNDO se
+// disparó (ultimoEnvio), no su próxima ocurrencia futura: _proximaOcurrencia
+// calcula la fecha del PRÓXIMO ciclo según el patrón fijo, así que para una
+// recurrente con "recordar_en_dias" (la única forma en que una recurrente
+// pasa por "enviada", ver debeQuedarEnRevision en worker/src/push.js) eso
+// queda en el futuro mientras la instancia actual sigue vencida y sin
+// revisar -- bug real reportado: en "Pasados" se veía la fecha del próximo
+// ciclo en vez de la vencida. Para cualquier otro estado, sigue usando la
+// próxima ocurrencia real de siempre.
+function _fechaReferenciaTarjeta(n) {
+  if (n.estado === "enviada" && n.ultimoEnvio) {
+    const d = new Date(n.ultimoEnvio);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return _proximaOcurrencia(n);
 }
 
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
 // Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
 // toque (abrirResumenNotificacion), igual que en Proyección y Movimientos.
-// El color y la fecha mostrada usan la PRÓXIMA ocurrencia real
-// (_proximaOcurrencia), no el ancla cruda -- si no, una recurrente creada
-// hace tiempo se ve "pasada" para siempre aunque esté funcionando bien.
+// El color y la fecha mostrada usan _fechaReferenciaTarjeta (ver ese
+// comentario), no el ancla cruda -- si no, una recurrente creada hace
+// tiempo se ve "pasada" para siempre aunque esté funcionando bien.
 // soloRevisado: true dentro del bloque "Activos" -- ahí, en vez de la
 // fecha sola, se ve además un botón para confirmar que ya se atendió.
 // icono: el mismo emoji del bloque (grupo.icono) -- pedido explícito, cada
 // fila de la lista se lee "icono - texto - próximo vencimiento".
 function renderItemNotificacion(n, soloRevisado = false, icono = "🔔") {
-  const proxima = _proximaOcurrencia(n);
+  const proxima = _fechaReferenciaTarjeta(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
   const botones = soloRevisado
@@ -735,12 +751,12 @@ function renderNotificaciones() {
   const todasActivas = notificaciones.filter(n => n.estado === "activa");
   // Usa la PRÓXIMA ocurrencia real, no el ancla cruda -- si no, una
   // recurrente que hoy le toca pero se creó otro día nunca contaría acá.
-  // Excluye las ya atendidas hoy (ver _yaAtendidaHoy) -- si no, revisar una
+  // Excluye las ya vistas hoy (ver _yaVistaHoy) -- si no, revisar una
   // recurrente ANTES de su hora no la sacaba de acá en todo el día (bug
   // real reportado). Sigue viéndose igual dentro de su bloque de categoría,
   // esto solo aplica al "pendiente de hoy".
   const activosHoy    = todasActivas.filter(n => {
-    if (_yaAtendidaHoy(n) || _yaVistaHoy(n)) return false;
+    if (_yaVistaHoy(n)) return false;
     const proxima = _proximaOcurrencia(n);
     return proxima && _estadoDiaAlarma(proxima) === "hoy";
   });
@@ -833,11 +849,12 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
   // "Activos" es la lista de lo que le toca justo hoy -- ahí no tiene
   // sentido editar/eliminar la alerta, solo confirmar que ya se atendió.
   const esActivos = clave === "activos";
-  // De la que se activa más pronto a la que se activa más tarde -- por la
-  // PRÓXIMA ocurrencia real, no el ancla cruda (ver _proximaOcurrencia).
+  // De la que se activa más pronto a la que se activa más tarde -- misma
+  // fecha que se ve en la tarjeta (ver _fechaReferenciaTarjeta), no el
+  // ancla cruda.
   const itemsOrdenados = [...grupo.items].sort((a, b) => {
-    const fa = _proximaOcurrencia(a);
-    const fb = _proximaOcurrencia(b);
+    const fa = _fechaReferenciaTarjeta(a);
+    const fb = _fechaReferenciaTarjeta(b);
     if (!fa && !fb) return 0;
     if (!fa) return 1;
     if (!fb) return -1;
@@ -907,12 +924,17 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
 //
 // Revisar una recurrente ANTES de su hora (bug real reportado: se quedaba
 // en la lista todo el día igual, como si no se hubiera tocado nada) --
-// como el ancla (fechaHora) no se mueve nunca, la única forma de que
-// "hoy" deje de contar es anotar ultimo_envio = ahora, el mismo campo que
-// usa el Worker para "yaEnviadaHoy" (ver estaVencida en
-// worker/src/push.js): así ni vuelve a aparecer en Activos hoy (ver
-// _yaAtendidaHoy más abajo) ni el Worker manda el push de más tarde para
-// algo que ya se marcó atendido.
+// como el ancla (fechaHora) no se mueve nunca, hace falta anotar DOS
+// campos "ahora" con roles distintos:
+//  - ultimoEnvio: el mismo que usa el Worker para "yaEnviadaHoy" (ver
+//    estaVencida en worker/src/push.js) -- así no manda el push de más
+//    tarde para algo que ya se marcó atendido.
+//  - vistoEn: lo que de verdad saca la tarjeta de Activos hoy (ver
+//    _yaVistaHoy más abajo). NO alcanza con ultimoEnvio para eso -- el
+//    Worker también lo pisa en cualquier disparo normal (con o sin
+//    recordar_en_dias), así que una recurrente que sonó normal y sigue
+//    sin revisar se confundiría con una ya atendida (bug real reportado:
+//    desaparecía de Activos sola apenas sonaba, sin que nadie la tocara).
 async function marcarNotificacionRevisada(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
@@ -920,7 +942,8 @@ async function marcarNotificacionRevisada(id) {
     if (n.tipo === "unica") {
       await Sheets.borrarNotificacion(id);
     } else {
-      await Sheets.editarNotificacion(id, { estado: "activa", ultimoEnvio: new Date().toISOString() });
+      const ahora = new Date().toISOString();
+      await Sheets.editarNotificacion(id, { estado: "activa", ultimoEnvio: ahora, vistoEn: ahora });
     }
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" realizada`);

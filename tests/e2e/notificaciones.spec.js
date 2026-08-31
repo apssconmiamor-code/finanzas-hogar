@@ -421,6 +421,33 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
   });
 
+  test('una recurrente "enviada" (con recordar_en_dias) muestra en "Pasados" cuándo se disparó, no su próximo ciclo futuro (bug real reportado)', async ({ page }) => {
+    // Ancla de hace 18 días, "cada 7 días" -- la próxima ocurrencia real
+    // cae DENTRO DE 3 DÍAS (18 = 2*7 + 4, así que el próximo múltiplo de 7
+    // desde el ancla es +3 respecto de hoy), bien lejos de hoy. Ya se
+    // disparó hace 3 días (ultimo_envio) y sigue sin revisar -- eso es lo
+    // que "Pasados" debería mostrar, no el ciclo de dentro de 3 días.
+    const hoy = new Date();
+    const ancla = new Date(hoy.getTime() - 18 * 86400000).toISOString();
+    const ultimoEnvio = new Date(hoy.getTime() - 3 * 86400000).toISOString();
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N12', 'Pagar Emcali', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'enviada', ultimoEnvio, '7', 'dia', '', '1'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Pasados');
+    const item = page.locator('.notificacion-item');
+    await expect(item).toContainText('Pagar Emcali');
+    // "Pasada" (vencida, hace 3 días) -- si mostrara el próximo ciclo
+    // (dentro de 3 días) se vería "futura" en cambio, sin esta clase.
+    await expect(item).toHaveClass(/notificacion-item-pasada/);
+  });
+
   test('cada tarjeta de la lista muestra el icono del bloque junto al texto, y el resumen ya no ofrece crear un recordatorio', async ({ page }) => {
     const enUnaHora = new Date(Date.now() + 3600000).toISOString();
     await mockGoogleApis(page, {
@@ -508,9 +535,35 @@ test.describe('Notificaciones (Web Push)', () => {
     const n = notificaciones.find(x => x.id === 'N10');
     expect(n).toBeDefined();
     expect(n.estado).toBe('activa');
-    // ultimoEnvio queda en hoy -- así ni vuelve a aparecer en Activos ni el
-    // Worker la re-dispara más tarde para algo que ya se marcó atendido.
+    // ultimoEnvio (para que el Worker no la re-dispare más tarde) Y
+    // vistoEn (lo que de verdad la saca de Activos, ver el test de abajo)
+    // quedan los dos en hoy.
     expect(n.ultimoEnvio.slice(0, 10)).toBe(ahora.toISOString().slice(0, 10));
+    expect(n.vistoEn.slice(0, 10)).toBe(ahora.toISOString().slice(0, 10));
+  });
+
+  test('una recurrente que YA SONÓ hoy sola (sin que nadie la marque) sigue en "Activos", no desaparece (bug real reportado)', async ({ page }) => {
+    // Simula lo que deja el Worker tras un disparo normal SIN
+    // recordar_en_dias: sigue "activa" (ver debeQuedarEnRevision en
+    // worker/src/push.js) pero con ultimo_envio de hoy. Antes, el filtro
+    // de "Activos" confundía esto con "ya la marcaron revisada" (ver
+    // _yaVistaHoy) y la escondía sin que nadie la hubiera tocado.
+    const ahora = new Date();
+    const ancla = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 7, 0, 0)).toISOString();
+    const ultimoEnvio = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 7, 1, 0)).toISOString();
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N13', 'Agua Colibrí', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', ultimoEnvio, '1', 'dia'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await abrirBloqueAlerta(page, 'Activos');
+    await expect(page.locator('.notificacion-item')).toContainText('Agua Colibrí');
   });
 
   test('el resumen no desborda el ancho de la pantalla ni con textos largos (bug real: se salía en celulares angostos)', async ({ page }) => {
