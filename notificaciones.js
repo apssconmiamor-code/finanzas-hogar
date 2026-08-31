@@ -13,6 +13,17 @@
 //    alerta (ver BLOQUES_ALERTAS_KEY más abajo). Vacío = sin bloque (cae en
 //    "Activas"). Si la alerta tiene gasto_fijo, ese manda y esto se ignora
 //    -- una alerta no puede estar en "Gastos fijos" Y en un bloque a la vez.
+// Q: url (opcional) — link que el usuario guarda a mano (ej. el link de
+//    pago de una factura), con botón de copiar en el resumen (ver
+//    abrirResumenNotificacion). No la usa el Worker para nada.
+// R: visto_en (ISO UTC) — cuándo se tocó "👀 Revisada" (ver
+//    marcarNotificacionVista). Distinto de "Realizada"/marcarNotificacionRevisada:
+//    revisada = "ya la vi hoy" (para el reenvío insistente cada 30 min, ver
+//    worker/src/push.js), NO cierra la tarea -- eso lo hace "Realizada".
+// S: ultimo_evento_cal (ISO UTC) — última vez que el Worker creó un evento
+//    de Calendar por insistencia (ver worker/src/push.js). Separado de
+//    ultimo_envio (columna J) porque ese ritma el push normal, no el
+//    reenvío insistente cada 30 min.
 //
 // El envío real lo hace el Cron Trigger del Worker (worker/src/push.js),
 // no el navegador — esta app solo crea/edita/borra los recordatorios y
@@ -46,7 +57,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria"]] })
+        body: JSON.stringify({ values: [["id", "titulo", "mensaje", "tipo", "fecha_hora", "fecha_limite", "destinatario", "autor", "estado", "ultimo_envio", "intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria", "url", "visto_en", "ultimo_evento_cal"]] })
       }
     );
   } else {
@@ -54,14 +65,14 @@ Sheets._asegurarHojaNotificaciones = async function () {
     // columnas no las tienen en el encabezado -- se agregan solas, sin
     // tocar las filas existentes (que igual siguen funcionando por
     // compatibilidad hacia atrás, ver UNIDAD_LEGADO en worker/src/push.js).
-    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:P1`);
-    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2] || !encabezado[0][3] || !encabezado[0][4] || !encabezado[0][5]) {
+    const encabezado = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!K1:S1`);
+    if (!encabezado[0] || !encabezado[0][0] || !encabezado[0][2] || !encabezado[0][3] || !encabezado[0][4] || !encabezado[0][5] || !encabezado[0][6] || !encabezado[0][7] || !encabezado[0][8]) {
       await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:P1")}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(CONFIG.SHEETS.NOTIFICACIONES + "!K1:S1")}?valueInputOption=RAW`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria"]] })
+          body: JSON.stringify({ values: [["intervalo", "unidad", "gasto_fijo", "recordar_en_dias", "revisado_en", "categoria", "url", "visto_en", "ultimo_evento_cal"]] })
         }
       );
     }
@@ -71,7 +82,7 @@ Sheets._asegurarHojaNotificaciones = async function () {
 
 Sheets.getNotificaciones = async function () {
   await this._asegurarHojaNotificaciones();
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:P`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:S`);
   return rows.filter(r => r && r[0]).map(r => ({
     id:            r[0] || "",
     titulo:        r[1] || "",
@@ -88,7 +99,10 @@ Sheets.getNotificaciones = async function () {
     gastoFijo:     r[12] || "",
     recordarEnDias: r[13] || "",
     revisadoEn:    r[14] || "",
-    categoria:     r[15] || ""
+    categoria:     r[15] || "",
+    url:           r[16] || "",
+    vistoEn:       r[17] || "",
+    ultimoEventoCal: r[18] || ""
   }));
 };
 
@@ -102,15 +116,15 @@ Sheets.getNotificaciones = async function () {
 // "recordarEnDias" (opcional, solo aplica a "unica"): si nadie la marca
 // como revisada, el Worker la vuelve a mandar cada esos días (ver
 // tocaRecordatorioDeSeguimiento en worker/src/push.js).
-Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo, recordarEnDias, categoria) {
+Sheets.agregarNotificacion = async function (texto, tipo, fechaHoraISO, fechaLimite, destinatario, autor, intervalo, unidad, gastoFijo, recordarEnDias, categoria, url) {
   await this._asegurarHojaNotificaciones();
   const id = "N" + Date.now();
-  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || "", recordarEnDias || "", "", categoria || ""]);
+  await this.agregar(CONFIG.SHEETS.NOTIFICACIONES, [id, texto, "", tipo, fechaHoraISO, fechaLimite || "", destinatario, autor, "activa", "", intervalo || "", unidad || "", gastoFijo || "", recordarEnDias || "", "", categoria || "", url || "", "", ""]);
   return id;
 };
 
 Sheets._escribirFilaNotificacion = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:P`);
+  const rows = await this.leer(`${CONFIG.SHEETS.NOTIFICACIONES}!A2:S`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Notificación no encontrada");
   const sheetRow = rowIndex + 2;
@@ -135,9 +149,15 @@ Sheets._escribirFilaNotificacion = async function (id, campos) {
     campos.gastoFijo ?? actual[12] ?? "",
     campos.recordarEnDias ?? actual[13] ?? "",
     campos.revisadoEn ?? actual[14] ?? "",
-    campos.categoria ?? actual[15] ?? ""
+    campos.categoria ?? actual[15] ?? "",
+    campos.url ?? actual[16] ?? "",
+    // vistoEn (👀 Revisada) SÍ se toca desde acá -- ver marcarNotificacionVista.
+    // ultimoEventoCal, en cambio, es como ultimo_envio: normalmente solo lo
+    // toca el Worker al crear un evento de Calendar por insistencia.
+    campos.vistoEn ?? actual[17] ?? "",
+    campos.ultimoEventoCal ?? actual[18] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:P${sheetRow}`;
+  const range = `${CONFIG.SHEETS.NOTIFICACIONES}!A${sheetRow}:S${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -581,6 +601,17 @@ function _yaAtendidaHoy(n) {
   return n.estado === "activa" && n.tipo !== "unica" && !!n.ultimoEnvio && _diaLocal(n.ultimoEnvio) === _diaLocal(new Date());
 }
 
+// "👀 Revisada" (la vi, pero todavía no la hice) -- distinto de "✅
+// Realizada" (ver marcarNotificacionRevisada/marcarNotificacionVista más
+// abajo). Se usa para sacarla de "Activos" igual que _yaAtendidaHoy (ya no
+// hace falta seguir mostrándola si ya la viste), y el Worker la usa para
+// dejar de insistir con push + Calendar cada 30 min por hoy (ver
+// worker/src/push.js) -- vuelve a insistir sola al otro día si sigue sin
+// estar "Realizada".
+function _yaVistaHoy(n) {
+  return !!n.vistoEn && _diaLocal(n.vistoEn) === _diaLocal(new Date());
+}
+
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
 // bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
 // Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
@@ -597,7 +628,8 @@ function renderItemNotificacion(n, soloRevisado = false, icono = "🔔") {
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
   const botones = soloRevisado
-    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Revisado</button>
+    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerup="event.stopPropagation()">👀 Revisada</button>
+        <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Realizada</button>
         <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
     : `<span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`;
   return `
@@ -622,6 +654,16 @@ function renderItemNotificacion(n, soloRevisado = false, icono = "🔔") {
 // doble clic no me da el resumen" seguía pasando en el celular real).
 const tapNotificacion = crearManejadorDobleToque(id => id, id => abrirResumenNotificacion(id));
 
+async function _copiarUrlAlAportapapeles(url) {
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    SyncManager.mostrarToast("📋 URL copiada");
+  } catch (e) {
+    alert("No se pudo copiar la URL: " + e.message);
+  }
+}
+
 // ---- Resumen de una alerta (doble clic sobre su tarjeta) ----
 function abrirResumenNotificacion(id) {
   const n = notificaciones.find(x => x.id === id);
@@ -639,7 +681,8 @@ function abrirResumenNotificacion(id) {
     ["Destinatario", n.destinatario === "familia" ? "Toda la familia" : "Solo yo"],
     ["Si no se revisa, recuerda de nuevo en", n.recordarEnDias ? `${n.recordarEnDias} día(s)` : "—"],
     ["Estado", ESTADOS[n.estado] || n.estado],
-    ["Último envío", n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : "—"]
+    ["Último envío", n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : "—"],
+    ["Revisada hoy", _yaVistaHoy(n) ? _formatoFechaHoraLocal(n.vistoEn) : "Todavía no"]
   );
 
   document.getElementById("resumen-notificacion-titulo").textContent = n.titulo;
@@ -649,7 +692,15 @@ function abrirResumenNotificacion(id) {
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${escapeHtml(label)}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
-      </div>`).join("");
+      </div>`).join("") + (n.url ? `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">URL</span>
+        <span class="detalle-notif-valor detalle-notif-valor-url">
+          <span class="detalle-notif-url-texto">${escapeHtml(n.url)}</span>
+          <button type="button" class="btn-secondary notif-card-btn" id="btn-resumen-copiar-url">📋 Copiar</button>
+        </span>
+      </div>` : "");
+    document.getElementById("btn-resumen-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(n.url));
   }
 
   // "Marcar como revisada" siempre visible -- se puede aprobar antes de
@@ -689,7 +740,7 @@ function renderNotificaciones() {
   // real reportado). Sigue viéndose igual dentro de su bloque de categoría,
   // esto solo aplica al "pendiente de hoy".
   const activosHoy    = todasActivas.filter(n => {
-    if (_yaAtendidaHoy(n)) return false;
+    if (_yaAtendidaHoy(n) || _yaVistaHoy(n)) return false;
     const proxima = _proximaOcurrencia(n);
     return proxima && _estadoDiaAlarma(proxima) === "hoy";
   });
@@ -872,7 +923,24 @@ async function marcarNotificacionRevisada(id) {
       await Sheets.editarNotificacion(id, { estado: "activa", ultimoEnvio: new Date().toISOString() });
     }
     await cargarNotificaciones();
-    SyncManager.mostrarToast(`✅ "${n.titulo}" revisada`);
+    SyncManager.mostrarToast(`✅ "${n.titulo}" realizada`);
+  } catch (err) {
+    alert("Error marcando la alerta como realizada: " + err.message);
+  }
+}
+
+// "👀 Revisada" -- liviano, a diferencia de "✅ Realizada" de arriba: solo
+// anota que HOY la viste (vistoEn), sin cerrar la tarea ni tocar el ancla
+// ni el ciclo. Sirve para que el Worker deje de insistir con push +
+// Calendar cada 30 min por hoy (ver worker/src/push.js) -- si al otro día
+// sigue sin estar "Realizada", vuelve a insistir desde cero.
+async function marcarNotificacionVista(id) {
+  const n = notificaciones.find(x => x.id === id);
+  if (!n) return;
+  try {
+    await Sheets.editarNotificacion(id, { vistoEn: new Date().toISOString() });
+    await cargarNotificaciones();
+    SyncManager.mostrarToast(`👀 "${n.titulo}" revisada -- no insiste más por hoy`);
   } catch (err) {
     alert("Error marcando la alerta como revisada: " + err.message);
   }
@@ -911,6 +979,7 @@ function poblarSelectGastoFijo() {
 
 function limpiarFormNotificacion() {
   document.getElementById("notif-texto").value = "";
+  document.getElementById("notif-url").value = "";
   document.getElementById("notif-repetir-preset").value = "no";
   document.getElementById("notif-repetir-intervalo").value = "1";
   document.getElementById("notif-repetir-unidad").value = "dia";
@@ -965,6 +1034,7 @@ function abrirEditarNotificacion(id) {
 
   document.getElementById("notif-bloque-row")?.classList.remove("hidden");
   document.getElementById("notif-texto").value = n.titulo;
+  document.getElementById("notif-url").value = n.url || "";
   document.getElementById("notif-destinatario").value = n.destinatario;
   document.getElementById("notif-fecha-hora").value = _isoAFechaHoraLocalInput(n.fechaHora);
   document.getElementById("notif-fecha-limite").value = n.fechaLimite || "";
@@ -1022,6 +1092,7 @@ function _leerRepeticionDelForm() {
 
 async function guardarNotificacion() {
   const texto          = document.getElementById("notif-texto").value.trim();
+  const url             = document.getElementById("notif-url")?.value.trim() || "";
   const { tipo, intervalo, unidad } = _leerRepeticionDelForm();
   const fechaHoraLocal  = document.getElementById("notif-fecha-hora").value;
   const fechaLimite     = document.getElementById("notif-fecha-limite").value;
@@ -1055,10 +1126,10 @@ async function guardarNotificacion() {
     if (editId) {
       await Sheets.editarNotificacion(editId, {
         titulo: texto, tipo, fechaHora: fechaHoraISO, fechaLimite,
-        destinatario, intervalo, unidad, gastoFijo, recordarEnDias, categoria
+        destinatario, intervalo, unidad, gastoFijo, recordarEnDias, categoria, url
       });
     } else {
-      await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias, categoria);
+      await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias, categoria, url);
     }
     modal.classList.add("hidden");
     limpiarFormNotificacion();
@@ -1113,7 +1184,8 @@ function renderNotificacionesPanel() {
         <div class="recordatorio-item-texto">${escapeHtml(n.titulo)}</div>
         <div class="recordatorio-item-fecha">${n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : ""}</div>
       </div>
-      <button class="btn-accion" title="Marcar como revisada" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅</button>
+      <button class="btn-accion" title="Revisada (la vi, no urge)" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')">👀</button>
+      <button class="btn-accion" title="Realizada (ya la hice)" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅</button>
     </div>`).join("");
 }
 
@@ -1197,6 +1269,13 @@ function setupNotificacionesListeners() {
   document.getElementById("btn-cancelar-bloque-alerta")
     ?.addEventListener("click", () => {
       document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
+    });
+
+  document.getElementById("btn-resumen-vista")
+    ?.addEventListener("click", () => {
+      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
+      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
+      if (id) marcarNotificacionVista(id);
     });
 
   document.getElementById("btn-resumen-revisado")

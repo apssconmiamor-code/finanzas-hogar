@@ -27,6 +27,13 @@ const VAPID_CONTACTO = "byco85@gmail.com";
 // filas viejas ya resueltas, pero igual queda un rato por si hace falta
 // consultarla.
 const DIAS_ANTES_DE_BORRAR_REVISADAS = 15;
+// Cada cuánto se reintenta el evento de Calendar mientras la alerta siga
+// "enviada" (disparada, esperando revisión) y sin "👀 Revisada" hoy -- ver
+// marcarNotificacionVista en notificaciones.js. Independiente del push
+// normal y del "recordar_en_dias": esto es la insistencia rápida pedida
+// para garantizar que alguien la vea, no el recordatorio suave de días.
+const MINUTOS_ENTRE_INSISTENCIAS_CALENDAR = 30;
+const CALENDAR_EVENTS_ENDPOINT = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
 // ---- /push/subscribe: guarda la suscripción de este dispositivo ----
 export async function handlePushSubscribe(request, env, payload) {
@@ -145,6 +152,35 @@ export async function revisarYEnviarNotificaciones(env) {
 
   if (enviadas > 0) console.log(`cron_notificaciones: ${enviadas} notificación(es) enviada(s)`);
 
+  // ---- Insistencia: evento de Calendar cada 30 min mientras siga
+  // "enviada" y sin "👀 Revisada" hoy (ver tocaInsistenciaCalendario) --
+  // pedido explícito para no depender solo del push, que a veces no se
+  // nota. Pasada aparte de la de arriba: no depende de si esta corrida ya
+  // procesó la fila como recién disparada o no. ----
+  let insistencias = 0;
+  for (const fila of filas) {
+    if (!tocaInsistenciaCalendario(fila, ahora)) continue;
+
+    const destinatarios = fila.destinatario === "familia"
+      ? await todosLosEmailsConRefreshToken(env)
+      : [fila.autor];
+
+    let algunaCreada = false;
+    for (const email of destinatarios) {
+      const ok = await crearEventoCalendarInsistencia(env, email, fila, ahora);
+      if (ok) algunaCreada = true;
+    }
+    // Si nadie tiene todavía el permiso de Calendar (scope nuevo, hace
+    // falta volver a loguearse), NO se actualiza ultimo_evento_cal -- así
+    // el próximo ciclo lo vuelve a intentar en vez de esperar 30 min más
+    // por algo que nunca se creó.
+    if (algunaCreada) {
+      insistencias++;
+      await actualizarNotificacion(auth.accessToken, env, fila, { ultimo_evento_cal: ahora.toISOString() });
+    }
+  }
+  if (insistencias > 0) console.log(`cron_notificaciones: ${insistencias} insistencia(s) de Calendar creada(s)`);
+
   // Limpieza: notificaciones "cancelada" (ya revisadas) hace más de
   // DIAS_ANTES_DE_BORRAR_REVISADAS días se borran solas de la hoja. Se
   // borra de atrás para adelante (mayor _fila primero) porque borrar una
@@ -207,6 +243,107 @@ export function tocaRecordatorioDeSeguimiento(fila, ahora) {
   if (isNaN(ultimo.getTime())) return false;
   const proximo = new Date(ultimo.getTime() + dias * 86400000);
   return ahora >= proximo;
+}
+
+// ---- ¿Ya la vieron hoy? (👀 Revisada, ver marcarNotificacionVista en
+// notificaciones.js) -- compara por DÍA en UTC, no la hora exacta, mismo
+// criterio que "yaEnviadaHoy" más abajo en estaVencida. ----
+function _vistaHoy(fila, ahora) {
+  if (!fila.visto_en) return false;
+  const visto = new Date(fila.visto_en);
+  if (isNaN(visto.getTime())) return false;
+  return visto.toISOString().slice(0, 10) === ahora.toISOString().slice(0, 10);
+}
+
+// ---- ¿Toca insistir con un evento de Calendar? Solo mientras la alerta
+// siga "enviada" (disparada, esperando "✅ Realizada") Y no se haya
+// marcado "👀 Revisada" hoy. Se ritma con ultimo_evento_cal si ya insistió
+// antes, o con ultimo_envio la primera vez -- cada
+// MINUTOS_ENTRE_INSISTENCIAS_CALENDAR minutos. Exportada para pruebas
+// unitarias, igual que estaVencida/tocaRecordatorioDeSeguimiento. ----
+export function tocaInsistenciaCalendario(fila, ahora) {
+  if (fila.estado !== "enviada") return false;
+  if (_vistaHoy(fila, ahora)) return false;
+  const referencia = fila.ultimo_evento_cal || fila.ultimo_envio;
+  if (!referencia) return false;
+  const ref = new Date(referencia);
+  if (isNaN(ref.getTime())) return false;
+  return ahora.getTime() - ref.getTime() >= MINUTOS_ENTRE_INSISTENCIAS_CALENDAR * 60000;
+}
+
+// ---- Emails de la familia que ya iniciaron sesión alguna vez (tienen
+// refresh_token guardado) -- a diferencia de todosLosEmailsConSuscripcion
+// (que depende de haber activado el PUSH en al menos un dispositivo), acá
+// hace falta el token de CADA persona porque un evento de Calendar se crea
+// en SU propio calendario, no en uno compartido. ----
+async function todosLosEmailsConRefreshToken(env) {
+  const lista = await env.REFRESH_TOKENS.list();
+  return lista.keys.map((k) => k.name);
+}
+
+// ---- Access token de Calendar para una persona puntual (no "cualquiera",
+// a diferencia de obtenerAccessTokenAutonomo -- acá sí importa DE QUIÉN es,
+// porque el evento se crea en su calendario). Devuelve null si no hay
+// refresh_token guardado o si Google lo rechaza (revocado, o todavía sin
+// el scope calendar.events porque esa persona no volvió a loguearse desde
+// que se agregó -- en ese caso NO se borra el refresh_token, a diferencia
+// de /token en index.js: el token puede seguir sirviendo perfecto para
+// Sheets, solo le falta el scope nuevo). ----
+async function obtenerAccessTokenParaEmail(env, email) {
+  const refreshToken = await env.REFRESH_TOKENS.get(email);
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        refresh_token: refreshToken,
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        grant_type: "refresh_token"
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.access_token) return data.access_token;
+  } catch (e) {
+    console.log("calendario_insistencia_token_error", email, e.message);
+  }
+  return null;
+}
+
+// ---- Crea el evento de "insistencia" en el Calendar de una persona.
+// Devuelve false (sin tirar error) ante cualquier falla -- sin token
+// todavía (scope viejo), Calendar API no habilitada, cuenta sin Calendar,
+// etc. -- así una persona de la familia sin el permiso nuevo no le rompe
+// la insistencia a las demás. Sin borrado de eventos viejos (limitación
+// aceptada explícitamente): se van acumulando hasta que se revise. ----
+async function crearEventoCalendarInsistencia(env, email, fila, ahora) {
+  const accessToken = await obtenerAccessTokenParaEmail(env, email);
+  if (!accessToken) return false;
+
+  const inicio = ahora.toISOString();
+  const fin = new Date(ahora.getTime() + 15 * 60000).toISOString();
+  try {
+    const res = await fetch(CALENDAR_EVENTS_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        summary: `⏰ ${fila.titulo || "Alerta"} (sin revisar)`,
+        description: fila.mensaje || "",
+        start: { dateTime: inicio },
+        end: { dateTime: fin }
+      })
+    });
+    if (!res.ok) {
+      const cuerpo = await res.text().catch(() => "");
+      console.log("calendario_insistencia_fallo", email, res.status, cuerpo.slice(0, 200));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.log("calendario_insistencia_error", email, e.message);
+    return false;
+  }
 }
 
 // Mapeo de los tipos viejos (de antes de que existiera repetición
@@ -309,7 +446,7 @@ export async function obtenerAccessTokenAutonomo(env) {
 // Exportada además para calendario.js (mismo feed de datos, para el .ics). ----
 export async function leerNotificaciones(accessToken, env) {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:P")}?valueRenderOption=UNFORMATTED_VALUE`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(HOJA_NOTIFICACIONES + "!A2:S")}?valueRenderOption=UNFORMATTED_VALUE`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!res.ok) throw new Error(`Error leyendo Notificaciones: ${res.status}`);
@@ -321,6 +458,7 @@ export async function leerNotificaciones(accessToken, env) {
     autor: r[7] || "", estado: r[8] || "activa", ultimo_envio: r[9] || "",
     intervalo: r[10] || "", unidad: r[11] || "", gasto_fijo: r[12] || "",
     recordar_en_dias: r[13] || "", revisado_en: r[14] || "", categoria: r[15] || "",
+    url: r[16] || "", visto_en: r[17] || "", ultimo_evento_cal: r[18] || "",
     _fila: rows.indexOf(r)
   }));
 }
@@ -333,10 +471,11 @@ async function actualizarNotificacion(accessToken, env, fila, cambios) {
     cambios.estado ?? fila.estado,
     cambios.ultimo_envio ?? fila.ultimo_envio,
     fila.intervalo, fila.unidad, fila.gasto_fijo, fila.recordar_en_dias, fila.revisado_en,
-    fila.categoria
+    fila.categoria, fila.url, fila.visto_en,
+    cambios.ultimo_evento_cal ?? fila.ultimo_evento_cal
   ];
   await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:P${sheetRow}`)}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${env.SPREADSHEET_ID}/values/${encodeURIComponent(`${HOJA_NOTIFICACIONES}!A${sheetRow}:S${sheetRow}`)}?valueInputOption=RAW`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },

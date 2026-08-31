@@ -145,16 +145,23 @@ test.describe('Notificaciones (Web Push)', () => {
   });
 
   test('una alerta recurrente usa la PRÓXIMA ocurrencia real para el color, no el ancla vieja (bug real: se veía roja para siempre)', async ({ page }) => {
-    // Ancla: mismo día del mes que hoy, pero hace 2 meses -- con "cada 1
-    // mes" la próxima ocurrencia real cae justo hoy. El ancla en sí (hace
-    // 2 meses) es una fecha PASADA, así que si el color comparara contra
-    // el ancla cruda (el bug reportado) se vería roja para siempre.
+    // Ancla: hace 2 días, "cada 1 día" -- la próxima ocurrencia real cae
+    // justo hoy. El ancla en sí (hace 2 días) es una fecha PASADA, así que
+    // si el color comparara contra el ancla cruda (el bug reportado) se
+    // vería roja para siempre. Cadencia diaria a propósito, no mensual
+    // (bug real de flaky test: con "cada 1 mes" y el día crudo de "hoy",
+    // un "hoy" como el 31 de agosto retrocede 2 meses a un junio de 30
+    // días -- Date.UTC desborda a julio 1 en vez de clampear, y ADEMÁS el
+    // propio _sumarMeses de la app arrastra ese día ya clampeado mes a
+    // mes, así que ni ajustando el ancla se puede garantizar que la
+    // próxima ocurrencia caiga hoy en TODOS los días del año -- sumar
+    // días evita el problema de raíz).
     const hoy = new Date();
-    const ancla = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - 2, hoy.getUTCDate(), 10, 0, 0)).toISOString();
+    const ancla = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate() - 2, 10, 0, 0)).toISOString();
 
     await mockGoogleApis(page, {
       Notificaciones: [
-        ['N1', 'Pago mensual', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'mes'],
+        ['N1', 'Pago mensual', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'dia'],
       ],
     });
     await page.goto('/index.html');
@@ -435,10 +442,10 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#resumen-notificacion-titulo')).toHaveText('Pagar internet');
     await expect(page.locator('#resumen-notificacion-cuerpo')).toContainText('Gastos fijos');
 
-    // Ya no existe "Crear recordatorio" -- solo queda Marcar como revisada
-    // y la ✕ de cerrar.
+    // Ya no existe "Crear recordatorio" -- quedan "Revisada" (la vi, no
+    // urge), "Realizada" (ya la hice) y la ✕ de cerrar.
     await expect(page.locator('#btn-resumen-crear-recordatorio')).toHaveCount(0);
-    await expect(page.locator('#modal-resumen-notificacion button')).toHaveCount(2);
+    await expect(page.locator('#modal-resumen-notificacion button')).toHaveCount(3);
   });
 
   test('marcar como revisada ANTES de la fecha se maneja igual que si se revisa a tiempo', async ({ page }) => {
@@ -467,15 +474,17 @@ test.describe('Notificaciones (Web Push)', () => {
   });
 
   test('revisar una recurrente ANTES de su hora la saca de "Activos" el resto del día (bug real: se quedaba ahí igual)', async ({ page }) => {
-    // Ancla de hace 2 meses, "cada 1 mes" -- le toca justo hoy (mismo
-    // patrón que el test de color de arriba), pero todavía en 1 hora, no
-    // se disparó -- sigue "activa" y sin ultimo_envio.
+    // Ancla de hace 2 días, "cada 1 día" -- le toca justo hoy (mismo
+    // patrón robusto que el test de color de arriba, ver su comentario
+    // sobre por qué "cada 1 mes" con el día crudo de "hoy" es flaky),
+    // pero todavía en 1 hora, no se disparó -- sigue "activa" y sin
+    // ultimo_envio.
     const ahora = new Date();
-    const ancla = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - 2, ahora.getUTCDate(), 23, 59, 0)).toISOString();
+    const ancla = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate() - 2, 23, 59, 0)).toISOString();
 
     await mockGoogleApis(page, {
       Notificaciones: [
-        ['N10', 'Pagar arriendo', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'mes'],
+        ['N10', 'Pagar arriendo', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'dia'],
       ],
     });
     await page.goto('/index.html');

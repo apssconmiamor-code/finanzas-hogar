@@ -736,6 +736,10 @@
           <label>Texto</label>
           <input id="notif-texto" type="text" placeholder="Pagar arriendo, sacar la basura…" class="input"/>
         </div>
+        <div class="form-group">
+          <label>URL <span class="label-opcional">(opcional)</span></label>
+          <input id="notif-url" type="url" placeholder="https://…" class="input"/>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label>Repetir</label>
@@ -836,7 +840,8 @@
           <button class="modal-close" id="btn-cerrar-resumen-notificacion">✕</button>
         </div>
         <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
-        <button type="button" class="btn-primary notif-btn-ancho" id="btn-resumen-revisado">✅ Marcar como revisada</button>
+        <button type="button" class="btn-secondary notif-btn-ancho" id="btn-resumen-vista">👀 Marcar como revisada (la vi, no urge)</button>
+        <button type="button" class="btn-primary notif-btn-ancho" id="btn-resumen-revisado">✅ Marcar como realizada</button>
       </div>
     </div>
 

@@ -1,4 +1,4 @@
-import { estaVencida, tocaRecordatorioDeSeguimiento, debeQuedarEnRevision, debeBorrarsePorRevisada } from "./push.js";
+import { estaVencida, tocaRecordatorioDeSeguimiento, debeQuedarEnRevision, debeBorrarsePorRevisada, tocaInsistenciaCalendario } from "./push.js";
 
 let fallos = 0;
 function assert(desc, actual, esperado) {
@@ -121,6 +121,28 @@ assert("cancelada sin revisado_en (fila vieja) -> usa ultimo_envio como respaldo
 
 assert("cancelada sin revisado_en NI ultimo_envio -> false (no hay de dónde contar)",
   debeBorrarsePorRevisada({ estado: "cancelada", revisado_en: "", ultimo_envio: "" }, AHORA), false);
+
+// ---- insistencia de Calendar (👀 Revisada / MINUTOS_ENTRE_INSISTENCIAS_CALENDAR) ----
+assert("enviada, nunca insistió, ultimo_envio hace 31 min, no vista -> true",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-15T13:59:00Z", ultimo_evento_cal: "", visto_en: "" }, AHORA), true);
+
+assert("enviada, ultimo_envio hace solo 10 min -> false (no toca todavía)",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-15T14:20:00Z", ultimo_evento_cal: "", visto_en: "" }, AHORA), false);
+
+assert("enviada, ya insistió hace 31 min (ultimo_evento_cal manda sobre ultimo_envio) -> true",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-10T14:00:00Z", ultimo_evento_cal: "2026-08-15T13:59:00Z", visto_en: "" }, AHORA), true);
+
+assert("enviada, insistió hace solo 10 min -> false",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-10T14:00:00Z", ultimo_evento_cal: "2026-08-15T14:20:00Z", visto_en: "" }, AHORA), false);
+
+assert("enviada, vencida hace rato pero YA vista hoy -> false, no insiste más por hoy",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-15T10:00:00Z", ultimo_evento_cal: "", visto_en: "2026-08-15T11:00:00Z" }, AHORA), false);
+
+assert("enviada, vista AYER (no hoy) -> true, vuelve a insistir",
+  tocaInsistenciaCalendario({ estado: "enviada", ultimo_envio: "2026-08-15T10:00:00Z", ultimo_evento_cal: "", visto_en: "2026-08-14T11:00:00Z" }, AHORA), true);
+
+assert("estado 'activa' (todavía no se disparó) -> false, la insistencia es solo para 'enviada'",
+  tocaInsistenciaCalendario({ estado: "activa", ultimo_envio: "2026-08-15T13:00:00Z", ultimo_evento_cal: "", visto_en: "" }, AHORA), false);
 
 console.log(fallos === 0 ? "\n✅ TODO OK" : `\n❌ ${fallos} prueba(s) fallaron`);
 process.exit(fallos === 0 ? 0 : 1);
