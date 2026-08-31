@@ -71,6 +71,94 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#movimientos-list')).toContainText('3.000.000');
   });
 
+  test('Transferencia rápida: cajas origen/destino fijas al configurar, usarla solo pide el monto', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Ahorros', 'COP'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Guardar en ahorros');
+    await page.locator('#config-accion-icono').fill('🔁');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+
+    // El concepto y las cajas de gasto/ingreso se esconden; el par
+    // origen/destino aparece en su lugar.
+    await expect(page.locator('#config-accion-concepto-wrap')).toBeHidden();
+    await expect(page.locator('#config-accion-cajas-wrap')).toBeHidden();
+    await expect(page.locator('#config-accion-transferencia-wrap')).toBeVisible();
+    await page.locator('#config-accion-caja-origen').selectOption('Efectivo');
+    await page.locator('#config-accion-caja-destino').selectOption('Ahorros');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
+    await expect(slot0).toContainText('Guardar en ahorros');
+
+    // Usarla: origen/destino ya vienen fijos, no hay que elegir caja --
+    // solo se ve la referencia y se pide el monto.
+    await slot0.click();
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+    await expect(page.locator('#usar-accion-caja-wrap')).toBeHidden();
+    await expect(page.locator('#usar-accion-transferencia-info')).toBeVisible();
+    await expect(page.locator('#usar-accion-transferencia-origen')).toHaveText('Efectivo');
+    await expect(page.locator('#usar-accion-transferencia-destino')).toHaveText('Ahorros');
+    await expect(page.locator('#usar-accion-tipo-cambio-wrap')).toBeHidden();
+    await page.locator('#usar-accion-monto').fill('50000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    // Quedaron las dos patas de la transferencia, cada una en su caja.
+    const movimientos = await page.evaluate(() => Sheets.getMovimientos());
+    const salida  = movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo');
+    const entrada = movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Ahorros');
+    expect(salida).toBeDefined();
+    expect(entrada).toBeDefined();
+    expect(Math.abs(salida.monto)).toBe(50000);
+    expect(Math.abs(entrada.monto)).toBe(50000);
+  });
+
+  test('Transferencia rápida entre cajas de distinta moneda pide el tipo de cambio', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo COP', 'COP'],
+        ['C2', 'prueba@example.com', 'Cuenta USD', 'USD'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Cambio de dólares');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+    await page.locator('#config-accion-caja-origen').selectOption('Cuenta USD');
+    await page.locator('#config-accion-caja-destino').selectOption('Efectivo COP');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await expect(page.locator('#usar-accion-tipo-cambio-wrap')).toBeVisible();
+    await page.locator('#usar-accion-monto').fill('100');
+
+    // Sin tipo de cambio no deja guardar.
+    page.once('dialog', d => d.accept());
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+
+    await page.locator('#usar-accion-tipo-cambio').fill('4000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    const movimientos = await page.evaluate(() => Sheets.getMovimientos());
+    const entrada = movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo COP');
+    expect(entrada).toBeDefined();
+    expect(Math.abs(entrada.monto)).toBe(400000); // 100 USD * 4000
+  });
+
   test('se pueden agregar más de 3 acciones rápidas', async ({ page }) => {
     const nombres = ['Salario', 'Mercado', 'Salud', 'Transporte'];
     await page.locator('#fab-recordatorio').click();

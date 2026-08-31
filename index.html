@@ -947,9 +947,22 @@
           <label>¿Con qué caja?</label>
           <div id="usar-accion-caja-opciones" class="accion-caja-chips"></div>
         </div>
+        <div class="form-group hidden" id="usar-accion-transferencia-info">
+          <div class="transferencia-card">
+            <div class="transferencia-row">
+              <span id="usar-accion-transferencia-origen" class="accion-transferencia-caja"></span>
+              <div class="transferencia-arrow">→</div>
+              <span id="usar-accion-transferencia-destino" class="accion-transferencia-caja"></span>
+            </div>
+          </div>
+        </div>
         <div class="form-group">
           <input id="usar-accion-monto" type="text" inputmode="decimal" placeholder="Monto"
             class="input" style="font-size:22px;text-align:center"/>
+        </div>
+        <div class="form-group hidden" id="usar-accion-tipo-cambio-wrap">
+          <label>Tipo de cambio (1 <span id="usar-accion-tc-moneda-origen">USD</span> = ? <span id="usar-accion-tc-moneda-destino">COP</span>)</label>
+          <input id="usar-accion-tipo-cambio" type="number" inputmode="decimal" placeholder="Ej: 4200" class="input"/>
         </div>
         <div class="form-group" id="usar-accion-descripcion-wrap" style="display:none">
           <textarea id="usar-accion-descripcion" rows="2" placeholder="Detalle, notas…"
@@ -982,14 +995,29 @@
             <option value="Gasto fijo">📌 Gasto fijo</option>
             <option value="Gasto variable">🔀 Gasto variable</option>
             <option value="Ingreso">💰 Ingreso</option>
+            <option value="Transferencia">🔁 Transferencia</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="config-accion-concepto-wrap">
           <select id="config-accion-concepto" class="input"></select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="config-accion-cajas-wrap">
           <label>Caja(s) -- si eliges más de una, se elige entre esas al usar la acción</label>
           <div id="config-accion-cajas" class="accion-caja-chips"></div>
+        </div>
+        <div class="form-group hidden" id="config-accion-transferencia-wrap">
+          <label>Cajas fijas -- al usar esta acción ya no se eligen, solo se pide el monto</label>
+          <div class="transferencia-cajas-row">
+            <div class="form-group">
+              <label>Origen <span class="label-origen">(resta)</span></label>
+              <select id="config-accion-caja-origen" class="input"><option value="">Caja origen…</option></select>
+            </div>
+            <div class="transferencia-arrow">→</div>
+            <div class="form-group">
+              <label>Destino <span class="label-destino">(suma)</span></label>
+              <select id="config-accion-caja-destino" class="input"><option value="">Caja destino…</option></select>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label class="config-accion-camara-label" for="config-accion-descripcion">

@@ -824,6 +824,16 @@ function renderMenuAcciones() {
 
 function actualizarConceptoAccion() {
   const categoria = document.getElementById("config-accion-categoria").value;
+  const esTransferencia = categoria === "Transferencia";
+
+  // "Transferencia" no tiene concepto ni caja(s) a elegir -- usa origen y
+  // destino fijos (ver config-accion-transferencia-wrap), así que esos dos
+  // bloques se ocultan/muestran según la categoría elegida.
+  document.getElementById("config-accion-concepto-wrap")?.classList.toggle("hidden", esTransferencia);
+  document.getElementById("config-accion-cajas-wrap")?.classList.toggle("hidden", esTransferencia);
+  document.getElementById("config-accion-transferencia-wrap")?.classList.toggle("hidden", !esTransferencia);
+  if (esTransferencia) { poblarSelectsTransferenciaAccion(); return; }
+
   const sel = document.getElementById("config-accion-concepto");
   if (!sel) return;
   let lista = [];
@@ -831,6 +841,28 @@ function actualizarConceptoAccion() {
   else if (categoria === "Gasto variable") lista = GASTOS_VARIABLES;
   else if (categoria === "Ingreso") lista = FUENTES_INGRESO;
   sel.innerHTML = lista.map(c => `<option value="${c}">${c}</option>`).join("");
+}
+
+// Mismo respaldo de caché que poblarCajasConfigAccion, por si "cajas"
+// todavía no cargó de la red cuando se abre este modal.
+function poblarSelectsTransferenciaAccion(origenSeleccionada, destinoSeleccionada) {
+  const selOrigen  = document.getElementById("config-accion-caja-origen");
+  const selDestino = document.getElementById("config-accion-caja-destino");
+  if (!selOrigen || !selDestino) return;
+  if (typeof cajas !== "undefined" && cajas.length === 0) {
+    try {
+      const cache = localStorage.getItem("cache_cajas");
+      if (cache) cajas = JSON.parse(cache);
+    } catch {}
+  }
+  const cajasDisp = (typeof cajas !== "undefined" ? cajas : [])
+    .filter(c => cajaVisibleParaUsuario(c, currentUser?.email));
+  const opciones = (placeholder) => `<option value="">${placeholder}</option>` +
+    cajasDisp.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join("");
+  selOrigen.innerHTML  = opciones("Caja origen…");
+  selDestino.innerHTML = opciones("Caja destino…");
+  selOrigen.value  = origenSeleccionada || "";
+  selDestino.value = destinoSeleccionada || "";
 }
 
 // Multi-selección con chips (checkbox) en vez del <select> de una sola
@@ -871,6 +903,7 @@ function abrirConfigAccion(slot) {
   actualizarConceptoAccion();
   if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
   poblarCajasConfigAccion(_cajasDeAccion(accion));
+  if (accion?.categoria === "Transferencia") poblarSelectsTransferenciaAccion(accion.cajaOrigen, accion.cajaDestino);
   document.getElementById("config-accion-descripcion").checked = !!accion?.pedirDescripcion;
   document.getElementById("config-accion-camara").checked = !!accion?.camara;
 
@@ -890,23 +923,40 @@ async function guardarConfigAccion() {
   const nombre    = document.getElementById("config-accion-nombre").value.trim();
   const icono     = document.getElementById("config-accion-icono").value.trim() || "⚡";
   const categoria = document.getElementById("config-accion-categoria").value;
-  const concepto  = document.getElementById("config-accion-concepto").value;
-  const cajasElegidas = [...document.querySelectorAll("#config-accion-cajas .accion-caja-chip.active")].map(el => el.dataset.caja);
   const pedirDescripcion = document.getElementById("config-accion-descripcion").checked;
   const camara    = document.getElementById("config-accion-camara").checked;
 
-  if (!nombre || !categoria || !concepto || cajasElegidas.length === 0) {
-    alert("Completa todos los campos (elige al menos una caja)");
-    return;
-  }
-
   const btn = document.getElementById("btn-guardar-config-accion");
   const textoOriginal = btn?.textContent;
-  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
 
+  let nuevaAccion;
+  if (categoria === "Transferencia") {
+    // Origen y destino quedan fijos acá -- ya no se eligen al usar la
+    // acción (pedido explícito: solo pedir el monto en ese momento).
+    const cajaOrigen  = document.getElementById("config-accion-caja-origen").value;
+    const cajaDestino = document.getElementById("config-accion-caja-destino").value;
+    if (!nombre || !cajaOrigen || !cajaDestino) {
+      alert("Completa el nombre y las dos cajas (origen y destino)");
+      return;
+    }
+    if (cajaOrigen === cajaDestino) {
+      alert("La caja origen y destino no pueden ser la misma");
+      return;
+    }
+    nuevaAccion = { nombre, icono, categoria, cajaOrigen, cajaDestino, pedirDescripcion, camara };
+  } else {
+    const concepto = document.getElementById("config-accion-concepto").value;
+    const cajasElegidas = [...document.querySelectorAll("#config-accion-cajas .accion-caja-chip.active")].map(el => el.dataset.caja);
+    if (!nombre || !categoria || !concepto || cajasElegidas.length === 0) {
+      alert("Completa todos los campos (elige al menos una caja)");
+      return;
+    }
+    nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, pedirDescripcion, camara };
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
   try {
     const acciones = [...obtenerAccionesRapidas()];
-    const nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, pedirDescripcion, camara };
     if (accionSlotActual >= 0) acciones[accionSlotActual] = nuevaAccion;
     else acciones.push(nuevaAccion);
     await _guardarAccionesRapidas(acciones);
@@ -946,6 +996,30 @@ function abrirUsarAccion(slot, accion) {
   renderFotoAccionPreview();
   const wrapCamara = document.getElementById("usar-accion-camara-wrap");
   if (wrapCamara) wrapCamara.style.display = accion.camara ? "" : "none";
+
+  // Transferencia rápida: origen y destino ya vienen fijos desde que se
+  // configuró la acción (ver guardarConfigAccion) -- acá solo se muestran
+  // de referencia, nunca se eligen. Si las cajas tienen monedas distintas,
+  // se pide el tipo de cambio, igual que en "Nueva transferencia" (ver
+  // guardarMovimiento en app.js).
+  const esTransferencia = accion.categoria === "Transferencia";
+  document.getElementById("usar-accion-transferencia-info")?.classList.toggle("hidden", !esTransferencia);
+  const wrapTC = document.getElementById("usar-accion-tipo-cambio-wrap");
+  if (esTransferencia) {
+    document.getElementById("usar-accion-transferencia-origen").textContent = accion.cajaOrigen;
+    document.getElementById("usar-accion-transferencia-destino").textContent = accion.cajaDestino;
+    const cajaOrigen  = (typeof cajas !== "undefined" ? cajas : []).find(c => c.nombre === accion.cajaOrigen);
+    const cajaDestino = (typeof cajas !== "undefined" ? cajas : []).find(c => c.nombre === accion.cajaDestino);
+    const monedasDiferentes = cajaOrigen && cajaDestino && cajaOrigen.moneda !== cajaDestino.moneda;
+    document.getElementById("usar-accion-tipo-cambio").value = "";
+    if (wrapTC) wrapTC.classList.toggle("hidden", !monedasDiferentes);
+    if (monedasDiferentes) {
+      document.getElementById("usar-accion-tc-moneda-origen").textContent = cajaOrigen.moneda;
+      document.getElementById("usar-accion-tc-moneda-destino").textContent = cajaDestino.moneda;
+    }
+  } else if (wrapTC) {
+    wrapTC.classList.add("hidden");
+  }
 
   // Con una sola caja configurada se usa directo, sin preguntar (igual
   // que siempre). Con más de una, hay que elegir entre esas -- pedido
@@ -1015,14 +1089,27 @@ async function guardarUsarAccion() {
   const accion = obtenerAccionesRapidas()[accionSlotActual];
   if (!accion) { cerrarUsarAccion(); return; }
 
-  const cajasAccion = _cajasDeAccion(accion);
-  if (cajasAccion.length > 1 && !accionCajaElegida) { alert("Elige con qué caja"); return; }
-  const cajaElegida = accionCajaElegida || cajasAccion[0];
-  if (!cajaElegida) { alert("Esta acción no tiene ninguna caja configurada"); return; }
+  const esTransferencia = accion.categoria === "Transferencia";
+  let cajaElegida = null;
+  if (!esTransferencia) {
+    const cajasAccion = _cajasDeAccion(accion);
+    if (cajasAccion.length > 1 && !accionCajaElegida) { alert("Elige con qué caja"); return; }
+    cajaElegida = accionCajaElegida || cajasAccion[0];
+    if (!cajaElegida) { alert("Esta acción no tiene ninguna caja configurada"); return; }
+  }
 
   const montoInput = document.getElementById("usar-accion-monto");
   const monto = typeof evaluarMonto === "function" ? evaluarMonto(montoInput.value) : parseFloat(montoInput.value);
   if (!monto) { alert("Ingresa un monto"); return; }
+
+  let tipoCambio = null;
+  if (esTransferencia) {
+    const wrapTC = document.getElementById("usar-accion-tipo-cambio-wrap");
+    if (wrapTC && !wrapTC.classList.contains("hidden")) {
+      tipoCambio = parseFloat(document.getElementById("usar-accion-tipo-cambio").value);
+      if (!tipoCambio || tipoCambio <= 0) { alert("Las cajas tienen monedas diferentes. Ingresa el tipo de cambio."); return; }
+    }
+  }
 
   const descripcion = accion.pedirDescripcion
     ? (document.getElementById("usar-accion-descripcion")?.value.trim() || "")
@@ -1038,7 +1125,20 @@ async function guardarUsarAccion() {
       const { url } = await Sheets.subirArchivoDrive(accionFotoData.data, `accion-${accion.nombre}-${Date.now()}.${ext}`, accionFotoData.type);
       recibo = url;
     }
-    if (accion.categoria === "Ingreso") {
+    if (esTransferencia) {
+      const montoDestino = tipoCambio ? monto * tipoCambio : monto;
+      const descOrigen = tipoCambio
+        ? `TC: 1 = ${tipoCambio}${descripcion ? " — " + descripcion : ""}`
+        : descripcion;
+      await Sheets.agregarMovimiento(
+        currentUser.email, hoy, `Transferencia → ${accion.cajaDestino}`,
+        "Transferencia", accion.cajaOrigen, monto, descOrigen, recibo
+      );
+      await Sheets.agregarMovimientoIngreso(
+        currentUser.email, hoy, `Transferencia ← ${accion.cajaOrigen}`,
+        "Transferencia", accion.cajaDestino, montoDestino, descOrigen
+      );
+    } else if (accion.categoria === "Ingreso") {
       await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);
     } else {
       await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);

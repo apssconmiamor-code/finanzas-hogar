@@ -1069,6 +1069,14 @@ input, select, textarea, table {
    por debajo del contenido de su hijo a menos que se le diga que puede. */
 .transferencia-row .form-group { flex: 1; min-width: 0; }
 .transferencia-arrow { font-size: 20px; color: var(--text-4); padding-bottom: 12px; flex-shrink: 0; }
+/* Cajas fijas de una Transferencia rápida (ver usar-accion-transferencia-info
+   en index.html) -- solo lectura, ya vienen preconfiguradas, no hace falta
+   elegirlas de nuevo cada vez que se usa la acción. */
+.accion-transferencia-caja {
+  flex: 1; min-width: 0; text-align: center; padding: 10px 8px;
+  border-radius: var(--r-md); background: var(--surface);
+  border: 1.5px solid var(--border-mid); font-weight: 600; font-size: 14px;
+}
 .label-origen { color: var(--red); font-size: 11px; }
 .label-destino { color: var(--green-dark); font-size: 11px; }
 
