@@ -1317,16 +1317,24 @@ input, select, textarea, table {
    .alerta-bloque-card-agrupacion. */
 .notificacion-item.notificacion-item-hoy { background: rgba(52, 199, 89, 0.08); border-color: rgba(52, 199, 89, 0.3); }
 .notificacion-item.notificacion-item-pasada { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.3); }
-/* Tarjeta a propósito minimalista -- 2 filas x 2 columnas: nombre/editar
-   arriba, próximo recordatorio/eliminar abajo. El resto de la info vive
-   en el resumen (doble clic), no acá. */
-.notif-card-grid {
-  display: grid; grid-template-columns: 1fr auto; align-items: center;
-  gap: 8px 12px; padding: 14px 16px;
+/* Tarjeta a propósito minimalista -- primera fila nombre + próximo
+   recordatorio, segunda fila (solo en Activos/Pasados, ver
+   conBotonesRevisar en notificaciones.js) los botones Revisada/Realizada,
+   con el mismo estilo que Editar/Eliminar en cualquier otro módulo (sin
+   una clase de botón chica aparte). El resto de la info vive en el
+   resumen (doble clic), no acá. */
+.notif-card-grid { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.notif-card-fila-superior {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .notif-card-nombre { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
 .notif-card-icon { margin-right: 6px; }
-.notif-card-proximo { font-size: 12.5px; color: var(--text-3); }
+.notif-card-proximo { font-size: 12.5px; color: var(--text-3); white-space: nowrap; }
+.notif-card-botones { display: flex; gap: 8px; }
+.notif-card-botones .btn-secondary, .notif-card-botones .btn-primary { flex: 1; }
+/* Botón chico inline (ej. "📋 Copiar" junto a la URL en el resumen) --
+   NO se usa en las tarjetas de Activos/Pasados, esas van a tamaño normal
+   (ver .notif-card-botones arriba). */
 .notif-card-btn { font-size: 12.5px; padding: 6px 10px; white-space: nowrap; }
 .notif-btn-ancho { width: 100%; }
 .notif-btn-eliminar { color: var(--red); border-color: var(--red); }

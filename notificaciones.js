@@ -580,14 +580,15 @@ function _estadoDiaAlarma(fechaODiaISO) {
 // Una alerta cae en "Pasados" si todavía no fue aprobada (revisada) Y ya
 // pasó su fecha -- no depende de que el Worker ya haya alcanzado a marcarla
 // "enviada" (si el Cron todavía no corrió, igual cuenta con tal de que la
-// fecha ya pasó). "enviada" siempre cuenta (ya se disparó el push y sigue
-// sin revisar). Se usa tanto para armar el grupo "Pasados" como para
-// decidir si el resumen muestra el botón de "Marcar como revisada".
+// fecha ya pasó). Una "enviada" cuenta si su fecha de referencia
+// (ultimoEnvio, ver _fechaReferenciaTarjeta) es de ANTES de hoy -- si
+// sonó hoy mismo, va a "Activos" en cambio (pedido explícito: todo lo de
+// hoy, sin importar la hora, cae ahí). Se usa para armar el grupo
+// "Pasados".
 function _esPasada(n) {
-  if (n.estado === "enviada") return true;
-  if (n.estado !== "activa") return false;
-  const proxima = _proximaOcurrencia(n);
-  return !!proxima && _estadoDiaAlarma(proxima) === "pasado";
+  if (n.estado !== "activa" && n.estado !== "enviada") return false;
+  const fecha = _fechaReferenciaTarjeta(n);
+  return !!fecha && _estadoDiaAlarma(fecha) === "pasado";
 }
 
 // "👀 Revisada" (la vi, pero todavía no la hice) -- distinto de "✅
@@ -629,29 +630,37 @@ function _fechaReferenciaTarjeta(n) {
 }
 
 // Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
-// bloque) -- a propósito minimalista, solo nombre + próximo recordatorio.
-// Editar/Eliminar ya no van sueltos acá: viven en el resumen del segundo
-// toque (abrirResumenNotificacion), igual que en Proyección y Movimientos.
-// El color y la fecha mostrada usan _fechaReferenciaTarjeta (ver ese
-// comentario), no el ancla cruda -- si no, una recurrente creada hace
-// tiempo se ve "pasada" para siempre aunque esté funcionando bien.
-// soloRevisado: true dentro del bloque "Activos" -- ahí, en vez de la
-// fecha sola, se ve además un botón para confirmar que ya se atendió.
+// bloque) -- primera fila nombre + fecha, segunda fila los botones (pedido
+// explícito de diseño). Editar/Eliminar ya no van sueltos acá: viven en el
+// resumen del segundo toque (abrirResumenNotificacion) y en mantener
+// presionado, igual que en Proyección y Movimientos. El color y la fecha
+// mostrada usan _fechaReferenciaTarjeta (ver ese comentario), no el ancla
+// cruda -- si no, una recurrente creada hace tiempo se ve "pasada" para
+// siempre aunque esté funcionando bien.
+// conBotonesRevisar: true dentro de "Activos"/"Pasados" -- ahí, además de
+// la fecha, se ve una segunda fila con "👀 Revisada"/"✅ Realizada", con el
+// mismo estilo (.btn-secondary/.btn-primary) que Editar/Eliminar en
+// cualquier otro módulo -- pedido explícito, nada de un tamaño de botón
+// aparte solo para estas tarjetas.
 // icono: el mismo emoji del bloque (grupo.icono) -- pedido explícito, cada
 // fila de la lista se lee "icono - texto - próximo vencimiento".
-function renderItemNotificacion(n, soloRevisado = false, icono = "🔔") {
+function renderItemNotificacion(n, conBotonesRevisar = false, icono = "🔔") {
   const proxima = _fechaReferenciaTarjeta(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
-  const botones = soloRevisado
-    ? `<button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerup="event.stopPropagation()">👀 Revisada</button>
-        <button class="btn-secondary notif-card-btn" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Realizada</button>
-        <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`
-    : `<span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>`;
+  const botones = conBotonesRevisar
+    ? `<div class="notif-card-botones">
+        <button class="btn-secondary" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerup="event.stopPropagation()">👀 Revisada</button>
+        <button class="btn-primary" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Realizada</button>
+      </div>`
+    : "";
   return `
     <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}', event)">
       <div class="notif-card-grid">
-        <span class="notif-card-nombre"><span class="notif-card-icon">${icono}</span>${escapeHtml(n.titulo)}</span>
+        <div class="notif-card-fila-superior">
+          <span class="notif-card-nombre"><span class="notif-card-icon">${icono}</span>${escapeHtml(n.titulo)}</span>
+          <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
+        </div>
         ${botones}
       </div>
     </div>`;
@@ -749,24 +758,30 @@ function renderNotificaciones() {
   // sin importar la fecha) -- las demás siguen viéndose igual, adentro de
   // su bloque de categoría (Gastos fijos/Otros/uno propio).
   const todasActivas = notificaciones.filter(n => n.estado === "activa");
-  // Usa la PRÓXIMA ocurrencia real, no el ancla cruda -- si no, una
-  // recurrente que hoy le toca pero se creó otro día nunca contaría acá.
-  // Excluye las ya vistas hoy (ver _yaVistaHoy) -- si no, revisar una
-  // recurrente ANTES de su hora no la sacaba de acá en todo el día (bug
-  // real reportado). Sigue viéndose igual dentro de su bloque de categoría,
-  // esto solo aplica al "pendiente de hoy".
-  const activosHoy    = todasActivas.filter(n => {
+  // "Activos" = todo lo de HOY, sin importar la hora ni si ya se disparó
+  // (activa o enviada) -- pedido explícito. Usa _fechaReferenciaTarjeta
+  // (próxima ocurrencia para "activa", ultimoEnvio para "enviada" -- ver
+  // ese comentario), no el ancla cruda, así que una "enviada" que sonó hoy
+  // mismo también cuenta acá (antes solo aparecía en "Pasados", aunque
+  // fuera de hoy). Excluye las ya vistas hoy (ver _yaVistaHoy) -- si no,
+  // revisar una recurrente ANTES de su hora no la sacaba de acá en todo el
+  // día (bug real reportado). Sigue viéndose igual dentro de su bloque de
+  // categoría (esa es otra dimensión, ver comentario de arriba).
+  const activosHoy = notificaciones.filter(n => {
+    if (n.estado !== "activa" && n.estado !== "enviada") return false;
     if (_yaVistaHoy(n)) return false;
-    const proxima = _proximaOcurrencia(n);
-    return proxima && _estadoDiaAlarma(proxima) === "hoy";
+    const fecha = _fechaReferenciaTarjeta(n);
+    return fecha && _estadoDiaAlarma(fecha) === "hoy";
   });
-  // "Pasados" = no está aprobada (revisada) todavía Y ya pasó su fecha --
-  // no depende de que el Worker ya haya alcanzado a mandar el push (estado
-  // "enviada"): si por lo que sea el Cron todavía no corrió, igual cuenta
-  // acá con tal de que la fecha ya haya pasado (pedido explícito del
-  // usuario). Ya no existe un bloque "Canceladas" -- al aprobar una alerta
-  // de una sola vez se borra directo (ver marcarNotificacionRevisada), así
-  // que nunca queda una fila huérfana que mostrar ahí.
+  // "Pasados" = lo de ANTES de hoy que sigue sin aprobar (revisada) --
+  // mismo criterio de fecha que "Activos" (_fechaReferenciaTarjeta), así
+  // que lo de hoy nunca queda en las dos secciones a la vez. Una "activa"
+  // no depende de que el Worker ya haya alcanzado a mandar el push: si por
+  // lo que sea el Cron todavía no corrió, igual cuenta acá con tal de que
+  // la fecha ya haya pasado (pedido explícito del usuario). Ya no existe
+  // un bloque "Canceladas" -- al aprobar una alerta de una sola vez se
+  // borra directo (ver marcarNotificacionRevisada), así que nunca queda
+  // una fila huérfana que mostrar ahí.
   const pasados = notificaciones.filter(n => _esPasada(n));
 
   const gastosFijos = todasActivas.filter(n => n.gastoFijo);
@@ -849,6 +864,11 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
   // "Activos" es la lista de lo que le toca justo hoy -- ahí no tiene
   // sentido editar/eliminar la alerta, solo confirmar que ya se atendió.
   const esActivos = clave === "activos";
+  // Activos Y Pasados muestran los botones "👀 Revisada"/"✅ Realizada" en
+  // la tarjeta (pedido explícito: mismo estilo/comportamiento en las dos
+  // -- son las dos agrupaciones "por estado", a diferencia de los bloques
+  // por categoría, donde solo se ve la fecha).
+  const conBotonesRevisar = esActivos || clave === "pasados";
   // De la que se activa más pronto a la que se activa más tarde -- misma
   // fecha que se ve en la tarjeta (ver _fechaReferenciaTarjeta), no el
   // ancla cruda.
@@ -861,7 +881,7 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
     return fa.getTime() - fb.getTime();
   });
   const itemsHTML = itemsOrdenados.length > 0
-    ? itemsOrdenados.map(n => renderItemNotificacion(n, esActivos, grupo.icono)).join("")
+    ? itemsOrdenados.map(n => renderItemNotificacion(n, conBotonesRevisar, grupo.icono)).join("")
     : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
 
   lista.innerHTML = `

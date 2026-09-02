@@ -386,9 +386,12 @@ test.describe('Notificaciones (Web Push)', () => {
     // Ya no hay una tarjeta "Canceladas" en la cuadrícula.
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Canceladas' })).toHaveCount(0);
 
-    await abrirBloqueAlerta(page, 'Pasados');
+    // Se disparó hace 1 hora, o sea HOY -- va a "Activos" (pedido
+    // explícito: todo lo de hoy cae ahí, sin importar la hora ni si ya se
+    // disparó), no a "Pasados" (eso es solo lo de ANTES de hoy).
+    await abrirBloqueAlerta(page, 'Activos');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
-    // "Pasados" es una agrupación, no un bloque -- no se puede crear desde acá.
+    // "Activos" es una agrupación, no un bloque -- no se puede crear desde acá.
     await expect(page.locator('#btn-nueva-notificacion-bloque')).toHaveCount(0);
 
     await page.locator('.notificacion-item').dblclick();
@@ -415,7 +418,27 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Pasados' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
     await abrirBloqueAlerta(page, 'Pasados');
-    await expect(page.locator('.notificacion-item')).toContainText('Pagar arriendo');
+    const item = page.locator('.notificacion-item');
+    await expect(item).toContainText('Pagar arriendo');
+
+    // "Pasados" muestra los mismos botones Revisada/Realizada que
+    // "Activos" (pedido explícito), en segunda fila, con el estilo
+    // normal de botones (btn-secondary/btn-primary) -- no una clase
+    // chica aparte solo para esta tarjeta.
+    const botones = item.locator('.notif-card-botones');
+    await expect(botones).toBeVisible();
+    const btnVista = botones.locator('button', { hasText: 'Revisada' });
+    const btnRealizada = botones.locator('button', { hasText: 'Realizada' });
+    await expect(btnVista).toHaveClass(/btn-secondary/);
+    await expect(btnRealizada).toHaveClass(/btn-primary/);
+    await expect(btnVista).not.toHaveClass(/notif-card-btn/);
+    await expect(btnRealizada).not.toHaveClass(/notif-card-btn/);
+
+    // Primera fila: nombre + fecha juntos; los botones van en su propia
+    // fila, aparte.
+    const filaSuperior = item.locator('.notif-card-fila-superior');
+    await expect(filaSuperior).toContainText('Pagar arriendo');
+    await expect(filaSuperior.locator('.notif-card-proximo')).toBeVisible();
 
     await page.locator('.notificacion-item').dblclick();
     await expect(page.locator('#btn-resumen-revisado')).toBeVisible();
