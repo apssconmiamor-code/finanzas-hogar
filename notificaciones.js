@@ -406,6 +406,15 @@ function _siguienteCiclo(fecha, unidad, intervalo) {
 // ancla vieja. Esta función calcula la próxima fecha real (hoy si hoy le
 // toca, si no la que sigue), con la misma regla de intervalo+unidad que
 // usa el Worker para decidir si ya le tocaba disparar.
+//
+// La comparación "¿ya llegamos a hoy?" usa _diaLocal (día en hora LOCAL),
+// NO Date.UTC -- bug real reportado: con una hora de ancla nocturna (7pm
+// en adelante) revisada en la mañana, comparar por día UTC hace que el
+// día local de la ancla ya esté "un día adelantado" en UTC respecto al
+// día local de "ahora" (por el desfase de huso horario), así que el ciclo
+// se frenaba un paso antes de tiempo y la alerta quedaba mostrando el día
+// de AYER -- "Realizada" no la sacaba nunca de "Pasados" porque el
+// problema era este cálculo, no el estado.
 function _proximaOcurrencia(n, ahora = new Date()) {
   const ancla = new Date(n.fechaHora);
   if (isNaN(ancla.getTime())) return null;
@@ -413,11 +422,11 @@ function _proximaOcurrencia(n, ahora = new Date()) {
 
   const unidad = n.unidad || UNIDAD_LEGADO_NOTIF[n.tipo] || "dia";
   const intervalo = Math.max(1, parseInt(n.intervalo, 10) || 1);
-  const hoyDia = Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate());
+  const hoyDiaLocal = _diaLocal(ahora);
 
   let candidata = ancla;
   let guarda = 0; // corta cualquier caso raro en vez de colgar el navegador
-  while (Date.UTC(candidata.getUTCFullYear(), candidata.getUTCMonth(), candidata.getUTCDate()) < hoyDia && guarda < 10000) {
+  while (_diaLocal(candidata) < hoyDiaLocal && guarda < 10000) {
     candidata = _siguienteCiclo(candidata, unidad, intervalo);
     guarda++;
   }
@@ -611,6 +620,24 @@ function _yaVistaHoy(n) {
   return !!n.vistoEn && _diaLocal(n.vistoEn) === _diaLocal(new Date());
 }
 
+// Misma condición que arma el grupo "Activos" en renderNotificaciones --
+// factorizada acá para reusarla también en el badge/panel de la campanita
+// (ver _necesitaAtencion más abajo), sin duplicar la lógica.
+function _esActivaHoy(n) {
+  if (n.estado !== "activa" && n.estado !== "enviada") return false;
+  if (_yaVistaHoy(n)) return false;
+  const fecha = _fechaReferenciaTarjeta(n);
+  return !!fecha && _estadoDiaAlarma(fecha) === "hoy";
+}
+
+// Todo lo que corresponde mostrar en el badge/panel de la campanita de la
+// topbar -- unión de "Activos" (hoy) y "Pasados" (antes de hoy sin
+// revisar). Antes solo contaba "enviada" (bug real reportado: no incluía
+// lo "activa" de hoy ni lo vencido de días anteriores).
+function _necesitaAtencion(n) {
+  return _esActivaHoy(n) || _esPasada(n);
+}
+
 // Fecha que corresponde mostrar/ordenar en la tarjeta de una alerta --
 // para una "enviada" (ya se disparó, esperando revisión) es CUÁNDO se
 // disparó (ultimoEnvio), no su próxima ocurrencia futura: _proximaOcurrencia
@@ -767,12 +794,7 @@ function renderNotificaciones() {
   // revisar una recurrente ANTES de su hora no la sacaba de acá en todo el
   // día (bug real reportado). Sigue viéndose igual dentro de su bloque de
   // categoría (esa es otra dimensión, ver comentario de arriba).
-  const activosHoy = notificaciones.filter(n => {
-    if (n.estado !== "activa" && n.estado !== "enviada") return false;
-    if (_yaVistaHoy(n)) return false;
-    const fecha = _fechaReferenciaTarjeta(n);
-    return fecha && _estadoDiaAlarma(fecha) === "hoy";
-  });
+  const activosHoy = notificaciones.filter(n => _esActivaHoy(n));
   // "Pasados" = lo de ANTES de hoy que sigue sin aprobar (revisada) --
   // mismo criterio de fecha que "Activos" (_fechaReferenciaTarjeta), así
   // que lo de hoy nunca queda en las dos secciones a la vez. Una "activa"
@@ -1187,14 +1209,17 @@ async function guardarNotificacion() {
 
 // =============================================
 // BADGE + PANEL EN LA TOPBAR (mismo patrón que Recordatorios) — muestra
-// las notificaciones "enviada" (ya dispararon, esperando revisión)
+// todo lo que necesita atención: "Activos" (hoy) + "Pasados" (antes de
+// hoy sin revisar), ver _necesitaAtencion. Antes solo contaba "enviada"
+// (bug real reportado: no incluía lo "activa" de hoy ni lo vencido de
+// días anteriores que el Cron todavía no había alcanzado a marcar).
 // =============================================
 
 function renderNotificacionesBadge() {
   const btn   = document.getElementById("btn-notificaciones-badge");
   const count = document.getElementById("notificaciones-count");
   if (!btn || !count) return;
-  const porRevisar = notificaciones.filter(n => n.estado === "enviada").length;
+  const porRevisar = notificaciones.filter(n => _necesitaAtencion(n)).length;
   count.textContent = porRevisar;
   btn.classList.toggle("hidden", porRevisar === 0);
   if (porRevisar === 0) document.getElementById("notificaciones-panel")?.classList.add("hidden");
@@ -1214,28 +1239,46 @@ function renderNotificacionesPanel() {
   const panel = document.getElementById("notificaciones-panel");
   if (!panel) return;
 
-  const porRevisar = notificaciones.filter(n => n.estado === "enviada");
+  const porRevisar = notificaciones
+    .filter(n => _necesitaAtencion(n))
+    .sort((a, b) => {
+      const fa = _fechaReferenciaTarjeta(a);
+      const fb = _fechaReferenciaTarjeta(b);
+      if (!fa && !fb) return 0;
+      if (!fa) return 1;
+      if (!fb) return -1;
+      return fa.getTime() - fb.getTime();
+    });
   if (porRevisar.length === 0) {
     panel.innerHTML = `<div class="recordatorio-panel-vacio">No tienes alertas por revisar.</div>`;
     return;
   }
 
-  panel.innerHTML = porRevisar.map(n => `
+  panel.innerHTML = porRevisar.map(n => {
+    const fecha = _fechaReferenciaTarjeta(n);
+    return `
     <div class="recordatorio-item">
       <span class="recordatorio-item-icon">🔔</span>
       <div class="recordatorio-item-body">
         <div class="recordatorio-item-texto">${escapeHtml(n.titulo)}</div>
-        <div class="recordatorio-item-fecha">${n.ultimoEnvio ? _formatoFechaHoraLocal(n.ultimoEnvio) : ""}</div>
+        <div class="recordatorio-item-fecha">${fecha ? _formatoFechaHoraLocal(fecha.toISOString()) : ""}</div>
       </div>
       <button class="btn-accion" title="Revisada (la vi, no urge)" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')">👀</button>
       <button class="btn-accion" title="Realizada (ya la hice)" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
 function setupNotificacionesListeners() {
   document.getElementById("btn-notificaciones-badge")?.addEventListener("click", toggleNotificacionesPanel);
 
-  document.addEventListener("click", (e) => {
+  // pointerup, no click -- el bloqueo de zoom (touchend -> preventDefault
+  // en index.html si el toque anterior fue hace <=300ms) suprime la
+  // síntesis de click de ESE toque puntual en iOS Safari real (mismo
+  // problema ya resuelto en tapNotificacion más arriba); pointerup sí
+  // llega siempre. Bug real reportado: tocar afuera del panel (u otro
+  // botón, como el menú de los tres puntos) a veces no lo cerraba.
+  document.addEventListener("pointerup", (e) => {
     const panel = document.getElementById("notificaciones-panel");
     const btn   = document.getElementById("btn-notificaciones-badge");
     if (!panel || panel.classList.contains("hidden")) return;

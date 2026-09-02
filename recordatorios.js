@@ -167,6 +167,7 @@ function toggleRecordatoriosPanel() {
   const panel = document.getElementById("recordatorios-panel");
   if (!panel) return;
   document.getElementById("dropdown-menu")?.classList.add("hidden");
+  document.getElementById("notificaciones-panel")?.classList.add("hidden");
   const abierto = !panel.classList.contains("hidden");
   panel.classList.toggle("hidden", abierto);
   if (!abierto) renderRecordatoriosPanel();
@@ -651,8 +652,11 @@ function setupRecordatoriosListeners() {
   document.getElementById("usar-accion-camara-file")?.addEventListener("change", (e) => cargarFotoAccion(e.target.files[0]));
   document.getElementById("btn-usar-accion-camara")?.addEventListener("click", () => document.getElementById("usar-accion-camara-file")?.click());
 
-  // Cerrar el panel de recordatorios al hacer clic afuera
-  document.addEventListener("click", (e) => {
+  // Cerrar el panel de recordatorios al tocar afuera -- pointerup, no
+  // click (mismo motivo que el panel de Alertas en notificaciones.js: el
+  // bloqueo de zoom en index.html suprime la síntesis de click de un
+  // toque puntual en iOS Safari real).
+  document.addEventListener("pointerup", (e) => {
     const panel = document.getElementById("recordatorios-panel");
     const btn   = document.getElementById("btn-recordatorios-badge");
     if (!panel || panel.classList.contains("hidden")) return;

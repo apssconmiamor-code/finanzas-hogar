@@ -4499,6 +4499,10 @@ function setupTopbarMenu() {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     document.getElementById("recordatorios-panel")?.classList.add("hidden");
+    // Bug real reportado: abrir este menú (los "tres puntos") no cerraba
+    // el panel de Alertas si ya estaba abierto -- solo cerraba el de
+    // Recordatorios.
+    document.getElementById("notificaciones-panel")?.classList.add("hidden");
     const abierto = !dropdown.classList.contains("hidden");
     dropdown.classList.toggle("hidden", abierto);
     btn.setAttribute("aria-expanded", String(!abierto));

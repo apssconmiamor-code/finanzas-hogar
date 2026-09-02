@@ -782,6 +782,44 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notif-header-nota')).toBeHidden();
   });
 
+  test('el badge de la campanita cuenta Activos (hoy) Y Pasados, no solo "enviada" (bug real reportado)', async ({ page }) => {
+    const hoy730am = new Date();
+    hoy730am.setHours(7, 30, 0, 0);
+    const ayer = new Date(Date.now() - 86400000).toISOString();
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        // "activa", vence hoy -- todavía no la marcó "enviada" el Worker.
+        // Antes NO contaba para el badge (solo miraba estado "enviada").
+        ['N20', 'Agua Colibrí', '', 'unica', hoy730am.toISOString(), '', 'yo', 'prueba@example.com', 'activa', ''],
+        // "activa", vencida desde ayer -- tampoco contaba antes.
+        ['N21', 'Pagar arriendo', '', 'unica', ayer, '', 'yo', 'prueba@example.com', 'activa', ''],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await expect(page.locator('#notificaciones-count')).toHaveText('2');
+    await page.locator('#btn-notificaciones-badge').click();
+    await expect(page.locator('#notificaciones-panel')).toContainText('Agua Colibrí');
+    await expect(page.locator('#notificaciones-panel')).toContainText('Pagar arriendo');
+  });
+
+  test('abrir el menú de los "tres puntos" cierra el panel de Alertas si estaba abierto (bug real reportado)', async ({ page }) => {
+    const hoy = new Date().toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N22', 'Agua Colibrí', '', 'unica', hoy, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#btn-notificaciones-badge').click();
+    await expect(page.locator('#notificaciones-panel')).toBeVisible();
+
+    await page.locator('#btn-menu').click();
+    await expect(page.locator('#notificaciones-panel')).toBeHidden();
+  });
+
   test('"Ver en el Calendario" pide el link al Worker con el sessionToken y lo abre', async ({ page }) => {
     await mockGoogleApis(page);
     await page.addInitScript(() => {
@@ -826,5 +864,48 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirNotificaciones(page);
 
     await expect(page.locator('#btn-suscribir-calendario')).toBeHidden();
+  });
+});
+
+// Bug real reportado: "limpieza de axila" (cada 1 día, hora nocturna)
+// seguía en "Pasados" sin importar cuántas veces se marcara "Realizada".
+// La causa no era el estado -- era que _proximaOcurrencia comparaba el
+// día por UTC en vez de por hora local: con una ancla nocturna (7pm en
+// adelante) revisada en la mañana, el día UTC de la ancla ya estaba "un
+// día adelantado" respecto al día UTC de "ahora" por el desfase de huso
+// horario, así que el cálculo se frenaba un ciclo antes de tiempo y
+// mostraba el día de AYER. Zona horaria fija acá (América/Bogotá, UTC-5)
+// para que el test sea determinístico sin importar en qué huso corra la
+// máquina que ejecuta los tests.
+test.describe('Notificaciones -- zona horaria', () => {
+  test.use({ timezoneId: 'America/Bogota' });
+
+  test.beforeEach(async ({ page }) => {
+    await iniciarSesionFalsa(page);
+  });
+
+  test('una recurrente con hora nocturna (10pm) no queda mal clasificada como "pasada" al revisarla en la mañana', async ({ page }) => {
+    // Ancla: hace 6 días, a las 22:00 hora Colombia, "cada 1 día" -- le
+    // toca HOY sin importar a qué hora del día corra este test.
+    const ancla = await page.evaluate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      d.setHours(22, 0, 0, 0);
+      return d.toISOString();
+    });
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N30', 'Limpieza de axila', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'activa', '', '1', 'dia'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Pasados' }).locator('.alerta-bloque-cantidad')).toHaveCount(0);
+    await expect(page.locator('.alerta-bloque-card', { hasText: 'Activos' }).locator('.alerta-bloque-cantidad')).toHaveText('1');
+    await abrirBloqueAlerta(page, 'Activos');
+    await expect(page.locator('.notificacion-item')).toContainText('Limpieza de axila');
   });
 });
