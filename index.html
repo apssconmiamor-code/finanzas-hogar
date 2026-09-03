@@ -189,6 +189,9 @@
             <button class="dropdown-item" data-tab-nav="notificaciones">
               <span class="dd-icon">🔔</span> Alertas
             </button>
+            <button class="dropdown-item" data-tab-nav="planes">
+              <span class="dd-icon">✈️</span> Planes
+            </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="dd-logout">
               <span class="dd-icon">🚪</span> Cerrar sesión
@@ -499,6 +502,11 @@
           <p class="notif-header-nota" id="notif-header-nota">Cada dispositivo (teléfono, computador) necesita activarlas por su cuenta una sola vez.</p>
           <div id="notificaciones-list"><div class="loading-state">Cargando…</div></div>
         </div>
+      </section>
+
+      <!-- ══ TAB: PLANES ══ -->
+      <section id="tab-planes" class="tab-section hidden">
+        <div id="planes-list"><div class="loading-state">Cargando…</div></div>
       </section>
 
       <!-- ══ TAB: MERCADO ══ -->
@@ -845,6 +853,77 @@
       </div>
     </div>
 
+    <!-- ═══════════ PLANES ═══════════ -->
+
+    <!-- Modal: nueva categoría de Planes -->
+    <div id="modal-bloque-plan" class="modal hidden">
+      <div class="modal-card" style="max-width:380px">
+        <h3 class="modal-title">Nueva categoría</h3>
+        <p class="modal-subtitle">Agrupa tus planes como quieras — solo lo ves vos en este dispositivo.</p>
+        <div class="form-group">
+          <input id="bloque-plan-nombre" type="text" placeholder="Ej: Restaurantes, Viajes…" class="input" maxlength="30"/>
+        </div>
+        <div class="form-group">
+          <input id="bloque-plan-icono" type="text" placeholder="Ícono (ej: 🍽️)" class="input" maxlength="4"/>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-bloque-plan">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-bloque-plan">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: nuevo/editar plan -->
+    <div id="modal-plan" class="modal hidden">
+      <div class="modal-card">
+        <h3 class="modal-title">Nuevo plan</h3>
+        <div class="form-group">
+          <label>Nombre</label>
+          <input id="plan-nombre" type="text" placeholder="Ej: Cena en La Provincia" class="input"/>
+        </div>
+        <div class="form-group">
+          <label>Ubicación <span class="label-opcional">(opcional)</span></label>
+          <input id="plan-ubicacion" type="text" placeholder="Ej: Cali, Centro" class="input"/>
+        </div>
+        <div class="form-group">
+          <label>Fecha <span class="label-opcional">(opcional)</span></label>
+          <input id="plan-fecha" type="date" class="input"/>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <div class="accion-caja-chips">
+            <button type="button" class="accion-caja-chip active" id="plan-tipo-gratis">🆓 Gratis</button>
+            <button type="button" class="accion-caja-chip" id="plan-tipo-pago">💰 Pago</button>
+          </div>
+        </div>
+        <div class="form-group hidden" id="plan-inversion-row">
+          <label>Inversión</label>
+          <input id="plan-inversion" type="text" inputmode="decimal" placeholder="Monto" class="input"/>
+        </div>
+        <div class="form-group hidden" id="plan-bloque-row">
+          <label>Categoría</label>
+          <select id="plan-bloque" class="input"></select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-cancelar-plan">Cancelar</button>
+          <button class="btn-primary" id="btn-guardar-plan">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: resumen de un plan (doble toque sobre su tarjeta) -- solo
+         lectura. Editar/Eliminar viven en el menú de mantener presionado
+         (gestos.js), no acá -- mismo criterio que Alertas. -->
+    <div id="modal-resumen-plan" class="modal hidden">
+      <div class="modal-card" style="max-height:75vh">
+        <div class="modal-header">
+          <span class="modal-title" id="resumen-plan-titulo"></span>
+          <button class="modal-close" id="btn-cerrar-resumen-plan">✕</button>
+        </div>
+        <div id="resumen-plan-cuerpo" class="detalle-notif-cuerpo"></div>
+      </div>
+    </div>
+
     <!-- Modal pago rápido -->
     <div id="modal-pago-rapido" class="modal hidden">
       <div class="modal-card">
@@ -1076,6 +1155,7 @@
   <script src="mercado.js"></script>
   <script src="recordatorios.js"></script>
   <script src="notificaciones.js"></script>
+  <script src="planes.js"></script>
   <script src="badge.js"></script>
   <script src="app.js"></script>
   <script src="sw-register.js"></script>

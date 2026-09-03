@@ -1135,6 +1135,7 @@ function navegarATab(tab) {
     if (sec) sec.classList.remove("hidden");
     if (tab === "compromisos") { cargarPrestamos(); cargarCompras(); }
     if (tab === "notificaciones") cargarNotificaciones();
+    if (tab === "planes" && typeof cargarPlanes === "function") cargarPlanes();
     if (tab === "mercado" && typeof cargarMercado === "function") cargarMercado();
     if (tab === "resumen") renderResumen();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
@@ -1652,7 +1653,8 @@ async function _cargarTodoInterno(reintentando) {
       cargarProyeccion(),
       cargarPrestamos(),
       typeof cargarAccionesRapidas === "function" ? cargarAccionesRapidas() : Promise.resolve(),
-      typeof cargarBloquesAlertas === "function" ? cargarBloquesAlertas() : Promise.resolve()
+      typeof cargarBloquesAlertas === "function" ? cargarBloquesAlertas() : Promise.resolve(),
+      typeof cargarBloquesPlanes === "function" ? cargarBloquesPlanes() : Promise.resolve()
     ]);
     await verificarYGuardarCronologia();
     await cargarYRenderCronologia();
@@ -4765,7 +4767,7 @@ function renderResumen() {
 const TAB_TITLES = {
   cajas: "Cuentas", movimientos: "Ingresos / Gastos", proyeccion: "Proyección",
   compromisos: "Compromisos", notificaciones: "Alertas", mercado: "Mercado",
-  resumen: "Análisis"
+  planes: "Planes", resumen: "Análisis"
 };
 
 function actualizarTopbarTitulo(tab) {

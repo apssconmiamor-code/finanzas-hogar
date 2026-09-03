@@ -1,0 +1,242 @@
+// Módulo Planes: lista de ideas/lugares para salir o viajar (sin
+// seguimiento de hecho/pendiente, a diferencia de Alertas). Mismo estilo
+// que Alertas -- cuadrícula de categorías (creadas por el usuario, más
+// "Otros" fija para lo sin categoría) + "Agregar categoría"; un plan solo
+// se puede crear DESDE una categoría, y guarda nombre, ubicación, fecha,
+// tipo (gratis/pago) e inversión (si es de pago).
+const { test, expect } = require('@playwright/test');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+
+async function abrirPlanes(page) {
+  const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
+  await btnMenu.click();
+  await page.locator('[data-tab-nav="planes"]').click();
+  await expect(page.locator('#tab-planes')).toBeVisible();
+}
+
+// Escopado a #planes-list a propósito: .alerta-bloque-card/.notificacion-item
+// son clases compartidas con Alertas, y cargarNotificaciones() se llama
+// una vez al arrancar la app (para el badge de la campanita) sin importar
+// qué pestaña esté activa -- sin este scope, un "Otros" también presente
+// en #notificaciones-list (oculto, pero igual en el DOM) rompe el modo
+// estricto de Playwright (2 elementos con el mismo texto).
+function listaPlanes(page) {
+  return page.locator('#planes-list');
+}
+
+async function abrirCategoriaPlan(page, nombre) {
+  await listaPlanes(page).locator('.alerta-bloque-card', { hasText: nombre }).click();
+}
+
+test.describe('Planes', () => {
+  test.beforeEach(async ({ page }) => {
+    await iniciarSesionFalsa(page);
+  });
+
+  test('la cuadrícula trae fija "Otros" más "Agregar categoría", sin ninguna categoría del usuario', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Otros' })).toBeVisible();
+    await expect(page.locator('#btn-nueva-categoria-plan')).toBeVisible();
+    await expect(listaPlanes(page).locator('.alerta-bloque-card[data-clave^="bloque_"]')).toHaveCount(0);
+  });
+
+  test('crear una categoría nueva y un plan adentro -- gratis no pide inversión', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await page.locator('#btn-nueva-categoria-plan').click();
+    await expect(page.locator('#modal-bloque-plan')).toBeVisible();
+    await page.locator('#bloque-plan-nombre').fill('Restaurantes');
+    await page.locator('#bloque-plan-icono').fill('🍽️');
+    await page.locator('#btn-guardar-bloque-plan').click();
+    await expect(page.locator('#modal-bloque-plan')).toBeHidden();
+
+    const card = listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Restaurantes' });
+    await expect(card).toBeVisible();
+    await card.click();
+
+    await expect(page.locator('#modal-plan')).toBeHidden();
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await expect(page.locator('#modal-plan')).toBeVisible();
+    // Al crear (a diferencia de editar) no se ve el selector de categoría --
+    // ya viene decidida por el bloque desde el que se creó.
+    await expect(page.locator('#plan-bloque-row')).toBeHidden();
+    // Gratis es el tipo por defecto -- la inversión no se pide.
+    await expect(page.locator('#plan-inversion-row')).toBeHidden();
+
+    await page.locator('#plan-nombre').fill('Cena en La Provincia');
+    await page.locator('#plan-ubicacion').fill('Cali, Centro');
+    await page.locator('#plan-fecha').fill('2026-12-24');
+    await page.locator('#btn-guardar-plan').click();
+    await expect(page.locator('#modal-plan')).toBeHidden();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await expect(item).toContainText('Cena en La Provincia');
+    await expect(item).toContainText('Cali, Centro');
+    await expect(item).toContainText('Gratis');
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes).toHaveLength(1);
+    expect(planes[0]).toMatchObject({
+      nombre: 'Cena en La Provincia', ubicacion: 'Cali, Centro', fecha: '2026-12-24',
+      tipo: 'gratis', categoria: 'Restaurantes'
+    });
+  });
+
+  test('tipo "Pago" pide la inversión y la guarda', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await page.locator('#btn-nueva-categoria-plan').click();
+    await page.locator('#bloque-plan-nombre').fill('Viajes');
+    await page.locator('#btn-guardar-bloque-plan').click();
+    await abrirCategoriaPlan(page, 'Viajes');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+
+    await page.locator('#plan-nombre').fill('Cartagena');
+    await page.locator('#plan-tipo-pago').click();
+    await expect(page.locator('#plan-inversion-row')).toBeVisible();
+    await page.locator('#plan-inversion').fill('1500000');
+    await page.locator('#btn-guardar-plan').click();
+    await expect(page.locator('#modal-plan')).toBeHidden();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await expect(item).toContainText('Pago');
+    await expect(item).toContainText('1.500.000');
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].tipo).toBe('pago');
+    expect(Number(planes[0].inversion)).toBe(1500000);
+  });
+
+  test('un plan sin categoría (creado desde "Otros") cae en "Otros"', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Alguna idea suelta');
+    await page.locator('#btn-guardar-plan').click();
+    await expect(page.locator('#modal-plan')).toBeHidden();
+
+    await expect(listaPlanes(page).locator('.notificacion-item')).toContainText('Alguna idea suelta');
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].categoria).toBe('');
+  });
+
+  test('doble toque abre el resumen de solo lectura; mantener presionado abre Editar/Eliminar', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Eje Cafetero');
+    await page.locator('#plan-ubicacion').fill('Salento');
+    await page.locator('#plan-tipo-pago').click();
+    await page.locator('#plan-inversion').fill('300000');
+    await page.locator('#btn-guardar-plan').click();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await item.dblclick();
+    await expect(page.locator('#modal-resumen-plan')).toBeVisible();
+    await expect(page.locator('#resumen-plan-titulo')).toHaveText('Eje Cafetero');
+    await expect(page.locator('#resumen-plan-cuerpo')).toContainText('Salento');
+    await expect(page.locator('#resumen-plan-cuerpo')).toContainText('300.000');
+    await page.locator('#btn-cerrar-resumen-plan').click();
+    await expect(page.locator('#modal-resumen-plan')).toBeHidden();
+
+    // Mantener presionado (pointerdown + esperar + pointerup) abre
+    // Editar/Eliminar, no el resumen.
+    const box = await item.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await expect(page.locator('#modal-resumen-plan')).toBeHidden();
+    await page.locator('#btn-editar-borrar-editar').click();
+
+    await expect(page.locator('#modal-plan')).toBeVisible();
+    await expect(page.locator('#plan-bloque-row')).toBeVisible(); // al editar sí se ve la categoría
+    await expect(page.locator('#plan-nombre')).toHaveValue('Eje Cafetero');
+    await expect(page.locator('#plan-inversion-row')).toBeVisible();
+    await expect(page.locator('#plan-inversion')).toHaveValue('300000');
+  });
+
+  test('borrar un plan (desde mantener presionado) lo quita de la lista', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Idea a borrar');
+    await page.locator('#btn-guardar-plan').click();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    const box = await item.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    page.once('dialog', d => d.accept());
+    await page.locator('#btn-editar-borrar-eliminar').click();
+    await expect(listaPlanes(page).locator('.notificacion-item')).toHaveCount(0);
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes).toHaveLength(0);
+  });
+
+  test('borrar una categoría no borra los planes que tenía -- pasan a "Otros"', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await page.locator('#btn-nueva-categoria-plan').click();
+    await page.locator('#bloque-plan-nombre').fill('Cine');
+    await page.locator('#btn-guardar-bloque-plan').click();
+    await abrirCategoriaPlan(page, 'Cine');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Estreno de diciembre');
+    await page.locator('#btn-guardar-plan').click();
+    await expect(listaPlanes(page).locator('.notificacion-item')).toHaveCount(1);
+
+    page.once('dialog', d => d.accept());
+    await listaPlanes(page).locator('.notif-btn-borrar-bloque').click();
+
+    // Vuelve solo a la cuadrícula -- "Cine" ya no existe.
+    await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Cine' })).toHaveCount(0);
+    await abrirCategoriaPlan(page, 'Otros');
+    await expect(listaPlanes(page).locator('.notificacion-item')).toContainText('Estreno de diciembre');
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].categoria).toBe('Cine'); // el dato del plan no se toca, solo cambia dónde cae visualmente
+  });
+
+  test('una categoría configurada en otro dispositivo carga igual acá (sincronizada por Sheets)', async ({ page }) => {
+    await mockGoogleApis(page, {
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'planes_bloques', JSON.stringify([{ nombre: 'Playas', icono: '🏖️' }])]],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Playas' })).toBeVisible();
+  });
+});

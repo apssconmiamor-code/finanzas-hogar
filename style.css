@@ -1345,6 +1345,20 @@ input, select, textarea, table {
 }
 #recordatorio-categoria-badge { align-self: flex-start; }
 
+/* Tarjeta de un plan (ver renderItemPlan en planes.js) -- tag Gratis/Pago
+   arriba junto al nombre, ubicación/fecha/inversión abajo en una fila
+   chica de texto secundario. */
+.plan-tag {
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.plan-tag-gratis { background: var(--green-soft); color: var(--green-dark); }
+.plan-tag-pago   { background: var(--amber-soft); color: var(--amber-dark); }
+.plan-card-detalle {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: 12.5px; color: var(--text-3);
+}
+
 /* Resumen de una alerta (doble clic) -- mismo patrón de fila
    etiqueta/valor que otros resúmenes de solo lectura de la app. */
 .detalle-notif-cuerpo { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
