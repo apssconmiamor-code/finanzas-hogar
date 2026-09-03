@@ -223,6 +223,66 @@ test.describe('Planes', () => {
     await expect(page.locator('#plan-inversion')).toHaveValue('300000');
   });
 
+  test('"Sin reserva" es el valor por defecto -- la tarjeta no dice nada al respecto', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await expect(page.locator('#plan-reserva-no')).toHaveClass(/active/);
+    await page.locator('#plan-nombre').fill('Paseo improvisado');
+    await page.locator('#btn-guardar-plan').click();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await expect(item).toContainText('Paseo improvisado');
+    await expect(item).not.toContainText('reserva', { ignoreCase: true });
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].reserva).toBe('no');
+  });
+
+  test('"Con reserva" se guarda y se ve en la tarjeta y el resumen', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Concierto');
+    await page.locator('#plan-reserva-si').click();
+    await page.locator('#btn-guardar-plan').click();
+
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await expect(item).toContainText('Con reserva');
+    await item.dblclick();
+    await expect(page.locator('#resumen-plan-cuerpo')).toContainText('Con reserva');
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].reserva).toBe('si');
+  });
+
+  test('la URL del resumen es un link tocable que abre en pestaña nueva', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Con reserva online');
+    await page.locator('#plan-url').fill('https://reservas.example.com/mesa/123');
+    await page.locator('#btn-guardar-plan').click();
+
+    await listaPlanes(page).locator('.notificacion-item').dblclick();
+    const link = page.locator('#resumen-plan-cuerpo a.detalle-notif-url-texto');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', 'https://reservas.example.com/mesa/123');
+    await expect(link).toHaveAttribute('target', '_blank');
+  });
+
   test('borrar un plan (desde mantener presionado) lo quita de la lista', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');
@@ -316,6 +376,34 @@ test.describe('Planes', () => {
     // El caducado no solo desaparece de la vista -- se borró de verdad.
     const planesRestantes = await page.evaluate(() => Sheets.getPlanes());
     expect(planesRestantes.map(p => p.nombre).sort()).toEqual(['Más cercano', 'Más lejano']);
+  });
+
+  test('planes creados con el esquema viejo (antes de fecha_fin/url) se reparan solos al cargar (bug real reportado)', async ({ page }) => {
+    // Fila cruda tal como quedó grabada ANTES de que existiera fecha_fin/url
+    // -- 8 columnas: id, nombre, ubicacion, fecha, tipo, inversion, categoria, autor.
+    // Sin la reparación, fecha_fin se leería "pago" (bug real: la columna
+    // nueva se insertó en el medio, no al final, corriendo los datos).
+    await mockGoogleApis(page, {
+      Planes: [['P1', 'Viaje viejo', 'Cartagena', '2026-12-01', 'pago', '500000', 'Viajes', 'prueba@example.com']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes).toHaveLength(1);
+    expect(planes[0]).toMatchObject({
+      nombre: 'Viaje viejo', ubicacion: 'Cartagena',
+      fechaInicio: '2026-12-01', fechaFin: '',
+      tipo: 'pago', inversion: '500000', categoria: 'Viajes', autor: 'prueba@example.com'
+    });
+
+    // Sin bloque "Viajes" creado, cae en "Otros" -- pero con los datos ya
+    // bien, no con "pago" mostrándose como si fuera una fecha.
+    await abrirCategoriaPlan(page, 'Otros');
+    const item = listaPlanes(page).locator('.notificacion-item');
+    await expect(item).toContainText('Pago');
+    await expect(item).toContainText('500.000');
   });
 
   test('un plan sin ninguna fecha nunca caduca', async ({ page }) => {

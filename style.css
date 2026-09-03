@@ -1378,6 +1378,11 @@ input, select, textarea, table {
 .detalle-notif-url-texto {
   font-weight: 400; color: var(--text-3); word-break: break-all;
 }
+/* Cuando sí es un link tocable (ver _esUrlSegura en notificaciones.js --
+   solo http(s), nunca "javascript:" u otro esquema) se ve como tal: color
+   de acento y subrayado, para que quede claro que toca navega, no solo
+   selecciona texto. */
+a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
 
 /* Encabezado de la lista de movimientos reales debajo de Categoría/
    Estimado/Real en el resumen de un concepto de Proyección (segundo

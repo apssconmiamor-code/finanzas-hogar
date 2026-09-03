@@ -820,6 +820,38 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notificaciones-panel')).toBeHidden();
   });
 
+  test('la URL guardada en una alerta es un link tocable en el resumen (pedido explícito: que lleve a la URL al tocarla)', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      Notificaciones: [['N23', 'Pagar Emcali', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    await abrirBloqueAlerta(page, 'Otros');
+    await page.locator('.notificacion-item').dblclick();
+    await expect(page.locator('#btn-resumen-copiar-url')).toHaveCount(0); // sin URL, no hay nada que mostrar
+    await page.locator('#btn-cerrar-resumen-notificacion').click();
+
+    // Edita la alerta para agregarle la URL (mantener presionado -> Editar).
+    const item = page.locator('.notificacion-item');
+    const box = await item.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await page.locator('#btn-editar-borrar-editar').click();
+    await page.locator('#notif-url').fill('https://emcali.example.com/factura/1');
+    await page.locator('#btn-guardar-notificacion').click();
+
+    await page.locator('.notificacion-item').dblclick();
+    const link = page.locator('#resumen-notificacion-cuerpo a.detalle-notif-url-texto');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', 'https://emcali.example.com/factura/1');
+    await expect(link).toHaveAttribute('target', '_blank');
+  });
+
   test('"Ver en el Calendario" pide el link al Worker con el sessionToken y lo abre', async ({ page }) => {
     await mockGoogleApis(page);
     await page.addInitScript(() => {

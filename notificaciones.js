@@ -716,6 +716,14 @@ async function _copiarUrlAlAportapapeles(url) {
   }
 }
 
+// Solo http(s) -- evita que una URL guardada con esquema "javascript:" (o
+// cualquier otro) se ejecute al tocarla en vez de simplemente navegar.
+// Si no es segura, la URL se sigue mostrando (y se puede copiar), pero
+// sin convertirla en link tocable.
+function _esUrlSegura(url) {
+  return /^https?:\/\//i.test(url || "");
+}
+
 // ---- Resumen de una alerta (doble clic sobre su tarjeta) ----
 function abrirResumenNotificacion(id) {
   const n = notificaciones.find(x => x.id === id);
@@ -748,7 +756,9 @@ function abrirResumenNotificacion(id) {
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">URL</span>
         <span class="detalle-notif-valor detalle-notif-valor-url">
-          <span class="detalle-notif-url-texto">${escapeHtml(n.url)}</span>
+          ${_esUrlSegura(n.url)
+            ? `<a class="detalle-notif-url-texto" href="${escapeAttr(n.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(n.url)}</a>`
+            : `<span class="detalle-notif-url-texto">${escapeHtml(n.url)}</span>`}
           <button type="button" class="btn-secondary notif-card-btn" id="btn-resumen-copiar-url">📋 Copiar</button>
         </span>
       </div>` : "");
