@@ -1086,6 +1086,19 @@ function cerrarPantallaActual() {
       return true;
     }
   }
+  // Detalle de una categoría de Planes (ver planes.js) -- mismo criterio
+  // que el bloque de Alertas/Mercado de arriba (bug real reportado: el
+  // botón "‹" no hacía nada porque esta función no sabía de Planes).
+  if (typeof bloquePlanAbierto !== "undefined" && bloquePlanAbierto) {
+    const listaPlanes = document.getElementById("planes-list");
+    if (listaPlanes) {
+      animarYCerrar(listaPlanes, () => {
+        bloquePlanAbierto = null;
+        if (typeof renderPlanes === "function") renderPlanes();
+      });
+      return true;
+    }
+  }
   return false;
 }
 

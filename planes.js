@@ -3,9 +3,14 @@
 // =============================================
 // Hoja "Planes" en Google Sheets (se crea sola, mismo patrón que
 // Notificaciones/Recordatorios):
-// A: id | B: nombre | C: ubicacion | D: fecha (YYYY-MM-DD, opcional) |
-// E: tipo (gratis/pago) | F: inversion (monto, solo si tipo=pago) |
-// G: categoria (bloque, ver bloquesPlanes más abajo) | H: autor
+// A: id | B: nombre | C: ubicacion | D: fecha_inicio (YYYY-MM-DD, opcional) |
+// E: fecha_fin (YYYY-MM-DD, opcional -- puede ir sola si el plan dura un
+//    rango, o vacía si fecha_inicio es un día puntual) | F: tipo
+//    (gratis/pago) | G: inversion (monto, solo si tipo=pago) |
+// H: categoria (bloque, ver bloquesPlanes más abajo) | I: autor |
+// J: url (opcional) — link del documento/reserva, con botón de copiar en
+//    el resumen (mismo patrón que Alertas, ver _copiarUrlAlAportapapeles
+//    en notificaciones.js).
 //
 // A propósito SIN estado ni fecha/hora obligatoria como Alertas -- esto es
 // una lista de ideas/deseos (pedido explícito: "lista de ideas/lugares",
@@ -40,7 +45,7 @@ Sheets._asegurarHojaPlanes = async function () {
       {
         method: "PUT",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [["id", "nombre", "ubicacion", "fecha", "tipo", "inversion", "categoria", "autor"]] })
+        body: JSON.stringify({ values: [["id", "nombre", "ubicacion", "fecha_inicio", "fecha_fin", "tipo", "inversion", "categoria", "autor", "url"]] })
       }
     );
   }
@@ -49,28 +54,30 @@ Sheets._asegurarHojaPlanes = async function () {
 
 Sheets.getPlanes = async function () {
   await this._asegurarHojaPlanes();
-  const rows = await this.leer(`${CONFIG.SHEETS.PLANES}!A2:H`);
+  const rows = await this.leer(`${CONFIG.SHEETS.PLANES}!A2:J`);
   return rows.filter(r => r && r[0]).map(r => ({
-    id:         r[0] || "",
-    nombre:     r[1] || "",
-    ubicacion:  r[2] || "",
-    fecha:      r[3] || "",
-    tipo:       r[4] || "gratis",
-    inversion:  r[5] || "",
-    categoria:  r[6] || "",
-    autor:      r[7] || ""
+    id:           r[0] || "",
+    nombre:       r[1] || "",
+    ubicacion:    r[2] || "",
+    fechaInicio:  r[3] || "",
+    fechaFin:     r[4] || "",
+    tipo:         r[5] || "gratis",
+    inversion:    r[6] || "",
+    categoria:    r[7] || "",
+    autor:        r[8] || "",
+    url:          r[9] || ""
   }));
 };
 
-Sheets.agregarPlan = async function (nombre, ubicacion, fecha, tipo, inversion, categoria, autor) {
+Sheets.agregarPlan = async function (nombre, ubicacion, fechaInicio, fechaFin, tipo, inversion, categoria, autor, url) {
   await this._asegurarHojaPlanes();
   const id = "P" + Date.now();
-  await this.agregar(CONFIG.SHEETS.PLANES, [id, nombre, ubicacion || "", fecha || "", tipo || "gratis", inversion || "", categoria || "", autor || ""]);
+  await this.agregar(CONFIG.SHEETS.PLANES, [id, nombre, ubicacion || "", fechaInicio || "", fechaFin || "", tipo || "gratis", inversion || "", categoria || "", autor || "", url || ""]);
   return id;
 };
 
 Sheets.editarPlan = async function (id, campos) {
-  const rows = await this.leer(`${CONFIG.SHEETS.PLANES}!A2:H`);
+  const rows = await this.leer(`${CONFIG.SHEETS.PLANES}!A2:J`);
   const rowIndex = rows.findIndex(r => r[0] === id);
   if (rowIndex === -1) throw new Error("Plan no encontrado");
   const sheetRow = rowIndex + 2;
@@ -79,13 +86,15 @@ Sheets.editarPlan = async function (id, campos) {
     id,
     campos.nombre ?? actual[1],
     campos.ubicacion ?? actual[2] ?? "",
-    campos.fecha ?? actual[3] ?? "",
-    campos.tipo ?? actual[4],
-    campos.inversion ?? actual[5] ?? "",
-    campos.categoria ?? actual[6] ?? "",
-    actual[7] || ""
+    campos.fechaInicio ?? actual[3] ?? "",
+    campos.fechaFin ?? actual[4] ?? "",
+    campos.tipo ?? actual[5],
+    campos.inversion ?? actual[6] ?? "",
+    campos.categoria ?? actual[7] ?? "",
+    actual[8] || "",
+    campos.url ?? actual[9] ?? ""
   ];
-  const range = `${CONFIG.SHEETS.PLANES}!A${sheetRow}:H${sheetRow}`;
+  const range = `${CONFIG.SHEETS.PLANES}!A${sheetRow}:J${sheetRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
@@ -155,12 +164,37 @@ async function cargarPlanes() {
   try {
     planes = await Sheets.getPlanes();
     localStorage.setItem(_planesCacheKey(), JSON.stringify(planes));
+    await _borrarPlanesCaducados();
   } catch (err) {
     if (err.message === "TOKEN_EXPIRADO") return;
     const cache = localStorage.getItem(_planesCacheKey());
     if (cache) { try { planes = JSON.parse(cache); } catch { planes = []; } }
   }
   renderPlanes();
+}
+
+// Un plan "caduca" el día después de su fecha de referencia (fin, o
+// inicio si no tiene fin) -- pedido explícito: los vencidos se borran
+// solos, sin que nadie los tenga que revisar a mano (a diferencia de
+// Alertas, acá no hay "Realizada"). Los que todavía no tienen ninguna
+// fecha (una idea sin definir) nunca caducan. Compara por día LOCAL, no
+// UTC -- mismo criterio que _estadoDiaAlarma en notificaciones.js (ver
+// ese comentario: comparar por UTC desalinea la fecha cerca de la
+// medianoche según el huso horario).
+function _planCaducado(p) {
+  const fechaRef = p.fechaFin || p.fechaInicio;
+  if (!fechaRef) return false;
+  return _estadoDiaAlarma(fechaRef + "T00:00:00") === "pasado";
+}
+
+async function _borrarPlanesCaducados() {
+  const caducados = planes.filter(_planCaducado);
+  if (caducados.length === 0) return;
+  for (const p of caducados) {
+    try { await Sheets.borrarPlan(p.id); } catch (err) { console.log("plan_caducado_borrar_error", p.id, err.message); }
+  }
+  planes = planes.filter(p => !caducados.includes(p));
+  localStorage.setItem(_planesCacheKey(), JSON.stringify(planes));
 }
 
 function _normalizarBloquesPlanes(arr) {
@@ -292,7 +326,7 @@ function renderBloquesPlanGrid(lista, grupos) {
   });
 }
 
-// "10/9/2026" en vez de un formato con hora -- un plan no tiene hora,
+// "10 sep 2026" en vez de un formato con hora -- un plan no tiene hora,
 // solo una fecha (o ninguna, si todavía es solo una idea sin definir).
 function _formatoFechaPlan(fechaISO) {
   if (!fechaISO) return "";
@@ -301,12 +335,24 @@ function _formatoFechaPlan(fechaISO) {
   return d.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// Rango completo si hay inicio y fin, solo una punta con su etiqueta si
+// falta la otra (pedido explícito: fechas de inicio a fin), vacío si el
+// plan todavía no tiene ninguna fecha definida.
+function _formatoRangoFechaPlan(p) {
+  const inicio = _formatoFechaPlan(p.fechaInicio);
+  const fin = _formatoFechaPlan(p.fechaFin);
+  if (inicio && fin) return `${inicio} – ${fin}`;
+  if (inicio) return `Desde ${inicio}`;
+  if (fin) return `Hasta ${fin}`;
+  return "";
+}
+
 // ---- Tarjeta de un plan (nombre + tag arriba, ubicación/fecha/inversión abajo) ----
 function renderItemPlan(p) {
   const esPago = p.tipo === "pago";
   const tagClase = esPago ? "plan-tag-pago" : "plan-tag-gratis";
   const tagTexto = esPago ? "💰 Pago" : "🆓 Gratis";
-  const fechaTexto = _formatoFechaPlan(p.fecha);
+  const fechaTexto = _formatoRangoFechaPlan(p);
   const detalles = [
     p.ubicacion ? `<span>📍 ${escapeHtml(p.ubicacion)}</span>` : "",
     fechaTexto ? `<span>🗓️ ${fechaTexto}</span>` : "",
@@ -327,13 +373,16 @@ function renderItemPlan(p) {
 
 // ---- Pantalla de detalle de una categoría (se abre al tocar su tarjeta) ----
 function renderBloquePlanDetalle(lista, grupo, clave) {
-  // De más próximo a más lejano -- los sin fecha (todavía solo una idea)
+  // De más próximo a más lejano (por fecha de inicio, o la de fin si el
+  // plan solo tiene esa) -- los sin ninguna fecha (todavía solo una idea)
   // van al final.
   const itemsOrdenados = [...grupo.items].sort((a, b) => {
-    if (!a.fecha && !b.fecha) return 0;
-    if (!a.fecha) return 1;
-    if (!b.fecha) return -1;
-    return a.fecha.localeCompare(b.fecha);
+    const fa = a.fechaInicio || a.fechaFin;
+    const fb = b.fechaInicio || b.fechaFin;
+    if (!fa && !fb) return 0;
+    if (!fa) return 1;
+    if (!fb) return -1;
+    return fa.localeCompare(fb);
   });
   const itemsHTML = itemsOrdenados.length > 0
     ? itemsOrdenados.map(p => renderItemPlan(p)).join("")
@@ -395,7 +444,8 @@ function abrirResumenPlan(id) {
   const filas = [
     ["Categoría", bloqueLabel],
     ["Ubicación", p.ubicacion || "—"],
-    ["Fecha", _formatoFechaPlan(p.fecha) || "—"],
+    ["Fecha inicio", _formatoFechaPlan(p.fechaInicio) || "—"],
+    ["Fecha fin", _formatoFechaPlan(p.fechaFin) || "—"],
     ["Tipo", p.tipo === "pago" ? "💰 Pago" : "🆓 Gratis"]
   ];
   if (p.tipo === "pago") filas.push(["Inversión", p.inversion ? `$${Number(p.inversion).toLocaleString("es-CO")}` : "—"]);
@@ -407,7 +457,15 @@ function abrirResumenPlan(id) {
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${escapeHtml(label)}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
-      </div>`).join("");
+      </div>`).join("") + (p.url ? `
+      <div class="detalle-notif-fila">
+        <span class="detalle-notif-label">URL</span>
+        <span class="detalle-notif-valor detalle-notif-valor-url">
+          <span class="detalle-notif-url-texto">${escapeHtml(p.url)}</span>
+          <button type="button" class="btn-secondary notif-card-btn" id="btn-resumen-plan-copiar-url">📋 Copiar</button>
+        </span>
+      </div>` : "");
+    document.getElementById("btn-resumen-plan-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(p.url));
   }
 
   document.getElementById("modal-resumen-plan")?.classList.remove("hidden");
@@ -440,7 +498,9 @@ function poblarSelectBloquePlan() {
 function limpiarFormPlan() {
   document.getElementById("plan-nombre").value = "";
   document.getElementById("plan-ubicacion").value = "";
-  document.getElementById("plan-fecha").value = "";
+  document.getElementById("plan-url").value = "";
+  document.getElementById("plan-fecha-inicio").value = "";
+  document.getElementById("plan-fecha-fin").value = "";
   document.getElementById("plan-inversion").value = "";
   actualizarTipoPlanForm("gratis");
 
@@ -469,7 +529,9 @@ function abrirEditarPlan(id) {
 
   document.getElementById("plan-nombre").value = p.nombre;
   document.getElementById("plan-ubicacion").value = p.ubicacion || "";
-  document.getElementById("plan-fecha").value = p.fecha || "";
+  document.getElementById("plan-url").value = p.url || "";
+  document.getElementById("plan-fecha-inicio").value = p.fechaInicio || "";
+  document.getElementById("plan-fecha-fin").value = p.fechaFin || "";
   document.getElementById("plan-inversion").value = p.inversion || "";
   actualizarTipoPlanForm(p.tipo);
 
@@ -487,11 +549,17 @@ function abrirEditarPlan(id) {
 async function guardarPlan() {
   const nombre = document.getElementById("plan-nombre").value.trim();
   const ubicacion = document.getElementById("plan-ubicacion").value.trim();
-  const fecha = document.getElementById("plan-fecha").value;
+  const url = document.getElementById("plan-url")?.value.trim() || "";
+  const fechaInicio = document.getElementById("plan-fecha-inicio").value;
+  const fechaFin = document.getElementById("plan-fecha-fin").value;
   const tipo = document.getElementById("plan-tipo-pago")?.classList.contains("active") ? "pago" : "gratis";
   const inversion = tipo === "pago" ? (evaluarMonto(document.getElementById("plan-inversion").value) || "") : "";
 
   if (!nombre) { alert("Ponle un nombre al plan"); return; }
+  if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
+    alert("La fecha fin no puede ser anterior a la fecha inicio");
+    return;
+  }
 
   const modal = document.getElementById("modal-plan");
   const categoria = planIdActual
@@ -504,9 +572,9 @@ async function guardarPlan() {
 
   try {
     if (planIdActual) {
-      await Sheets.editarPlan(planIdActual, { nombre, ubicacion, fecha, tipo, inversion, categoria });
+      await Sheets.editarPlan(planIdActual, { nombre, ubicacion, fechaInicio, fechaFin, tipo, inversion, categoria, url });
     } else {
-      await Sheets.agregarPlan(nombre, ubicacion, fecha, tipo, inversion, categoria, currentUser?.email || "");
+      await Sheets.agregarPlan(nombre, ubicacion, fechaInicio, fechaFin, tipo, inversion, categoria, currentUser?.email || "", url);
     }
     modal.classList.add("hidden");
     limpiarFormPlan();

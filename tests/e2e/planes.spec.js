@@ -72,7 +72,9 @@ test.describe('Planes', () => {
 
     await page.locator('#plan-nombre').fill('Cena en La Provincia');
     await page.locator('#plan-ubicacion').fill('Cali, Centro');
-    await page.locator('#plan-fecha').fill('2026-12-24');
+    await page.locator('#plan-url').fill('https://laprovincia.example.com/reserva');
+    await page.locator('#plan-fecha-inicio').fill('2026-12-24');
+    await page.locator('#plan-fecha-fin').fill('2026-12-24');
     await page.locator('#btn-guardar-plan').click();
     await expect(page.locator('#modal-plan')).toBeHidden();
 
@@ -84,9 +86,54 @@ test.describe('Planes', () => {
     const planes = await page.evaluate(() => Sheets.getPlanes());
     expect(planes).toHaveLength(1);
     expect(planes[0]).toMatchObject({
-      nombre: 'Cena en La Provincia', ubicacion: 'Cali, Centro', fecha: '2026-12-24',
-      tipo: 'gratis', categoria: 'Restaurantes'
+      nombre: 'Cena en La Provincia', ubicacion: 'Cali, Centro',
+      fechaInicio: '2026-12-24', fechaFin: '2026-12-24',
+      tipo: 'gratis', categoria: 'Restaurantes', url: 'https://laprovincia.example.com/reserva'
     });
+  });
+
+  test('con solo fecha de inicio, la tarjeta muestra "Desde …"; con rango completo muestra las dos puntas', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Solo con inicio');
+    await page.locator('#plan-fecha-inicio').fill('2026-11-01');
+    await page.locator('#btn-guardar-plan').click();
+    await expect(listaPlanes(page).locator('.notificacion-item')).toContainText('Desde');
+
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Con rango');
+    await page.locator('#plan-fecha-inicio').fill('2026-11-05');
+    await page.locator('#plan-fecha-fin').fill('2026-11-10');
+    await page.locator('#btn-guardar-plan').click();
+
+    const conRango = listaPlanes(page).locator('.notificacion-item', { hasText: 'Con rango' });
+    await expect(conRango).toContainText('nov');
+    await expect(conRango).not.toContainText('Desde');
+  });
+
+  test('fecha fin anterior a fecha inicio no deja guardar', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await page.locator('#btn-nuevo-plan-bloque').click();
+    await page.locator('#plan-nombre').fill('Fechas al revés');
+    await page.locator('#plan-fecha-inicio').fill('2026-12-10');
+    await page.locator('#plan-fecha-fin').fill('2026-12-01');
+
+    page.once('dialog', d => d.accept());
+    await page.locator('#btn-guardar-plan').click();
+    await expect(page.locator('#modal-plan')).toBeVisible();
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes).toHaveLength(0);
   });
 
   test('tipo "Pago" pide la inversión y la guarda', async ({ page }) => {
@@ -238,5 +285,62 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Playas' })).toBeVisible();
+  });
+
+  test('los planes vencidos se borran solos al cargar, y los vigentes se ordenan del más cercano al más lejano', async ({ page }) => {
+    const hoy = new Date();
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    const ayer = fmt(new Date(hoy.getTime() - 86400000));
+    const enDosDias = fmt(new Date(hoy.getTime() + 2 * 86400000));
+    const enDiezDias = fmt(new Date(hoy.getTime() + 10 * 86400000));
+
+    await mockGoogleApis(page, {
+      // Columnas: id, nombre, ubicacion, fecha_inicio, fecha_fin, tipo,
+      // inversion, categoria, autor, url.
+      Planes: [
+        ['P1', 'Ya caducado', '', '', ayer, 'gratis', '', '', 'prueba@example.com', ''],
+        ['P2', 'Más lejano', '', enDiezDias, '', 'gratis', '', '', 'prueba@example.com', ''],
+        ['P3', 'Más cercano', '', enDosDias, '', 'gratis', '', '', 'prueba@example.com', ''],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+    await abrirCategoriaPlan(page, 'Otros');
+
+    const items = listaPlanes(page).locator('.notificacion-item');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText('Más cercano');
+    await expect(items.nth(1)).toContainText('Más lejano');
+
+    // El caducado no solo desaparece de la vista -- se borró de verdad.
+    const planesRestantes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planesRestantes.map(p => p.nombre).sort()).toEqual(['Más cercano', 'Más lejano']);
+  });
+
+  test('un plan sin ninguna fecha nunca caduca', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Planes: [['P1', 'Idea sin fecha todavía', '', '', '', 'gratis', '', '', 'prueba@example.com', '']],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes).toHaveLength(1);
+  });
+
+  test('el botón de volver ("‹") regresa a la cuadrícula de categorías (bug real reportado)', async ({ page }) => {
+    await mockGoogleApis(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    await abrirCategoriaPlan(page, 'Otros');
+    await expect(page.locator('#btn-volver-bloque-plan')).toBeVisible();
+    await page.locator('#btn-volver-bloque-plan').click();
+
+    await expect(listaPlanes(page).locator('.alertas-bloques-grid')).toBeVisible();
+    await expect(page.locator('#btn-volver-bloque-plan')).toHaveCount(0);
   });
 });
