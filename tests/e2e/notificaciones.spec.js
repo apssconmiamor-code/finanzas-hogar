@@ -940,4 +940,67 @@ test.describe('Notificaciones -- zona horaria', () => {
     await abrirBloqueAlerta(page, 'Activos');
     await expect(page.locator('.notificacion-item')).toContainText('Limpieza de axila');
   });
+
+  // Pedido explícito del usuario: marcar "Realizada" FUERA del día que le
+  // tocaba (acá, una "enviada" sin revisar hace 3 días) debe preguntar si
+  // el próximo ciclo se cuenta desde HOY (día de la revisión) en vez del
+  // ancla original. Se verifica el dato crudo en la hoja (fechaHora) en vez
+  // del próximo ciclo mostrado, porque con intervalo=1 el próximo ciclo cae
+  // en "hoy" de cualquier manera (con o sin reprogramar) y no distinguiría
+  // los dos casos.
+  test('"Realizada" fuera de día en una recurrente pregunta y, si se acepta, mueve el ancla a hoy conservando la hora', async ({ page }) => {
+    const haceTresDias = await page.evaluate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 3);
+      d.setHours(8, 0, 0, 0);
+      return d.toISOString();
+    });
+    const ancla = await page.evaluate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 20);
+      d.setHours(8, 0, 0, 0);
+      return d.toISOString();
+    });
+
+    await mockGoogleApis(page, {
+      Notificaciones: [
+        ['N31', 'Agua colibrí', '', 'recurrente', ancla, '', 'yo', 'prueba@example.com', 'enviada', haceTresDias, '1', 'dia', '', '1'],
+      ],
+    });
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+    await abrirBloqueAlerta(page, 'Pasados');
+
+    const item = page.locator('.notificacion-item', { hasText: 'Agua colibrí' });
+    await expect(item).toBeVisible();
+
+    // Cancelar el diálogo -> mantiene el ancla original.
+    page.once('dialog', (d) => d.dismiss());
+    await item.locator('button', { hasText: 'Realizada' }).click();
+    await page.waitForTimeout(200);
+    let notif = await page.evaluate(async () => (await Sheets.getNotificaciones()).find(n => n.id === 'N31'));
+    expect(notif.fechaHora).toBe(ancla);
+
+    // La dejamos de nuevo como "enviada"/pasada para repetir el flujo -- el
+    // primer "Realizada" (cancelado) la sacó de "Pasados" hasta mañana, así
+    // que hay que volver a la cuadrícula antes de reabrir el bloque.
+    await page.evaluate((haceTresDias) => Sheets.editarNotificacion('N31', { estado: 'enviada', ultimoEnvio: haceTresDias, vistoEn: '' }), haceTresDias);
+    await page.evaluate(() => cargarNotificaciones());
+    await deslizarParaVolver(page);
+    await abrirBloqueAlerta(page, 'Pasados');
+
+    // Aceptar el diálogo -> ancla pasa a HOY, misma hora (8:00) del original.
+    page.once('dialog', (d) => d.accept());
+    await item.locator('button', { hasText: 'Realizada' }).click();
+    await page.waitForTimeout(200);
+    notif = await page.evaluate(async () => (await Sheets.getNotificaciones()).find(n => n.id === 'N31'));
+    const nuevaAncla = new Date(notif.fechaHora);
+    const hoy = new Date();
+    expect(nuevaAncla.getFullYear()).toBe(hoy.getFullYear());
+    expect(nuevaAncla.getMonth()).toBe(hoy.getMonth());
+    expect(nuevaAncla.getDate()).toBe(hoy.getDate());
+    expect(nuevaAncla.getHours()).toBe(8);
+    expect(nuevaAncla.getMinutes()).toBe(0);
+  });
 });

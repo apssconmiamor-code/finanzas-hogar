@@ -675,10 +675,20 @@ function renderItemNotificacion(n, conBotonesRevisar = false, icono = "🔔") {
   const proxima = _fechaReferenciaTarjeta(n);
   const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
   const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
+  // onpointerdown (no solo onpointerup) frena la propagación -- en
+  // "Pasados" la tarjeta tiene mantener-presionado (ver crearManejador
+  // PresionSostenida más abajo, "salvo en Activos"): su temporizador de
+  // 500ms arranca con el pointerdown que burbujea desde este botón, y solo
+  // se cancela con el pointerup que llega a LA TARJETA -- si acá solo se
+  // frena el pointerup (como antes), ese pointerup nunca llega a la
+  // tarjeta y el temporizador queda vivo, abriendo Editar/Eliminar solo
+  // porque se tocó "Revisada"/"Realizada" (bug real encontrado al agregar
+  // el diálogo de reprogramar: confirm() bloquea el hilo el tiempo
+  // suficiente para que ese temporizador ya vencido dispare justo después).
   const botones = conBotonesRevisar
     ? `<div class="notif-card-botones">
-        <button class="btn-secondary" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerup="event.stopPropagation()">👀 Revisada</button>
-        <button class="btn-primary" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerup="event.stopPropagation()">✅ Realizada</button>
+        <button class="btn-secondary" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()">👀 Revisada</button>
+        <button class="btn-primary" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()">✅ Realizada</button>
       </div>`
     : "";
   return `
@@ -987,6 +997,16 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
 //    recordar_en_dias), así que una recurrente que sonó normal y sigue
 //    sin revisar se confundiría con una ya atendida (bug real reportado:
 //    desaparecía de Activos sola apenas sonaba, sin que nadie la tocara).
+// Marcar "Realizada" FUERA del día que le tocaba (p.ej. algo que quedó en
+// "Pasados" y se hace dos días después) es ambiguo: ¿el próximo ciclo se
+// sigue contando desde el ancla original (como si nada), o arranca de nuevo
+// desde HOY, el día en que de verdad se hizo? Pedido explícito del usuario:
+// preguntar en ese caso. Si elige "desde hoy", se mueve el ancla (fechaHora)
+// a la fecha de hoy conservando la HORA original (no la hora exacta en que
+// se tocó el botón) -- así el resto de ciclos futuros siguen sonando a la
+// misma hora de siempre, solo que contados desde este día en vez del
+// original. Si la ocurrencia se marca el mismo día que le tocaba, no hay
+// ambigüedad y no se pregunta nada (comportamiento de siempre).
 async function marcarNotificacionRevisada(id) {
   const n = notificaciones.find(x => x.id === id);
   if (!n) return;
@@ -994,8 +1014,27 @@ async function marcarNotificacionRevisada(id) {
     if (n.tipo === "unica") {
       await Sheets.borrarNotificacion(id);
     } else {
-      const ahora = new Date().toISOString();
-      await Sheets.editarNotificacion(id, { estado: "activa", ultimoEnvio: ahora, vistoEn: ahora });
+      const ahora = new Date();
+      const ahoraISO = ahora.toISOString();
+      const campos = { estado: "activa", ultimoEnvio: ahoraISO, vistoEn: ahoraISO };
+
+      const fechaOcurrencia = _fechaReferenciaTarjeta(n);
+      const fueraDeHoy = fechaOcurrencia && _diaLocal(fechaOcurrencia) !== _diaLocal(ahora);
+      if (fueraDeHoy) {
+        const reprogramarDesdeHoy = confirm(
+          `"${n.titulo}" se está marcando como realizada fuera del día que le tocaba (${_formatoFechaHoraLocal(fechaOcurrencia.toISOString())}).\n\n` +
+          `Aceptar: repetir desde HOY en adelante (misma hora de siempre).\n` +
+          `Cancelar: mantener la fecha original y seguir el ciclo de siempre.`
+        );
+        if (reprogramarDesdeHoy) {
+          const ancla = new Date(n.fechaHora);
+          const nuevaAncla = new Date(ahora);
+          nuevaAncla.setHours(ancla.getHours(), ancla.getMinutes(), ancla.getSeconds(), 0);
+          campos.fechaHora = nuevaAncla.toISOString();
+        }
+      }
+
+      await Sheets.editarNotificacion(id, campos);
     }
     await cargarNotificaciones();
     SyncManager.mostrarToast(`✅ "${n.titulo}" realizada`);
