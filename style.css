@@ -779,7 +779,7 @@ input, select, textarea, table {
 .btn-sutil:hover, .btn-sumar-cajas:hover, .btn-agregar-mes:hover { color: var(--text-2); border-color: var(--border-mid); }
 /* Estado activo -- solo lo usa "Sumar" en Cajas mientras el modo
    selección está prendido. */
-.btn-sumar-cajas.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+.btn-sutil.active, .btn-sumar-cajas.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 
 /* Flecha para volver, estilo iOS ("‹" -- mismo lugar donde va el título de
    la pantalla) -- pedido explícito: que siempre haya una forma visible de
@@ -877,6 +877,10 @@ input, select, textarea, table {
   border: 1px solid rgba(var(--brand-rgb),0.2);
   box-shadow: var(--shadow-lg);
 }
+/* Fila elegida en modo "Sumar" de Proyección */
+.proy-tabla-row-seleccionada td { background: rgba(var(--brand-rgb),.12); }
+.sumar-proy-total { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.sumar-proy-total small { font-size: 11px; color: var(--text-3); }
 .sumar-cajas-barra-vacio { font-size: 13px; color: var(--text-3); }
 .sumar-cajas-barra-total { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
 
@@ -1208,6 +1212,13 @@ input, select, textarea, table {
 .proy-grupo-row td {
   padding: 10px 12px; font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate);
+}
+/* Suma del grupo, en las mismas columnas Estimado/Real (table-layout fixed:
+   no cambia los anchos). */
+.proy-grupo-row td.proy-grupo-total {
+  text-align: right; text-transform: none; letter-spacing: -0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-display);
 }
 /* Legacy compat */
 .proy-fila td, .proy-fila-2 td { padding: 0; }

@@ -1141,6 +1141,11 @@ function navegarATab(tab) {
       cajasSeleccionadasParaSumar = new Set();
       renderCajas();
     }
+    if (tab !== "proyeccion" && typeof modoSumaProyActivo !== "undefined" && modoSumaProyActivo) {
+      modoSumaProyActivo = false;
+      conceptosSeleccionadosParaSumar = new Set();
+      renderProyeccion();
+    }
     document.querySelectorAll(".nav-item").forEach(b =>
       b.classList.toggle("active", b.dataset.tab === tab));
     document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
@@ -3651,6 +3656,13 @@ function renderTablaComparacion(movsDelMes) {
     return a.concepto.localeCompare(b.concepto);
   });
 
+  const totalesGrupo = {};
+  filas.forEach(f => {
+    const t = totalesGrupo[f.categoria] || (totalesGrupo[f.categoria] = { estimado: 0, real: 0 });
+    t.estimado += f.estimado;
+    t.real     += f.real;
+  });
+
   let categoriaAnterior = null;
   tbody.innerHTML = filas.map(f => {
     // Gastos: rojo si te pasaste de lo estimado. Ingresos: al revés — rojo
@@ -3665,7 +3677,9 @@ function renderTablaComparacion(movsDelMes) {
     // grupo, sin línea ni fondo fuerte (pedido explícito: "la separación
     // debe ser sutil").
     const cabeceraGrupo = f.categoria !== categoriaAnterior
-      ? `<tr class="proy-grupo-row"><td colspan="3">${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td></tr>`
+      ? `<tr class="proy-grupo-row"><td>${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td>
+          <td class="proy-grupo-total">${totalesGrupo[f.categoria].estimado !== 0 ? formatMonto(totalesGrupo[f.categoria].estimado) : "—"}</td>
+          <td class="proy-grupo-total">${totalesGrupo[f.categoria].real !== 0 ? formatMonto(totalesGrupo[f.categoria].real) : "—"}</td></tr>`
       : "";
     categoriaAnterior = f.categoria;
 
@@ -3677,7 +3691,9 @@ function renderTablaComparacion(movsDelMes) {
     const categoriaJs = f.categoria.replace(/'/g, "\\'");
     const conceptoAttr  = f.concepto.replace(/"/g, "&quot;");
     const categoriaAttr = f.categoria.replace(/"/g, "&quot;");
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"}, event)">
+    const seleccionada = modoSumaProyActivo && conceptosSeleccionadosParaSumar.has(f.concepto);
+    const tapNormal = modoSumaProyActivo ? "" : ` onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"}, event)"`;
+    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}${seleccionada ? " proy-tabla-row-seleccionada" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" data-estimado="${f.estimado}" data-real="${f.real}"${tapNormal}>
       <td>
         <div class="proy-cell-concepto">
           <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
@@ -3688,7 +3704,61 @@ function renderTablaComparacion(movsDelMes) {
     </tr>`;
   }).join("");
 
-  _conectarLargoPresionTablaComparacion();
+  if (modoSumaProyActivo) _conectarSeleccionTablaProy();
+  else _conectarLargoPresionTablaComparacion();
+  renderBotonSumarProy();
+  renderSumarProyBarra();
+}
+
+// ---- Sumar conceptos (Proyección) ----
+// Mismo patrón que "Sumar cajas": botón sutil que arma un modo selección --
+// tocar una fila la suma/resta del total (Estimado y Real) en una barra
+// flotante, sin abrir su resumen ni el menú de mantener presionado.
+let modoSumaProyActivo = false;
+let conceptosSeleccionadosParaSumar = new Set();
+
+function toggleModoSumaProy() {
+  modoSumaProyActivo = !modoSumaProyActivo;
+  conceptosSeleccionadosParaSumar = new Set();
+  renderProyeccion();
+}
+
+function renderBotonSumarProy() {
+  const btn = document.getElementById("btn-sumar-proy");
+  if (!btn) return;
+  btn.textContent = modoSumaProyActivo ? "Listo" : "Sumar";
+  btn.classList.toggle("active", modoSumaProyActivo);
+}
+
+function _conectarSeleccionTablaProy() {
+  document.querySelectorAll("#proy-tabla-body .proy-tabla-row[data-concepto]").forEach(row => {
+    row.addEventListener("pointerup", () => {
+      const concepto = row.dataset.concepto;
+      if (conceptosSeleccionadosParaSumar.has(concepto)) conceptosSeleccionadosParaSumar.delete(concepto);
+      else conceptosSeleccionadosParaSumar.add(concepto);
+      row.classList.toggle("proy-tabla-row-seleccionada");
+      renderSumarProyBarra();
+    });
+  });
+}
+
+function renderSumarProyBarra() {
+  const barra = document.getElementById("sumar-proy-barra");
+  if (!barra) return;
+  if (!modoSumaProyActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
+  barra.classList.remove("hidden");
+  if (conceptosSeleccionadosParaSumar.size === 0) {
+    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá los conceptos que querés sumar</span>`;
+    return;
+  }
+  let estimado = 0, real = 0;
+  document.querySelectorAll("#proy-tabla-body .proy-tabla-row-seleccionada").forEach(row => {
+    estimado += Number(row.dataset.estimado) || 0;
+    real     += Number(row.dataset.real) || 0;
+  });
+  barra.innerHTML = `
+    <span class="sumar-proy-total"><small>Estimado</small><span class="sumar-cajas-barra-total">${formatMonto(estimado)}</span></span>
+    <span class="sumar-proy-total"><small>Real</small><span class="sumar-cajas-barra-total">${formatMonto(real)}</span></span>`;
 }
 
 // Mantener presionada una fila abre Editar/Eliminar (ver abrirMenuEditarBorrar

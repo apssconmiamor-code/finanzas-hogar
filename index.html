@@ -401,6 +401,7 @@
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span class="card-section-title">Detalle por concepto</span>
                 <button class="btn-agregar-mes" id="btn-agregar-concepto" title="Agregar concepto">+ Concepto</button>
+                <button type="button" class="btn-sutil" id="btn-sumar-proy" onclick="toggleModoSumaProy()">Sumar</button>
               </div>
               <div class="card-section-sub" id="proy-detalle-mes-label"></div>
             </div>
@@ -560,6 +561,8 @@
          solo visible mientras el modo selección está activo (ver
          renderSumarCajasBarra en app.js). -->
     <div id="sumar-cajas-barra" class="sumar-cajas-barra hidden"></div>
+    <!-- Igual, para "Sumar" en Proyección (ver renderSumarProyBarra en app.js) -->
+    <div id="sumar-proy-barra" class="sumar-cajas-barra hidden"></div>
 
     <!-- ══ MODALES GLOBALES ══ -->
 
