@@ -4529,18 +4529,28 @@ function abrirModalNuevoConcepto() {
   const dl = document.getElementById("lista-conceptos-existentes");
   dl.innerHTML = [...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO].map(c => `<option value="${c}"/>`).join("");
 
-  // Conceptos ya creados que el mes activo no tiene (gastos con estimado
-  // solo aparecen en la tabla si el mes los incluye) -- un toque abre el
-  // mismo modal de "Modificar" para ponerles monto, sin crearlos de cero.
-  // Los ingresos no entran: las fuentes siempre se muestran en la tabla.
+  modal.classList.remove("hidden");
+  setTimeout(() => document.getElementById("nuevo-concepto-nombre").focus(), 60);
+}
+
+// Botón "Agregar concepto": lista los gastos ya creados que el mes activo
+// no tiene (solo aparecen en la tabla si el mes los incluye); un toque abre
+// el modal de "Modificar" para ponerles monto, sin crearlos de cero. Los
+// ingresos no entran: las fuentes siempre se muestran en la tabla.
+function abrirModalAgregarExistente() {
+  const modal = document.getElementById("modal-agregar-existente");
+  if (!modal) return;
   const enMes = getGastosMesParaEditor(proyMesActivo);
   const faltantes = [
     ...GASTOS_FIJOS.map(c => ({ concepto: c, categoria: "Gasto fijo" })),
     ...GASTOS_VARIABLES.map(c => ({ concepto: c, categoria: "Gasto variable" })),
   ].filter(c => !(enMes[c.concepto] > 0) && c.concepto !== "Ajuste" && c.concepto !== "Otros");
-  const wrap = document.getElementById("nuevo-concepto-existentes-wrap");
-  const lista = document.getElementById("nuevo-concepto-existentes");
-  wrap.classList.toggle("hidden", faltantes.length === 0);
+
+  const mesLabel = new Date(proyMesActivo + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  document.getElementById("agregar-existente-sub").textContent = faltantes.length
+    ? `Los que no están en ${mesLabel}:`
+    : `Todos tus conceptos ya están en ${mesLabel}.`;
+  const lista = document.getElementById("agregar-existente-lista");
   lista.innerHTML = "";
   faltantes.forEach(c => {
     const b = document.createElement("button");
@@ -4548,16 +4558,12 @@ function abrirModalNuevoConcepto() {
     b.className = "btn-sutil";
     b.textContent = `${ICONOS[c.concepto] || "📌"} ${c.concepto}`;
     b.addEventListener("click", () => {
-      cerrarModalNuevoConcepto();
+      modal.classList.add("hidden");
       abrirModificarConcepto(c.concepto, c.categoria);
     });
     lista.appendChild(b);
   });
-
   modal.classList.remove("hidden");
-  // Con la lista de existentes a la vista no se abre el teclado de entrada:
-  // taparía justo esas opciones.
-  if (faltantes.length === 0) setTimeout(() => document.getElementById("nuevo-concepto-nombre").focus(), 60);
 }
 
 function cerrarModalNuevoConcepto() {
@@ -4677,6 +4683,10 @@ function setupProyeccionListeners() {
 
   document.getElementById("btn-agregar-concepto")
     ?.addEventListener("click", abrirModalNuevoConcepto);
+  document.getElementById("btn-agregar-existente")
+    ?.addEventListener("click", abrirModalAgregarExistente);
+  document.getElementById("btn-cerrar-agregar-existente")
+    ?.addEventListener("click", () => document.getElementById("modal-agregar-existente").classList.add("hidden"));
   document.getElementById("btn-cancelar-nuevo-concepto")
     ?.addEventListener("click", cerrarModalNuevoConcepto);
   document.getElementById("btn-guardar-nuevo-concepto")
