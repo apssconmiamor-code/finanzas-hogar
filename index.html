@@ -444,6 +444,14 @@
         <div id="modal-nuevo-concepto" class="modal hidden">
           <div class="modal-card">
             <h3 class="modal-title">Nuevo concepto</h3>
+            <!-- Conceptos ya creados que este mes no tienen estimado: un toque
+                 los agrega al mes sin crearlos de cero (ver
+                 abrirModalNuevoConcepto en app.js). -->
+            <div class="form-group hidden" id="nuevo-concepto-existentes-wrap">
+              <label>Agregar uno que ya tienes a este mes</label>
+              <div id="nuevo-concepto-existentes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+              <div class="card-section-sub" style="margin-top:8px">O crea uno nuevo:</div>
+            </div>
             <div class="form-group">
               <label>Concepto</label>
               <input id="nuevo-concepto-nombre" type="text" list="lista-conceptos-existentes"
