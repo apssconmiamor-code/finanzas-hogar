@@ -4552,16 +4552,41 @@ function abrirModalAgregarExistente() {
     : `Todos tus conceptos ya están en ${mesLabel}.`;
   const lista = document.getElementById("agregar-existente-lista");
   lista.innerHTML = "";
-  faltantes.forEach(c => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "btn-sutil";
-    b.textContent = `${ICONOS[c.concepto] || "📌"} ${c.concepto}`;
-    b.addEventListener("click", () => {
-      modal.classList.add("hidden");
-      abrirModificarConcepto(c.concepto, c.categoria);
+  // Separados en Fijos / Variables. Un toque lo agrega al mes; mantener
+  // presionado abre Editar/Eliminar (mismo criterio de gestos.js). Eliminar
+  // acá es definitivo -- el concepto ni siquiera está en este mes -- y al
+  // terminar se vuelve a abrir la lista para seguir.
+  [["Gasto fijo", "Fijos"], ["Gasto variable", "Variables"]].forEach(([categoria, titulo]) => {
+    const grupo = faltantes.filter(c => c.categoria === categoria);
+    if (grupo.length === 0) return;
+    const cab = document.createElement("div");
+    cab.className = "proy-grupo-titulo";
+    cab.textContent = titulo;
+    cab.style.cssText = "width:100%;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-top:6px";
+    lista.appendChild(cab);
+    grupo.forEach(c => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn-sutil";
+      b.style.userSelect = "none";
+      b.style.webkitTouchCallout = "none";
+      b.textContent = `${ICONOS[c.concepto] || "📌"} ${c.concepto}`;
+      crearManejadorPresionSostenida(b, {
+        onCorto: () => {
+          modal.classList.add("hidden");
+          abrirModificarConcepto(c.concepto, c.categoria);
+        },
+        onLargo: () => {
+          modal.classList.add("hidden");
+          abrirMenuEditarBorrar({
+            titulo: `${ICONOS[c.concepto] || "📌"} ${c.concepto}`,
+            onEditar: () => abrirModificarConcepto(c.concepto, c.categoria),
+            onBorrar: () => eliminarConceptoPresupuesto(c.concepto, c.categoria).then(abrirModalAgregarExistente)
+          });
+        }
+      });
+      lista.appendChild(b);
     });
-    lista.appendChild(b);
   });
   modal.classList.remove("hidden");
 }
