@@ -279,6 +279,9 @@
           <!-- hidden compat -->
           <select id="filtro-caja" class="hidden"></select>
         </div>
+        <div class="cajas-header">
+          <button type="button" class="btn-sutil" id="btn-sumar-mov" onclick="toggleModoSumaMov()">Sumar</button>
+        </div>
         <div id="movimientos-list" class="movimientos-list">
           <div class="loading-state">Cargando…</div>
         </div>
@@ -563,6 +566,7 @@
     <div id="sumar-cajas-barra" class="sumar-cajas-barra hidden"></div>
     <!-- Igual, para "Sumar" en Proyección (ver renderSumarProyBarra en app.js) -->
     <div id="sumar-proy-barra" class="sumar-cajas-barra hidden"></div>
+    <div id="sumar-mov-barra" class="sumar-cajas-barra hidden"></div>
 
     <!-- ══ MODALES GLOBALES ══ -->
 

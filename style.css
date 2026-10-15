@@ -877,8 +877,15 @@ input, select, textarea, table {
   border: 1px solid rgba(var(--brand-rgb),0.2);
   box-shadow: var(--shadow-lg);
 }
+/* Tarjeta elegida en modo "Sumar" de Movimientos -- gana también al hover
+   (en táctil el hover queda "pegado" tras el toque y la pintaba gris). */
+.mov-card.mov-card-seleccionada, .mov-card.mov-card-seleccionada:hover {
+  border-color: var(--brand); background: rgba(var(--brand-rgb),.12);
+  box-shadow: 0 0 0 2px rgba(var(--brand-rgb),.25);
+}
 /* Fila elegida en modo "Sumar" de Proyección */
-.proy-tabla-row-seleccionada td { background: rgba(var(--brand-rgb),.12); }
+.proy-tabla-row.proy-tabla-row-seleccionada td,
+.proy-tabla-row.proy-tabla-row-seleccionada:hover td { background: rgba(var(--brand-rgb),.12); }
 .sumar-proy-total { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .sumar-proy-total small { font-size: 11px; color: var(--text-3); }
 .sumar-cajas-barra-vacio { font-size: 13px; color: var(--text-3); }

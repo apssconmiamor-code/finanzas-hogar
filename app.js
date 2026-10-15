@@ -1141,6 +1141,11 @@ function navegarATab(tab) {
       cajasSeleccionadasParaSumar = new Set();
       renderCajas();
     }
+    if (tab !== "movimientos" && typeof modoSumaMovActivo !== "undefined" && modoSumaMovActivo) {
+      modoSumaMovActivo = false;
+      movimientosSeleccionadosParaSumar = new Set();
+      renderMovimientos();
+    }
     if (tab !== "proyeccion" && typeof modoSumaProyActivo !== "undefined" && modoSumaProyActivo) {
       modoSumaProyActivo = false;
       conceptosSeleccionadosParaSumar = new Set();
@@ -2080,8 +2085,66 @@ function renderMovimientos() {
     return;
   }
 
-  list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m)).join("");
-  _conectarLargoPresionListaMovimientos(list, filtrados);
+  list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m, true)).join("");
+  if (modoSumaMovActivo) _conectarSeleccionMovimientos(list);
+  else _conectarLargoPresionListaMovimientos(list, filtrados);
+  renderSumarMovBarra();
+}
+
+// ---- Sumar movimientos ----
+// Mismo patrón que "Sumar cajas"/"Sumar" de Proyección: un toque en una
+// tarjeta la suma/resta del total (neto: entradas suman, salidas restan) en
+// una barra flotante. Un total por moneda (ver renderSumarCajasBarra).
+let modoSumaMovActivo = false;
+let movimientosSeleccionadosParaSumar = new Set();
+
+function toggleModoSumaMov() {
+  modoSumaMovActivo = !modoSumaMovActivo;
+  movimientosSeleccionadosParaSumar = new Set();
+  renderMovimientos();
+}
+
+function renderBotonSumarMov() {
+  const btn = document.getElementById("btn-sumar-mov");
+  if (!btn) return;
+  btn.textContent = modoSumaMovActivo ? "Listo" : "Sumar";
+  btn.classList.toggle("active", modoSumaMovActivo);
+}
+
+function _conectarSeleccionMovimientos(list) {
+  list.querySelectorAll(".mov-card[data-id]").forEach(card => {
+    card.addEventListener("pointerup", () => {
+      const id = card.dataset.id;
+      if (movimientosSeleccionadosParaSumar.has(id)) movimientosSeleccionadosParaSumar.delete(id);
+      else movimientosSeleccionadosParaSumar.add(id);
+      card.classList.toggle("mov-card-seleccionada");
+      renderSumarMovBarra();
+    });
+  });
+}
+
+function renderSumarMovBarra() {
+  renderBotonSumarMov();
+  const barra = document.getElementById("sumar-mov-barra");
+  if (!barra) return;
+  if (!modoSumaMovActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
+  barra.classList.remove("hidden");
+  if (movimientosSeleccionadosParaSumar.size === 0) {
+    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá los movimientos que querés sumar</span>`;
+    return;
+  }
+  const porMoneda = {};
+  movimientosSeleccionadosParaSumar.forEach(id => {
+    const m = movimientos.find(x => x.id === id);
+    if (!m) return;
+    const caja = cajas.find(c => c.nombre === m.caja);
+    const moneda = caja ? caja.moneda : "COP";
+    const esEntrada = m.categoria === "Ingreso" || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"));
+    porMoneda[moneda] = (porMoneda[moneda] || 0) + (esEntrada ? 1 : -1) * Math.abs(m.monto);
+  });
+  barra.innerHTML = Object.entries(porMoneda)
+    .map(([moneda, total]) => `<span class="sumar-cajas-barra-total">${formatMonto(total, moneda)}</span>`)
+    .join("");
 }
 
 // Mantener presionada una tarjeta de movimiento abre Editar/Eliminar (ver
@@ -2106,7 +2169,7 @@ function _conectarLargoPresionListaMovimientos(contenedor, lista) {
 
 // Editar/Borrar ya no van sueltos en la tarjeta -- se ven en el resumen del
 // doble toque (mostrarResumenMovimiento), igual que en Alertas y Proyección.
-function renderTarjetaMovimiento(m) {
+function renderTarjetaMovimiento(m, sumable = false) {
   const esIngreso  = m.categoria === "Ingreso";
   const esTransfer = m.categoria === "Transferencia";
   const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
@@ -2123,7 +2186,9 @@ function renderTarjetaMovimiento(m) {
     ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
     : "";
 
-  return `<div class="mov-card" data-id="${m.id}" onpointerup="tapMovimiento('${m.id}', event)">
+  const seleccionada = sumable && modoSumaMovActivo && movimientosSeleccionadosParaSumar.has(m.id);
+  const tapNormal = sumable && modoSumaMovActivo ? "" : ` onpointerup="tapMovimiento('${m.id}', event)"`;
+  return `<div class="mov-card${seleccionada ? " mov-card-seleccionada" : ""}" data-id="${m.id}"${tapNormal}>
       <div class="mov-card-row1">
         <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
         <span class="mov-card-fecha">${fechaFmt}</span>
