@@ -104,7 +104,7 @@ function crearManejadorPresionSostenida(el, { onLargo, onCorto } = {}) {
 // "labelEditar" es opcional -- Cajas lo usa para mostrar "⚖️ Ajustar" en
 // vez de "✏️ Editar" (mismo botón/slot, la acción no es literalmente
 // "editar" pero sigue siendo la única acción de mantener-presionado ahí).
-function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
+function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar, labelBorrar }) {
   const modal = document.getElementById("modal-editar-borrar");
   if (!modal) return;
   const tituloEl    = document.getElementById("editar-borrar-titulo");
@@ -118,6 +118,7 @@ function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar }) {
   }
   if (btnEliminar) {
     btnEliminar.classList.toggle("hidden", !onBorrar);
+    btnEliminar.textContent = labelBorrar || "🗑️ Eliminar";
     btnEliminar.onclick = () => { modal.classList.add("hidden"); if (onBorrar) onBorrar(); };
   }
   modal.classList.remove("hidden");

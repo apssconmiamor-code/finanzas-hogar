@@ -3845,7 +3845,15 @@ function _conectarLargoPresionTablaComparacion() {
       onLargo: () => abrirMenuEditarBorrar({
         titulo: `${ICONOS[concepto] || "📌"} ${concepto}`,
         onEditar: puedeModificar ? () => abrirModificarConcepto(concepto, categoria) : null,
-        onBorrar: puedeEliminar ? () => eliminarConceptoPresupuesto(concepto, categoria) : null
+        // Gastos: por defecto solo se quitan de ESTE mes (ver
+        // quitarConceptoDelMes); el borrado definitivo queda detrás de una
+        // segunda confirmación. Ingresos: siempre definitivo, como antes.
+        onBorrar: puedeEliminar
+          ? () => categoria === "Ingreso"
+              ? eliminarConceptoPresupuesto(concepto, categoria)
+              : quitarConceptoDelMes(concepto, categoria)
+          : null,
+        labelBorrar: categoria === "Ingreso" ? undefined : "➖ Quitar de este mes"
       })
     });
   });
@@ -4595,6 +4603,35 @@ async function guardarNuevoConcepto() {
   } finally {
     btn.textContent = "Guardar"; btn.disabled = false;
   }
+}
+
+// Saca un gasto SOLO del mes activo: el concepto sigue existiendo y se puede
+// volver a poner con "+ Concepto". Como un mes sin configuración propia
+// hereda la del mes anterior, antes de quitarlo se "congela" el mes
+// siguiente (si está en la proyección y no tiene la suya) con lo que
+// heredaría hoy -- así el concepto sigue estando ahí en adelante.
+function quitarConceptoDelMes(concepto, categoria) {
+  const mes = proyMesActivo;
+  const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" });
+  if (!confirm(`¿Quitar "${concepto}" solo de ${label}?\n\nSigue existiendo y lo puedes volver a agregar con + Concepto.\n\n(Cancelar te deja borrarlo definitivamente de todos los meses.)`)) {
+    // Salida al borrado definitivo, con su propia confirmación.
+    eliminarConceptoPresupuesto(concepto, categoria);
+    return;
+  }
+  const actuales = { ...getGastosMesParaEditor(mes) };
+
+  const meses = getMesesProyeccion();
+  const siguiente = meses.filter(m => m > mes).sort()[0];
+  if (siguiente && !getGastosMes(siguiente)) {
+    const seguro = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 1).toISOString().slice(0, 7);
+    // Solo si es el mes inmediato: uno más lejano hereda de uno intermedio.
+    if (siguiente === seguro) setGastosMes(siguiente, { ...actuales });
+  }
+
+  delete actuales[concepto];
+  setGastosMes(mes, actuales);
+  renderProyeccion();
+  SyncManager.mostrarToast(`➖ "${concepto}" quitado de ${label}`);
 }
 
 // Quita un concepto del presupuesto (y de los selectores de la app). Los
