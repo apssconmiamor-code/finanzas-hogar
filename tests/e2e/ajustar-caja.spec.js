@@ -168,7 +168,7 @@ test.describe('Ajustar caja', () => {
     await esperarAppLista(page);
 
     await expect(page.locator(".cajas-atajos-titulo")).toHaveText("Más opciones");
-    await expect(page.locator(".cajas-atajo")).toHaveCount(3);
+    await expect(page.locator(".cajas-atajo")).toHaveCount(7);
     await page.locator("#atajo-movimientos").click();
     await expect(page.locator("#tab-movimientos")).toBeVisible();
     await expect(page.locator("#tab-cajas")).toBeHidden();
@@ -180,6 +180,12 @@ test.describe('Ajustar caja', () => {
     await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
     await page.locator("#atajo-alertas").click();
     await expect(page.locator("#tab-notificaciones")).toBeVisible();
+
+    for (const [atajo, tab] of [["mercado", "mercado"], ["planes", "planes"], ["compromisos", "compromisos"], ["analisis", "resumen"]]) {
+      await page.evaluate(() => window.navegarATab("cajas"));
+      await page.locator("#atajo-" + atajo).click();
+      await expect(page.locator("#tab-" + tab)).toBeVisible();
+    }
   });
 
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)

@@ -10,7 +10,8 @@ import { createPortal } from "react-dom";
 //   onAbrirDetalle(n)  doble toque (tapCaja) sobre una tarjeta
 //   onAjustar(n)       mantener presionado, solo con saldo negativo
 //   onReordenar(nombres[])  tras arrastrar una tarjeta
-//   onIrATab(tab)      atajos redondos: "movimientos" | "proyeccion" | "notificaciones" (Alertas)
+//   onIrATab(tab)      atajos redondos: movimientos, proyeccion, notificaciones (Alertas),
+//                      mercado, planes, compromisos, resumen (Análisis)
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
@@ -76,6 +77,10 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
 const ICONOS_ATAJO = {
   movimientos: <><path d="M7 7h13" /><path d="m16 3 4 4-4 4" /><path d="M17 17H4" /><path d="m8 13-4 4 4 4" /></>,
   proyeccion: <><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
+  mercado: <><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></>,
+  planes: <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />,
+  compromisos: <><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></>,
+  analisis: <><path d="M21.2 15.9A10 10 0 1 1 8 2.8" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></>,
   alertas: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></>,
 };
 
@@ -93,6 +98,10 @@ function Atajos({ onIrATab }) {
     { id: "atajo-movimientos", icono: "movimientos", texto: "Movimientos", accion: () => onIrATab("movimientos") },
     { id: "atajo-proyeccion", icono: "proyeccion", texto: "Proyección", accion: () => onIrATab("proyeccion") },
     { id: "atajo-alertas", icono: "alertas", texto: "Alertas", accion: () => onIrATab("notificaciones") },
+    { id: "atajo-mercado", icono: "mercado", texto: "Mercado", accion: () => onIrATab("mercado") },
+    { id: "atajo-planes", icono: "planes", texto: "Planes", accion: () => onIrATab("planes") },
+    { id: "atajo-compromisos", icono: "compromisos", texto: "Compromisos", accion: () => onIrATab("compromisos") },
+    { id: "atajo-analisis", icono: "analisis", texto: "Análisis", accion: () => onIrATab("resumen") },
   ];
   return (
     <>
