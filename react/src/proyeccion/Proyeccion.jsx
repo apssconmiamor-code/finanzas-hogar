@@ -18,10 +18,10 @@ export function ProyeccionBarra({
   onToggleSuma, onAgregarMes, onNuevoConcepto, onAgregarConcepto,
 }) {
   const items = [
-    { id: "btn-agregar-mes", icono: "📅", texto: "Agregar mes a proyectar", accion: onAgregarMes },
-    { id: "btn-agregar-concepto", icono: "🆕", texto: "Crear nuevo concepto", accion: onNuevoConcepto },
-    { id: "btn-agregar-existente", icono: "📌", texto: "Agregar concepto", accion: onAgregarConcepto },
-    { id: "btn-sumar-proy", icono: "➕", texto: "Sumar movimientos", accion: onToggleSuma },
+    { id: "btn-agregar-mes", icono: "mes", texto: "Agregar mes a proyectar", accion: onAgregarMes },
+    { id: "btn-agregar-concepto", icono: "concepto", texto: "Crear nuevo concepto", accion: onNuevoConcepto },
+    { id: "btn-agregar-existente", icono: "agregar", texto: "Agregar concepto", accion: onAgregarConcepto },
+    { id: "btn-sumar-proy", icono: "sumar", texto: "Sumar movimientos", accion: onToggleSuma },
   ];
   return (
     <div className="cajas-header">

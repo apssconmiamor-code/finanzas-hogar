@@ -3556,64 +3556,38 @@ function renderIngresosMesPanel(mes) {
 }
 
 // ---- RESUMEN MESES DINÁMICO ----
+// Tarjetas de meses: se dibujan con React (react/src/proyeccion/MesesProyeccion.jsx),
+// iguales a las de Cajas y en una fila que se desliza. Acá solo se arma lo que
+// muestra cada una y se le pasan las acciones de siempre.
 function render4MesesResumen() {
-  const wrap = document.getElementById("proy-4meses-wrap");
-  const grid = document.getElementById("proy-4meses-grid");
-  if (!wrap || !grid) return;
-
+  if (!window.MesesProyeccionReact) return;
   const meses = getMesesProyeccion();
 
-  grid.innerHTML = `<div class="proy-4m-grid">` + meses.map(mes => {
-    const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "short", year: "2-digit" });
-    const ingEst = totalIngresosMes(mes) || presupuesto.filter(p => p.ingresoEstimado > 0).reduce((s, p) => s + p.ingresoEstimado, 0);
-    const gastosEstimados = totalGastosMes(mes);
-    const excEst  = ingEst - gastosEstimados;
-    const isActivo = mes === proyMesActivo;
-    const puedeEliminar = meses.length > 1;
+  const bajarATabla = () =>
+    document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    return `<div class="proy-4m-card ${isActivo ? "proy-4m-active" : ""}" data-mes="${mes}">
-      ${puedeEliminar ? `<button class="proy-4m-remove" data-mes-rm="${mes}" title="Quitar mes">×</button>` : ""}
-      <button class="proy-4m-config" data-mes-config="${mes}" title="Configurar este mes">⚙️</button>
-      <div class="proy-4m-mes">${label}</div>
-      <div class="proy-4m-row"><span>Ingresos est.</span><strong>${formatMonto(ingEst)}</strong></div>
-      <div class="proy-4m-row"><span>Gastos est.</span><strong>${formatMonto(gastosEstimados)}</strong></div>
-      <div class="proy-4m-row" style="color:${excEst>=0?"var(--green)":"var(--red)"}">
-        <span>Excedente</span><strong>${formatMonto(excEst)}</strong>
-      </div>
-    </div>`;
-  }).join("") + "</div>";
-
-  // Eliminar mes (×)
-  grid.querySelectorAll(".proy-4m-remove").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      eliminarMesProyeccion(btn.dataset.mesRm);
-    });
-  });
-
-  // Configurar mes (⚙️): activa ese mes y abre su configuración
-  grid.querySelectorAll(".proy-4m-config").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const mesTocado = btn.dataset.mesConfig;
-      proyMesActivo = mesTocado;
-      renderProyeccion();
-      abrirConfigMes(mesTocado);
-      document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  // Un toque en la tarjeta (fuera de los botones) activa ese mes de una vez
-  // y baja a la tabla — sin depender de doble clic/temporizadores, que
-  // fallaban si una sincronización de fondo volvía a dibujar las tarjetas
-  // justo entre el primer y el segundo toque.
-  grid.querySelectorAll(".proy-4m-card").forEach(card => {
-    card.addEventListener("click", (e) => {
-      if (e.target.closest(".proy-4m-remove, .proy-4m-config")) return;
-      proyMesActivo = card.dataset.mes;
-      renderProyeccion();
-      document.querySelector(".card-section:has(#proy-tabla-body)")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  window.MesesProyeccionReact.render({
+    meses: meses.map(mes => {
+      const ingresos = totalIngresosMes(mes) || presupuesto.filter(p => p.ingresoEstimado > 0).reduce((s, p) => s + p.ingresoEstimado, 0);
+      const gastos = totalGastosMes(mes);
+      const mesCorto = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
+      return {
+        mes,
+        label: `${mesCorto.charAt(0).toUpperCase()}${mesCorto.slice(1)} ${mes.slice(2, 4)}`,
+        ingresos, gastos, excedente: ingresos - gastos,
+        activo: mes === proyMesActivo,
+      };
+    }),
+    puedeQuitar: meses.length > 1,
+    formatMonto,
+    // Un toque activa ese mes de una vez y baja a la tabla -- sin depender de
+    // doble clic/temporizadores, que fallaban si una sincronización de fondo
+    // volvía a dibujar las tarjetas justo entre el primer y el segundo toque.
+    onSeleccionar: (mes) => { proyMesActivo = mes; renderProyeccion(); bajarATabla(); },
+    // Configurar mes (⚙️ o Editar al mantener presionado): activa ese mes y
+    // abre su configuración.
+    onConfigurar: (mes) => { proyMesActivo = mes; renderProyeccion(); abrirConfigMes(mes); bajarATabla(); },
+    onQuitar: eliminarMesProyeccion,
   });
 }
 

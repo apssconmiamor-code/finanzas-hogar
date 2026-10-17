@@ -148,6 +148,50 @@ test.describe('Proyección', () => {
     await expect(filaSura).not.toHaveClass(/proy-tabla-row-seleccionada/);
   });
 
+  // Los meses proyectados usan las mismas tarjetas que las Cajas, en una sola fila
+  // que se desliza (tres visibles).
+  test("Meses proyectados: tarjetas iguales a las de Cajas, fila deslizable, un toque activa el mes", async ({ page }) => {
+    await mockGoogleApis(page);
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    const tarjetas = page.locator("#proy-4meses-lista .caja-card.proy-4m-card");
+    await expect(tarjetas).toHaveCount(4);
+    // Misma pista de deslizamiento que Cajas: más de tres -> puntitos y degradado.
+    await expect(page.locator("#proy-4meses-wrap .cajas-puntos .cajas-punto")).toHaveCount(2);
+    await expect(page.locator("#proy-4meses-wrap .cajas-fade-der")).toBeVisible();
+    await expect(page.locator("#proy-4meses-lista")).toHaveCSS("overflow-x", "auto");
+
+    // Un toque activa ese mes.
+    await tarjetas.nth(1).scrollIntoViewIfNeeded();
+    await tarjetas.nth(1).click();
+    await expect(tarjetas.nth(1)).toHaveClass(/proy-4m-active/);
+    await expect(tarjetas.nth(0)).not.toHaveClass(/proy-4m-active/);
+  });
+
+  test("los ítems de los menús ⋯ llevan íconos SVG simples, no emojis", async ({ page }) => {
+    await mockGoogleApis(page, { Cajas: [["C1", "prueba@example.com", "Efectivo", "COP"]] });
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+
+    await page.locator("#btn-menu-cajas").click();
+    for (const id of ["btn-sumar-cajas", "btn-elegir-cajas"]) {
+      await expect(page.locator("#" + id + " .dd-icon svg")).toHaveCount(1);
+    }
+    await page.keyboard.press("Escape");
+
+    await irATab(page, "proyeccion");
+    await page.locator("#btn-menu-proyeccion").click();
+    for (const id of ["btn-agregar-mes", "btn-agregar-concepto", "btn-agregar-existente", "btn-sumar-proy"]) {
+      await expect(page.locator("#" + id + " .dd-icon svg")).toHaveCount(1);
+      // Nada de emojis como texto del ícono.
+      await expect(page.locator("#" + id + " .dd-icon")).toHaveText("");
+    }
+  });
+
   test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque no hace nada, doble toque abre el resumen y mantener presionado abre Editar/Eliminar', async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await mockGoogleApis(page, {

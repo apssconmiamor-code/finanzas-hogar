@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
+import { FilaDeslizable } from "../shared/FilaDeslizable.jsx";
+import { Icono } from "../shared/Iconos.jsx";
 
 // Props que arma app.js (ver renderCajas):
 //   cajas[]            { id, nombre, moneda, saldoReal, icono } (TODAS)
@@ -54,8 +56,8 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
           ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
               onClick={alternarModo}>Listo</button>
           : <MenuOpciones id="btn-menu-cajas" etiqueta="Opciones de cajas" items={[
-              { id: "btn-sumar-cajas", icono: "➕", texto: "Sumar cajas", accion: alternarModo },
-              { id: "btn-elegir-cajas", icono: "👁", texto: "Elegir cajas", accion: () => setEligiendo(true) },
+              { id: "btn-sumar-cajas", icono: "sumar", texto: "Sumar cajas", accion: alternarModo },
+              { id: "btn-elegir-cajas", icono: "elegir", texto: "Elegir cajas", accion: () => setEligiendo(true) },
             ]} />}
         <div className="cajas-header-der">
           {modoSuma && <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />}
@@ -74,25 +76,6 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
           onCerrar={() => setEligiendo(false)} />,
         document.body)}
     </>
-  );
-}
-
-// Íconos de línea (SVG, no imágenes ni emojis): trazo blanco sobre el círculo
-// de color. Son trazados propios, sin librería.
-const ICONOS_ATAJO = {
-  movimientos: <><path d="M7 7h13" /><path d="m16 3 4 4-4 4" /><path d="M17 17H4" /><path d="m8 13-4 4 4 4" /></>,
-  proyeccion: <><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
-  mercado: <><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></>,
-  planes: <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />,
-  compromisos: <><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></>,
-  analisis: <><path d="M21.2 15.9A10 10 0 1 1 8 2.8" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></>,
-  alertas: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></>,
-};
-
-function IconoAtajo({ nombre }) {
-  return (
-    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ICONOS_ATAJO[nombre]}</svg>
   );
 }
 
@@ -115,7 +98,7 @@ function Atajos({ onIrATab, alertasPendientes }) {
       {atajos.map(a => (
         <button key={a.id} type="button" id={a.id} className="cajas-atajo" onClick={a.accion}>
           <span className="cajas-atajo-circulo" aria-hidden="true">
-            <IconoAtajo nombre={a.icono} />
+            <Icono nombre={a.icono} />
             {a.contador > 0 && <span className="cajas-atajo-badge">{a.contador > 99 ? "99+" : a.contador}</span>}
           </span>
           <span className="cajas-atajo-texto">{a.texto}</span>
@@ -172,27 +155,6 @@ function EstadoVacio({ verificadaEnRed, hayOcultas }) {
 // igual que cuando renderCajas() reescribía el innerHTML.
 function Grilla({ scrollRef, cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrirDetalle, onAjustar, onReordenar }) {
   const gridRef = useRef(null);
-  // Pista de que hay más cajas: degradados en los bordes que tienen más
-  // contenido y puntitos de "página" (una por cada tres cajas).
-  const [borde, setBorde] = useState({ izq: false, der: false, pagina: 0 });
-  const paginas = Math.ceil(cajas.length / 3);
-
-  const medirScroll = () => {
-    const g = gridRef.current;
-    if (!g) return;
-    scrollRef.current = g.scrollLeft;
-    const max = g.scrollWidth - g.clientWidth;
-    setBorde({
-      izq: g.scrollLeft > 4,
-      der: g.scrollLeft < max - 4,
-      pagina: max > 0 ? Math.round((g.scrollLeft / max) * (paginas - 1)) : 0,
-    });
-  };
-
-  useLayoutEffect(() => {
-    gridRef.current.scrollLeft = scrollRef.current;
-    medirScroll();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (modoSuma) return; // en modo Sumar el toque simple solo selecciona
@@ -220,8 +182,7 @@ function Grilla({ scrollRef, cajas, modoSuma, seleccion, alternarCaja, formatMon
   };
 
   return (
-    <div className="cajas-fila">
-    <div id="cajas-grid" className="cajas-grid" ref={gridRef} onScroll={medirScroll}>
+    <FilaDeslizable id="cajas-grid" cantidad={cajas.length} scrollRef={scrollRef} gridRef={gridRef}>
       {cajas.map(c => {
         const seleccionada = modoSuma && seleccion.has(c.nombre);
         return (
@@ -241,16 +202,7 @@ function Grilla({ scrollRef, cajas, modoSuma, seleccion, alternarCaja, formatMon
           </div>
         );
       })}
-    </div>
-    {borde.izq && <div className="cajas-fade cajas-fade-izq" aria-hidden="true" />}
-    {borde.der && <div className="cajas-fade cajas-fade-der" aria-hidden="true" />}
-    {paginas > 1 && (
-      <div className="cajas-puntos" aria-hidden="true">
-        {Array.from({ length: paginas }, (_, i) =>
-          <span key={i} className={"cajas-punto" + (i === borde.pagina ? " activo" : "")} />)}
-      </div>
-    )}
-    </div>
+    </FilaDeslizable>
   );
 }
 

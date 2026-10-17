@@ -821,7 +821,11 @@ input, select, textarea, table {
 /* Submenú de Cajas (⋯): el panel reusa .dropdown-menu/.dropdown-item. */
 .cajas-menu { position: relative; }
 .cajas-menu-btn { font-size: 18px; line-height: 1; padding: 3px 14px 6px; letter-spacing: 1px; }
-.cajas-menu-panel { top: calc(100% + 6px); right: auto; left: 0; min-width: 180px; }
+/* Íconos SVG de los ítems: heredan el color del texto (sin el filtro de grises
+   pensado para emojis). */
+.cajas-menu-panel .dd-icon { display: inline-flex; align-items: center; justify-content: center; filter: none; color: var(--text-3); }
+.cajas-menu-panel { top: calc(100% + 6px); right: auto; left: 0; min-width: 240px; }
+.cajas-menu-panel .dropdown-item { white-space: nowrap; }
 
 /* Todas las cajas en UNA sola fila: se ven tres a la vez y el resto se
    desliza con el dedo (pedido explícito). Fondo claro y esquinas bien
@@ -1226,19 +1230,6 @@ input, select, textarea, table {
 .proy-ingreso-chip strong { font-size: 14px; font-weight: 700; color: var(--green-dark); margin-top: 2px; }
 .proy-ingreso-chip span { color: var(--text-3); }
 
-/* 4 meses grid */
-.proy-4m-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; padding: 14px 18px; }
-.proy-4m-card {
-  background: var(--bg); border: 1.5px solid var(--border);
-  border-radius: var(--r-md); padding: 12px; cursor: pointer;
-  transition: all .15s;
-}
-.proy-4m-card:hover { box-shadow: var(--shadow-sm); border-color: var(--brand); }
-.proy-4m-card.proy-4m-active { border-color: var(--brand); background: var(--brand-soft); }
-.proy-4m-mes { font-size: 12px; font-weight: 700; color: var(--brand); text-transform: capitalize; margin-bottom: 6px; padding-left: 16px; }
-.proy-4m-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
-.proy-4m-row strong { color: var(--text-2); font-size: 12px; }
-.proy-4m-divider { height: 1px; background: var(--border); margin: 6px 0; }
 
 /* Donuts */
 .proy-dashboard-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
@@ -1671,7 +1662,6 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
   /* Sin barra inferior (la navegación es por los atajos de Inicio y el gesto de volver). */
   .tab-section { padding: 16px 16px max(40px, env(safe-area-inset-bottom)); }
   .main-content { padding-top: 0; }
-  .proy-4m-grid { grid-template-columns: repeat(2,1fr); }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }
   /* Ingresos/Gastos/Balance siempre en una sola fila, incluso en móvil */
   .resumen-bar { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
@@ -1686,7 +1676,6 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
   .cajas-grid { --cajas-gap: 8px; }
 }
 @media (max-width: 400px) {
-  .proy-4m-grid { grid-template-columns: 1fr 1fr; }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }
   .resumen-bar { grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
   .resumen-item { padding: 8px 6px; }
@@ -1750,25 +1739,16 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
 }
 .btn-agregar-mes:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
 
-/* Tarjeta de mes activa en la grid */
-.proy-4m-card { cursor: pointer; user-select: none; }
-.proy-4m-card.proy-4m-active { border-color: var(--brand); background: var(--brand-soft); }
-.proy-4m-card .proy-4m-remove {
-  display: none; position: absolute; top: 6px; right: 6px;
-  background: none; border: none; cursor: pointer;
-  color: var(--text-4); font-size: 14px; line-height: 1; padding: 2px;
-}
-.proy-4m-card:hover .proy-4m-remove { display: block; }
-.proy-4m-card { position: relative; }
-/* Siempre visible (no depende de :hover, que en touch no es confiable) —
-   es el único control para configurar el mes ahora que no hay doble clic. */
+/* Meses proyectados: usan las mismas tarjetas que las Cajas (.caja-card, en una
+   fila que se desliza -- ver FilaDeslizable). Solo se añade lo propio del mes. */
+.proy-4m-card.proy-4m-active { border-color: var(--brand) !important; box-shadow: 0 0 0 2px rgba(var(--brand-rgb),.25); }
 .proy-4m-card .proy-4m-config {
-  position: absolute; top: 6px; left: 6px;
-  background: none; border: none; cursor: pointer;
-  font-size: 13px; line-height: 1; padding: 2px;
-  opacity: 0.55;
+  background: none; border: none; cursor: pointer; padding: 2px; flex-shrink: 0;
+  font-size: 13px; line-height: 1; opacity: .55; font-family: var(--font);
 }
 .proy-4m-card .proy-4m-config:hover, .proy-4m-card .proy-4m-config:active { opacity: 1; }
+.proy-mes-detalle { margin-top: 6px; display: flex; flex-direction: column; gap: 1px; font-size: 10.5px; color: var(--text-3); }
+.proy-mes-detalle span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ═══════════════ DETALLE CUENTA (MODAL) ═══════════════ */
 .detalle-caja-resumen {

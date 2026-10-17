@@ -140,22 +140,22 @@ test.describe('Ajustar caja', () => {
     await page.goto("/");
     await esperarAppLista(page);
 
-    await expect(page.locator(".cajas-puntos .cajas-punto")).toHaveCount(2);
-    await expect(page.locator(".cajas-fade-der")).toBeVisible();
-    await expect(page.locator(".cajas-fade-izq")).toHaveCount(0);
+    await expect(page.locator("#tab-cajas .cajas-puntos .cajas-punto")).toHaveCount(2);
+    await expect(page.locator("#tab-cajas .cajas-fade-der")).toBeVisible();
+    await expect(page.locator("#tab-cajas .cajas-fade-izq")).toHaveCount(0);
 
     await page.locator("#cajas-grid").evaluate(g => { g.scrollLeft = g.scrollWidth; });
-    await expect(page.locator(".cajas-fade-izq")).toBeVisible();
-    await expect(page.locator(".cajas-fade-der")).toHaveCount(0);
-    await expect(page.locator(".cajas-punto").last()).toHaveClass(/activo/);
+    await expect(page.locator("#tab-cajas .cajas-fade-izq")).toBeVisible();
+    await expect(page.locator("#tab-cajas .cajas-fade-der")).toHaveCount(0);
+    await expect(page.locator("#tab-cajas .cajas-punto").last()).toHaveClass(/activo/);
 
     // Ocultando dos (quedan tres) ya no hay nada que deslizar.
     await page.locator("#btn-menu-cajas").click();
     await page.locator("#btn-elegir-cajas").click();
     await page.locator("#modal-elegir-cajas").getByLabel("Luni").uncheck();
     await page.locator("#modal-elegir-cajas").getByLabel("Choco").uncheck();
-    await expect(page.locator(".cajas-puntos")).toHaveCount(0);
-    await expect(page.locator(".cajas-fade")).toHaveCount(0);
+    await expect(page.locator("#tab-cajas .cajas-puntos")).toHaveCount(0);
+    await expect(page.locator("#tab-cajas .cajas-fade")).toHaveCount(0);
   });
 
   // Botones redondos de acceso rápido debajo de las cajas.
@@ -167,7 +167,7 @@ test.describe('Ajustar caja', () => {
     await page.goto("/");
     await esperarAppLista(page);
 
-    await expect(page.locator(".cajas-atajos-titulo")).toHaveText("Más opciones");
+    await expect(page.locator("#tab-cajas .cajas-atajos-titulo")).toHaveText("Más opciones");
     await expect(page.locator(".cajas-atajo")).toHaveCount(7);
     await page.locator("#atajo-movimientos").click();
     await expect(page.locator("#tab-movimientos")).toBeVisible();
