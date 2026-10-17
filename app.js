@@ -1142,6 +1142,18 @@ function cerrarPantallaActual() {
   return false;
 }
 
+// Si no hay nada que cerrar (modal, panel, detalle de un bloque...), el gesto
+// de volver lleva a la pantalla principal (Inicio/Cajas) desde cualquier otro
+// módulo: Movimientos, Proyección, Alertas, Mercado, Planes, etc. Estando ya
+// en Inicio no hace nada.
+function volverAInicio() {
+  const visible = document.querySelector(".tab-section:not(.hidden)");
+  if (!visible || visible.id === "tab-cajas") return false;
+  if (typeof window.navegarATab !== "function") return false;
+  window.navegarATab("cajas");
+  return true;
+}
+
 (function setupGestoVolver() {
   const BORDE_PX = 28;    // debe iniciar cerca del borde izquierdo, como el gesto de iOS
   const SWIPE_MIN_PX = 70; // distancia horizontal mínima para contar como "volver"
@@ -1162,7 +1174,11 @@ function cerrarPantallaActual() {
     const t = e.changedTouches[0];
     const dx = t.clientX - inicioX;
     const dy = Math.abs(t.clientY - inicioY);
-    if (dx > SWIPE_MIN_PX && dy < DESVIO_MAX_PX) cerrarPantallaActual();
+    if (dx > SWIPE_MIN_PX && dy < DESVIO_MAX_PX) {
+      // Primero cierra lo que esté abierto (un nivel hacia atrás); si no hay
+      // nada, vuelve a Inicio.
+      if (!cerrarPantallaActual()) volverAInicio();
+    }
   }, { passive: true });
 })();
 
