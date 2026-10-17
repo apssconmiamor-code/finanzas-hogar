@@ -800,7 +800,12 @@ input, select, textarea, table {
 /* Nació acá (fila arriba de la cuadrícula para el botón "Sumar"), pero
    Mercado la reusa igual arriba de su cuadrícula de categorías para
    "Enviar lista por WhatsApp" -- pedido explícito: misma ubicación. */
-.cajas-header { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+.cajas-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; min-height: 32px; }
+/* Izquierda: total de "Sumar cajas" (solo en ese modo). Derecha: ⋯ / Listo. */
+.cajas-header-izq { min-width: 0; flex: 1; }
+.cajas-suma { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.cajas-suma .sumar-cajas-barra-total { font-size: 18px; }
+.cajas-suma .sumar-cajas-barra-vacio { font-size: 12.5px; }
 /* Submenú de Cajas (⋯): el panel reusa .dropdown-menu/.dropdown-item. */
 .cajas-menu { position: relative; }
 .cajas-menu-btn { font-size: 18px; line-height: 1; padding: 3px 14px 6px; letter-spacing: 1px; }
@@ -826,6 +831,17 @@ input, select, textarea, table {
   scroll-snap-align: start;
 }
 .cajas-grid > .empty-state { flex: 1 0 100%; }
+
+/* Pista sutil de que la fila se desliza: degradado en el borde que tiene
+   más cajas y puntitos de página debajo. Todo con pointer-events:none para
+   no tapar toques ni el arrastre de las tarjetas. */
+.cajas-fila { position: relative; }
+.cajas-fade { position: absolute; top: 0; bottom: 14px; width: 28px; pointer-events: none; z-index: 1; }
+.cajas-fade-der { right: -2px; background: linear-gradient(to right, rgba(245,246,248,0), var(--bg)); }
+.cajas-fade-izq { left: -2px; background: linear-gradient(to left, rgba(245,246,248,0), var(--bg)); }
+.cajas-puntos { display: flex; justify-content: center; gap: 5px; margin-top: 8px; pointer-events: none; }
+.cajas-punto { width: 5px; height: 5px; border-radius: 50%; background: rgba(2,32,48,0.22); transition: all .2s; }
+.cajas-punto.activo { width: 14px; border-radius: 3px; background: var(--brand); }
 .caja-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px; padding: 12px 10px 10px;

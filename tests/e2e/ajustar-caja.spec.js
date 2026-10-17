@@ -130,6 +130,34 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator("#cajas-grid")).toContainText("No tienes cajas visibles");
   });
 
+  // Con más de tres cajas la fila se desliza: una pista sutil (degradado en
+  // el borde con más cajas + puntitos de página) avisa que hay más.
+  test("más de tres cajas: hay pista de que se desliza, y desaparece si caben todas", async ({ page }) => {
+    await mockGoogleApis(page, {
+      "Cajas": ["Efectivo", "Nequi", "Ahorro", "Choco", "Luni"].map((n, i) => ["C" + i, "prueba@example.com", n, "COP"]),
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto("/");
+    await esperarAppLista(page);
+
+    await expect(page.locator(".cajas-puntos .cajas-punto")).toHaveCount(2);
+    await expect(page.locator(".cajas-fade-der")).toBeVisible();
+    await expect(page.locator(".cajas-fade-izq")).toHaveCount(0);
+
+    await page.locator("#cajas-grid").evaluate(g => { g.scrollLeft = g.scrollWidth; });
+    await expect(page.locator(".cajas-fade-izq")).toBeVisible();
+    await expect(page.locator(".cajas-fade-der")).toHaveCount(0);
+    await expect(page.locator(".cajas-punto").last()).toHaveClass(/activo/);
+
+    // Ocultando dos (quedan tres) ya no hay nada que deslizar.
+    await page.locator("#btn-menu-cajas").click();
+    await page.locator("#btn-elegir-cajas").click();
+    await page.locator("#modal-elegir-cajas").getByLabel("Luni").uncheck();
+    await page.locator("#modal-elegir-cajas").getByLabel("Choco").uncheck();
+    await expect(page.locator(".cajas-puntos")).toHaveCount(0);
+    await expect(page.locator(".cajas-fade")).toHaveCount(0);
+  });
+
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)
   // que arma un modo selección -- tocar una caja la suma/resta del total,
   // que aparece en una barra flotante abajo (#sumar-cajas-barra). Nada de

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 // Props que arma app.js (ver renderCajas):
@@ -17,6 +17,9 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
+  // La grilla se remonta en cada render (ver Grilla) y perdería su posición
+  // de scroll horizontal: se recuerda acá para restaurarla.
+  const scrollRef = useRef(0);
   // Inicio solo muestra las que el usuario eligió ver; las demás siguen
   // existiendo en el resto de la app.
   const cajas = todas.filter(c => !ocultas.includes(c.id));
@@ -43,6 +46,9 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   return (
     <>
       <div className="cajas-header">
+        <div className="cajas-header-izq">
+          {modoSuma && <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />}
+        </div>
         {modoSuma
           ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
               onClick={alternarModo}>Listo</button>
@@ -52,15 +58,12 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
         ? <div id="cajas-grid" className="cajas-grid">
             <EstadoVacio verificadaEnRed={verificadaEnRed} hayOcultas={todas.length > 0} />
           </div>
-        : <Grilla key={`${renderId}-${modoSuma}`} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
+        : <Grilla key={`${renderId}-${modoSuma}`} scrollRef={scrollRef} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
       {eligiendo && createPortal(
         <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
           onCerrar={() => setEligiendo(false)} />,
-        document.body)}
-      {createPortal(
-        <BarraSuma activa={modoSuma} cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />,
         document.body)}
     </>
   );
@@ -148,8 +151,29 @@ function EstadoVacio({ verificadaEnRed, hayOcultas }) {
 // los gestos de gestos.js (mantener presionado / arrastrar) mutan el DOM y
 // no tienen cómo desengancharse, así que cada montaje parte de nodos nuevos,
 // igual que cuando renderCajas() reescribía el innerHTML.
-function Grilla({ cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrirDetalle, onAjustar, onReordenar }) {
+function Grilla({ scrollRef, cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrirDetalle, onAjustar, onReordenar }) {
   const gridRef = useRef(null);
+  // Pista de que hay más cajas: degradados en los bordes que tienen más
+  // contenido y puntitos de "página" (una por cada tres cajas).
+  const [borde, setBorde] = useState({ izq: false, der: false, pagina: 0 });
+  const paginas = Math.ceil(cajas.length / 3);
+
+  const medirScroll = () => {
+    const g = gridRef.current;
+    if (!g) return;
+    scrollRef.current = g.scrollLeft;
+    const max = g.scrollWidth - g.clientWidth;
+    setBorde({
+      izq: g.scrollLeft > 4,
+      der: g.scrollLeft < max - 4,
+      pagina: max > 0 ? Math.round((g.scrollLeft / max) * (paginas - 1)) : 0,
+    });
+  };
+
+  useLayoutEffect(() => {
+    gridRef.current.scrollLeft = scrollRef.current;
+    medirScroll();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (modoSuma) return; // en modo Sumar el toque simple solo selecciona
@@ -177,7 +201,8 @@ function Grilla({ cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrir
   };
 
   return (
-    <div id="cajas-grid" className="cajas-grid" ref={gridRef}>
+    <div className="cajas-fila">
+    <div id="cajas-grid" className="cajas-grid" ref={gridRef} onScroll={medirScroll}>
       {cajas.map(c => {
         const seleccionada = modoSuma && seleccion.has(c.nombre);
         return (
@@ -198,12 +223,22 @@ function Grilla({ cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrir
         );
       })}
     </div>
+    {borde.izq && <div className="cajas-fade cajas-fade-izq" aria-hidden="true" />}
+    {borde.der && <div className="cajas-fade cajas-fade-der" aria-hidden="true" />}
+    {paginas > 1 && (
+      <div className="cajas-puntos" aria-hidden="true">
+        {Array.from({ length: paginas }, (_, i) =>
+          <span key={i} className={"cajas-punto" + (i === borde.pagina ? " activo" : "")} />)}
+      </div>
+    )}
+    </div>
   );
 }
 
-// Un total por moneda -- sumar COP con USD en un solo número no tendría
-// sentido. Usa el saldo tal como se ve en la tarjeta (nunca negativo).
-function BarraSuma({ activa, cajas, seleccion, formatMonto }) {
+// Total de las cajas elegidas, uno por moneda -- sumar COP con USD en un solo
+// número no tendría sentido. Usa el saldo tal como se ve en la tarjeta (nunca
+// negativo).
+function SumaCajas({ cajas, seleccion, formatMonto }) {
   const porMoneda = {};
   seleccion.forEach(nombre => {
     const c = cajas.find(x => x.nombre === nombre);
@@ -211,12 +246,14 @@ function BarraSuma({ activa, cajas, seleccion, formatMonto }) {
     porMoneda[c.moneda] = (porMoneda[c.moneda] || 0) + Math.max(0, c.saldoReal);
   });
   const totales = Object.entries(porMoneda);
+  // Vive en la fila de arriba, a la izquierda (frente al ⋯/Listo de la
+  // derecha), en vez de una barra flotante.
   return (
-    <div id="sumar-cajas-barra" className={"sumar-cajas-barra" + (activa ? "" : " hidden")}>
-      {activa && (totales.length === 0
+    <div id="sumar-cajas-barra" className="cajas-suma">
+      {totales.length === 0
         ? <span className="sumar-cajas-barra-vacio">Tocá las cajas que querés sumar</span>
         : totales.map(([moneda, total]) =>
-            <span key={moneda} className="sumar-cajas-barra-total">{formatMonto(total, moneda)}</span>))}
+            <span key={moneda} className="sumar-cajas-barra-total">{formatMonto(total, moneda)}</span>)}
     </div>
   );
 }
