@@ -201,10 +201,10 @@ test.describe('Ajustar caja', () => {
     const rayo = page.locator("#fab-recordatorio");
     await expect(rayo).toBeVisible();
     await expect(rayo).toContainText("Nuevo movimiento");
-    // Círculo en azul marino, distinto al azul de "Más opciones".
+    // En azul claro (--brand-light), más claro que el azul de "Más opciones".
     const colorRayo = await rayo.locator(".cajas-atajo-circulo").evaluate(e => getComputedStyle(e).backgroundColor);
     const colorMas = await page.locator("#atajo-movimientos .cajas-atajo-circulo").evaluate(e => getComputedStyle(e).backgroundColor);
-    expect(colorRayo).toBe("rgb(35, 57, 93)");
+    expect(colorRayo).toBe("rgb(143, 169, 255)");
     expect(colorRayo).not.toBe(colorMas);
     // Y de forma cuadrada con esquinas redondeadas (no círculo como los de arriba).
     const radioRayo = await rayo.locator(".cajas-atajo-circulo").evaluate(e => getComputedStyle(e).borderTopLeftRadius);
