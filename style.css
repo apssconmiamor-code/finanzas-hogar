@@ -19,6 +19,11 @@
   --brand-soft:  #eaf0ff;
   --brand-light: #8fa9ff;
 
+  /* Morado: color propio de la zona de widgets y acciones rápidas (Inicio). Un violeta
+     cercano al tono del azul de marca, para que combine sin confundirse con él. */
+  --purple:      #7b61ff;
+  --purple-rgb:  123,97,255;
+
   --green:       #34c759;
   --green-soft:  #e8faf0;
   --green-dark:  #1a7a36;
@@ -910,12 +915,12 @@ input, select, textarea, table {
 }
 .cajas-atajo:hover .cajas-atajo-circulo { box-shadow: 0 6px 16px rgba(var(--brand-rgb), .38); }
 .cajas-atajo:active .cajas-atajo-circulo { transform: scale(0.94); }
-/* Zona de widgets y acciones rápidas: el azul CLARO de la paleta (--brand-light) y cuadritos
-   de esquinas redondeadas, en vez del azul y los círculos de "Más opciones", para
-   distinguirla en tono y en forma sin salirse de la app. */
-.cajas-atajos-claro { background: rgba(143,169,255,.11); border-color: rgba(143,169,255,.28); }
-.cajas-atajos-claro .cajas-atajo-circulo { background: var(--brand-light); box-shadow: 0 4px 12px rgba(143,169,255,.38); border-radius: 16px; }
-.cajas-atajos-claro .cajas-atajo:hover .cajas-atajo-circulo { box-shadow: 0 6px 16px rgba(143,169,255,.50); }
+/* Zona de widgets y acciones rápidas: morado (--purple) y cuadritos de esquinas
+   redondeadas, en vez del azul y los círculos de "Más opciones", para distinguirla
+   en color y en forma sin salirse de la app. */
+.cajas-atajos-morado { background: rgba(var(--purple-rgb),.08); border-color: rgba(var(--purple-rgb),.20); }
+.cajas-atajos-morado .cajas-atajo-circulo { background: var(--purple); box-shadow: 0 4px 12px rgba(var(--purple-rgb),.32); border-radius: 16px; }
+.cajas-atajos-morado .cajas-atajo:hover .cajas-atajo-circulo { box-shadow: 0 6px 16px rgba(var(--purple-rgb),.44); }
 .cajas-atajo-texto { font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
 .caja-card {
   background: var(--surface); border: 1px solid var(--border);
