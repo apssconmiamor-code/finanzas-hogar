@@ -1,12 +1,12 @@
 // Préstamos y Lista de compras viven juntos en una sola pestaña
 // "Compromisos" (dos bloques separados, uno debajo del otro) — no están
-// en la barra de pestañas principal, solo se llega desde el menú de los
-// tres puntos (⋯), igual que "Análisis".
+// en la barra de pestañas principal, solo se llega desde el atajo redondo
+// "Compromisos" de la pantalla de Inicio (ya no está en el menú ⋯).
 
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
 
-test.describe('Navegación desde el menú ⋯', () => {
+test.describe('Navegación a Compromisos y menú ⋯', () => {
   test.beforeEach(async ({ page }) => {
     await mockGoogleApis(page);
     await iniciarSesionFalsa(page);
@@ -20,12 +20,8 @@ test.describe('Navegación desde el menú ⋯', () => {
     await expect(page.locator('.nav-item[data-tab="compras"]')).toHaveCount(0);
   });
 
-  test('el menú ⋯ abre Compromisos, con Préstamos y Lista de compras como dos bloques adentro', async ({ page }) => {
-    const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
-    await btnMenu.click();
-    await expect(page.locator('#dropdown-menu')).toBeVisible();
-
-    await page.locator('[data-tab-nav="compromisos"]').click();
+  test('el atajo "Compromisos" de Inicio abre Compromisos, con Préstamos y Lista de compras como dos bloques adentro', async ({ page }) => {
+    await page.locator('#atajo-compromisos').click();
     await expect(page.locator('#tab-compromisos')).toBeVisible();
     await expect(page.locator('#tab-cajas')).toHaveClass(/hidden/);
 
@@ -34,6 +30,17 @@ test.describe('Navegación desde el menú ⋯', () => {
     await expect(page.locator('#btn-nuevo-prestamo')).toBeVisible();
     await expect(page.locator('#tab-compromisos')).toContainText('Lista de compras');
     await expect(page.locator('#btn-nueva-compra')).toBeVisible();
+  });
+
+  // Análisis, Compromisos, Alertas y Planes se quitaron del menú ⋯: ahora
+  // viven como atajos en Inicio. Mercado sigue en el menú.
+  test('el menú ⋯ ya no ofrece Análisis, Compromisos, Alertas ni Planes, pero sí Mercado', async ({ page }) => {
+    await page.locator('#btn-menu').click();
+    await expect(page.locator('#dropdown-menu')).toBeVisible();
+    for (const tab of ['resumen', 'compromisos', 'notificaciones', 'planes']) {
+      await expect(page.locator(`[data-tab-nav="${tab}"]`)).toHaveCount(0);
+    }
+    await expect(page.locator('[data-tab-nav="mercado"]')).toBeVisible();
   });
 
   // Los tests corren con serviceWorkers:'block' (ver playwright.config.js),

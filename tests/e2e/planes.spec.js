@@ -5,12 +5,10 @@
 // se puede crear DESDE una categoría, y guarda nombre, ubicación, fecha,
 // tipo (gratis/pago) e inversión (si es de pago).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 async function abrirPlanes(page) {
-  const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
-  await btnMenu.click();
-  await page.locator('[data-tab-nav="planes"]').click();
+  await irATab(page, 'planes');
   await expect(page.locator('#tab-planes')).toBeVisible();
 }
 

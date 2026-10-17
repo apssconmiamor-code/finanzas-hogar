@@ -4,7 +4,7 @@
 // movimiento a mano.
 
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 test.describe('Ajustar caja', () => {
   test('nivela una caja con saldo negativo a $0 y quita el aviso de "Requiere ajuste"', async ({ page }) => {
@@ -173,11 +173,11 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator("#tab-movimientos")).toBeVisible();
     await expect(page.locator("#tab-cajas")).toBeHidden();
 
-    await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
+    await irATab(page, "cajas");
     await page.locator("#atajo-proyeccion").click();
     await expect(page.locator("#tab-proyeccion")).toBeVisible();
 
-    await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
+    await irATab(page, "cajas");
     await page.locator("#atajo-alertas").click();
     await expect(page.locator("#tab-notificaciones")).toBeVisible();
 
@@ -282,10 +282,10 @@ test.describe('Ajustar caja', () => {
     await page.locator('.caja-card', { hasText: 'Efectivo' }).click();
     await expect(page.locator('#sumar-cajas-barra')).toBeVisible();
 
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
     await expect(page.locator('#sumar-cajas-barra')).toBeHidden();
 
-    await page.locator('.nav-item[data-tab="cajas"]:visible').first().click();
+    await irATab(page, 'cajas');
     await expect(page.locator('#btn-menu-cajas')).toBeVisible();
     await expect(page.locator('.caja-card', { hasText: 'Efectivo' })).not.toHaveClass(/caja-card-seleccionada/);
   });

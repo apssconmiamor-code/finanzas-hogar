@@ -10,7 +10,7 @@
 // sesión.
 
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 const FOTO_FALSA = { name: 'recibo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
 
@@ -66,7 +66,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
 
     // El movimiento quedó registrado.
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
     await expect(page.locator('#movimientos-list')).toContainText('SURA');
     await expect(page.locator('#movimientos-list')).toContainText('3.000.000');
   });
@@ -469,7 +469,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
 
     // Se registró en Nequi -- se ve en el detalle de esa caja, no en Efectivo.
-    await page.locator('.nav-item[data-tab="cajas"]:visible').first().click();
+    await irATab(page, 'cajas');
     await page.locator('.caja-card', { hasText: 'Nequi' }).dblclick();
     await expect(page.locator('#modal-detalle-caja')).toContainText('Mercado');
   });

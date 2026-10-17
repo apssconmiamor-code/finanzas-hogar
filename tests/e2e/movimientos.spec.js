@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 const { seleccionarCaja } = require('./helpers/uiHelpers');
 
 test.describe('Movimientos', () => {
@@ -11,7 +11,7 @@ test.describe('Movimientos', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
     await expect(page.locator('#tab-movimientos')).toBeVisible();
   });
 
@@ -109,7 +109,7 @@ test.describe('Movimientos', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
 
     await page.locator('#btn-nueva-transferencia').click();
     const toggleOrigen = page.locator('#mov-caja-origen + .caja-picker .caja-picker-toggle');
@@ -140,7 +140,7 @@ test.describe('Movimientos', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
 
     await page.locator('#btn-nuevo-ingreso').click();
     let opciones = await page.locator('#mov-caja option').allTextContents();
@@ -204,7 +204,7 @@ test.describe('Movimientos — filtro de subcategoría', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
     await expect(page.locator('#tab-movimientos')).toBeVisible();
   });
 

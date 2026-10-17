@@ -10,12 +10,13 @@ import { createPortal } from "react-dom";
 //   onAbrirDetalle(n)  doble toque (tapCaja) sobre una tarjeta
 //   onAjustar(n)       mantener presionado, solo con saldo negativo
 //   onReordenar(nombres[])  tras arrastrar una tarjeta
+//   alertasPendientes  número (Activos + Pasados) que se muestra sobre el atajo Alertas
 //   onIrATab(tab)      atajos redondos: movimientos, proyeccion, notificaciones (Alertas),
 //                      mercado, planes, compromisos, resumen (Análisis)
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, alertasPendientes = 0, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
@@ -63,7 +64,7 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
         : <Grilla key={`${renderId}-${modoSuma}`} scrollRef={scrollRef} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
-      <Atajos onIrATab={onIrATab} />
+      <Atajos onIrATab={onIrATab} alertasPendientes={alertasPendientes} />
       {eligiendo && createPortal(
         <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
           onCerrar={() => setEligiendo(false)} />,
@@ -93,11 +94,11 @@ function IconoAtajo({ nombre }) {
 
 // Botones redondos de acceso rápido, dentro de una caja contenedora debajo de
 // las cajas.
-function Atajos({ onIrATab }) {
+function Atajos({ onIrATab, alertasPendientes }) {
   const atajos = [
     { id: "atajo-movimientos", icono: "movimientos", texto: "Movimientos", accion: () => onIrATab("movimientos") },
     { id: "atajo-proyeccion", icono: "proyeccion", texto: "Proyección", accion: () => onIrATab("proyeccion") },
-    { id: "atajo-alertas", icono: "alertas", texto: "Alertas", accion: () => onIrATab("notificaciones") },
+    { id: "atajo-alertas", icono: "alertas", texto: "Alertas", accion: () => onIrATab("notificaciones"), contador: alertasPendientes },
     { id: "atajo-mercado", icono: "mercado", texto: "Mercado", accion: () => onIrATab("mercado") },
     { id: "atajo-planes", icono: "planes", texto: "Planes", accion: () => onIrATab("planes") },
     { id: "atajo-compromisos", icono: "compromisos", texto: "Compromisos", accion: () => onIrATab("compromisos") },
@@ -109,7 +110,10 @@ function Atajos({ onIrATab }) {
     <div className="cajas-atajos">
       {atajos.map(a => (
         <button key={a.id} type="button" id={a.id} className="cajas-atajo" onClick={a.accion}>
-          <span className="cajas-atajo-circulo" aria-hidden="true"><IconoAtajo nombre={a.icono} /></span>
+          <span className="cajas-atajo-circulo" aria-hidden="true">
+            <IconoAtajo nombre={a.icono} />
+            {a.contador > 0 && <span className="cajas-atajo-badge">{a.contador > 99 ? "99+" : a.contador}</span>}
+          </span>
           <span className="cajas-atajo-texto">{a.texto}</span>
         </button>
       ))}

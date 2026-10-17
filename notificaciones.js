@@ -1257,84 +1257,22 @@ async function guardarNotificacion() {
 }
 
 // =============================================
-// BADGE + PANEL EN LA TOPBAR (mismo patrón que Recordatorios) — muestra
-// todo lo que necesita atención: "Activos" (hoy) + "Pasados" (antes de
-// hoy sin revisar), ver _necesitaAtencion. Antes solo contaba "enviada"
-// (bug real reportado: no incluía lo "activa" de hoy ni lo vencido de
-// días anteriores que el Cron todavía no había alcanzado a marcar).
+// CONTADOR DEL ATAJO "ALERTAS" (pantalla de Inicio)
+// =============================================
+// Antes era una campanita con panel en la topbar; ahora el número vive en el
+// botón redondo "Alertas" de Inicio. Cuenta todo lo que necesita atención:
+// "Activos" (hoy) + "Pasados" (antes de hoy sin revisar), ver
+// _necesitaAtencion. Antes solo contaba "enviada" (bug real reportado: no
+// incluía lo "activa" de hoy ni lo vencido de días anteriores que el Cron
+// todavía no había alcanzado a marcar).
 // =============================================
 
 function renderNotificacionesBadge() {
-  const btn   = document.getElementById("btn-notificaciones-badge");
-  const count = document.getElementById("notificaciones-count");
-  if (!btn || !count) return;
   const porRevisar = notificaciones.filter(n => _necesitaAtencion(n)).length;
-  count.textContent = porRevisar;
-  btn.classList.toggle("hidden", porRevisar === 0);
-  if (porRevisar === 0) document.getElementById("notificaciones-panel")?.classList.add("hidden");
-}
-
-function toggleNotificacionesPanel() {
-  const panel = document.getElementById("notificaciones-panel");
-  if (!panel) return;
-  document.getElementById("dropdown-menu")?.classList.add("hidden");
-  document.getElementById("recordatorios-panel")?.classList.add("hidden");
-  const abierto = !panel.classList.contains("hidden");
-  panel.classList.toggle("hidden", abierto);
-  if (!abierto) renderNotificacionesPanel();
-}
-
-function renderNotificacionesPanel() {
-  const panel = document.getElementById("notificaciones-panel");
-  if (!panel) return;
-
-  const porRevisar = notificaciones
-    .filter(n => _necesitaAtencion(n))
-    .sort((a, b) => {
-      const fa = _fechaReferenciaTarjeta(a);
-      const fb = _fechaReferenciaTarjeta(b);
-      if (!fa && !fb) return 0;
-      if (!fa) return 1;
-      if (!fb) return -1;
-      return fa.getTime() - fb.getTime();
-    });
-  if (porRevisar.length === 0) {
-    panel.innerHTML = `<div class="recordatorio-panel-vacio">No tienes alertas por revisar.</div>`;
-    return;
-  }
-
-  panel.innerHTML = porRevisar.map(n => {
-    const fecha = _fechaReferenciaTarjeta(n);
-    return `
-    <div class="recordatorio-item">
-      <span class="recordatorio-item-icon">🔔</span>
-      <div class="recordatorio-item-body">
-        <div class="recordatorio-item-texto">${escapeHtml(n.titulo)}</div>
-        <div class="recordatorio-item-fecha">${fecha ? _formatoFechaHoraLocal(fecha.toISOString()) : ""}</div>
-      </div>
-      <button class="btn-accion" title="Revisada (la vi, no urge)" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')">👀</button>
-      <button class="btn-accion" title="Realizada (ya la hice)" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')">✅</button>
-    </div>`;
-  }).join("");
+  if (typeof actualizarAlertasAtajo === "function") actualizarAlertasAtajo(porRevisar);
 }
 
 function setupNotificacionesListeners() {
-  document.getElementById("btn-notificaciones-badge")?.addEventListener("click", toggleNotificacionesPanel);
-
-  // pointerup, no click -- el bloqueo de zoom (touchend -> preventDefault
-  // en index.html si el toque anterior fue hace <=300ms) suprime la
-  // síntesis de click de ESE toque puntual en iOS Safari real (mismo
-  // problema ya resuelto en tapNotificacion más arriba); pointerup sí
-  // llega siempre. Bug real reportado: tocar afuera del panel (u otro
-  // botón, como el menú de los tres puntos) a veces no lo cerraba.
-  document.addEventListener("pointerup", (e) => {
-    const panel = document.getElementById("notificaciones-panel");
-    const btn   = document.getElementById("btn-notificaciones-badge");
-    if (!panel || panel.classList.contains("hidden")) return;
-    if (panel.contains(e.target) || e.target === btn || btn?.contains(e.target)) return;
-    panel.classList.add("hidden");
-  });
-
   document.getElementById("btn-cancelar-notificacion")
     ?.addEventListener("click", () => {
       document.getElementById("modal-notificacion").classList.add("hidden");

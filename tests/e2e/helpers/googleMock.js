@@ -169,4 +169,13 @@ async function esperarAppLista(page) {
   await page.waitForFunction(() => typeof window.navegarATab === 'function');
 }
 
-module.exports = { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, SHEET_NAMES };
+// Navega a una pestaña (cajas, movimientos, proyeccion, notificaciones,
+// planes, compromisos, resumen...) sin depender de qué botón la muestre en
+// cada tamaño de pantalla: en celular ya no hay barra inferior, y los
+// atajos de Inicio solo existen estando en Inicio. Los atajos en sí se
+// prueban en ajustar-caja.spec.js.
+async function irATab(page, tab) {
+  await page.evaluate((t) => window.navegarATab(t), tab);
+}
+
+module.exports = { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, SHEET_NAMES };

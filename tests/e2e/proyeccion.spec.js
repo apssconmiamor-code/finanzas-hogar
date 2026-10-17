@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 test.describe('Proyección', () => {
   test('los movimientos sin concepto conocido se agrupan en UNA sola fila "Otros"', async ({ page }) => {
@@ -23,7 +23,7 @@ test.describe('Proyección', () => {
 
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
     const filasOtros = page.locator('#proy-tabla-body .proy-concepto-nombre', { hasText: 'Otros' });
@@ -35,7 +35,7 @@ test.describe('Proyección', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
     await page.locator('#btn-agregar-concepto').click();
@@ -71,7 +71,7 @@ test.describe('Proyección', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
     // Los grupos aparecen en orden Ingresos/Fijos/Variables, con un color
@@ -166,7 +166,7 @@ test.describe('Proyección', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
 
     await page.locator('.proy-tabla-row', { hasText: 'Alquiler' }).dblclick();
     const balanceAlquiler = page.locator('#resumen-concepto-cuerpo .detalle-notif-fila', { hasText: 'Balance' }).locator('.detalle-notif-valor');
@@ -195,7 +195,7 @@ test.describe('Proyección', () => {
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
     // Fila propia dentro de "Variables" (no "Ingresos", aunque el

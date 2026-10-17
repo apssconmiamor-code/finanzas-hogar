@@ -166,10 +166,6 @@
             📝<span id="recordatorios-count" class="recordatorios-count-badge">0</span>
           </button>
           <div id="recordatorios-panel" class="recordatorios-panel hidden"></div>
-          <button class="btn-recordatorios hidden" id="btn-notificaciones-badge" title="Alertas por revisar">
-            🔔<span id="notificaciones-count" class="recordatorios-count-badge">0</span>
-          </button>
-          <div id="notificaciones-panel" class="recordatorios-panel hidden"></div>
           <img id="topbar-avatar" src="" alt="" class="topbar-avatar"/>
           <button id="btn-menu" class="btn-menu-dots" aria-label="Menú" aria-expanded="false">
             <span></span><span></span><span></span>
@@ -177,20 +173,8 @@
           <div id="dropdown-menu" class="dropdown-menu hidden">
             <div class="dropdown-header" id="dropdown-user-info"></div>
             <div class="dropdown-section-label">Secciones</div>
-            <button class="dropdown-item" data-tab-nav="resumen">
-              <span class="dd-icon">📈</span> Análisis
-            </button>
-            <button class="dropdown-item" data-tab-nav="compromisos">
-              <span class="dd-icon">🤝</span> Compromisos
-            </button>
             <button class="dropdown-item" data-tab-nav="mercado">
               <span class="dd-icon">🛒</span> Mercado
-            </button>
-            <button class="dropdown-item" data-tab-nav="notificaciones">
-              <span class="dd-icon">🔔</span> Alertas
-            </button>
-            <button class="dropdown-item" data-tab-nav="planes">
-              <span class="dd-icon">✈️</span> Planes
             </button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="dd-logout">
@@ -552,19 +536,6 @@
       </section>
 
     </main>
-
-    <!-- ══ BOTTOM NAV móvil ══ -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" data-tab="cajas">
-        <span class="nav-icon">🏦</span><span>Cuentas</span>
-      </button>
-      <button class="nav-item" data-tab="movimientos">
-        <span class="nav-icon">💸</span><span>Ingresos/Gastos</span>
-      </button>
-      <button class="nav-item" data-tab="proyeccion">
-        <span class="nav-icon">📊</span><span>Proyección</span>
-      </button>
-    </nav>
 
     <!-- ══ BOTÓN FLOTANTE: nuevo recordatorio (arrastrable, todas las pestañas) ══ -->
     <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">⚡</button>

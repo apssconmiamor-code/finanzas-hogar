@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 test.describe('App con sesión iniciada', () => {
   test.beforeEach(async ({ page }) => {
@@ -18,11 +18,11 @@ test.describe('App con sesión iniciada', () => {
   test('la navegación entre pestañas cambia la sección visible', async ({ page }) => {
     // Hay dos botones por pestaña (sidebar de escritorio + barra inferior de
     // móvil); solo uno está visible según el viewport — :visible filtra al correcto.
-    await page.locator('.nav-item[data-tab="movimientos"]:visible').first().click();
+    await irATab(page, 'movimientos');
     await expect(page.locator('#tab-movimientos')).toBeVisible();
     await expect(page.locator('#tab-cajas')).toHaveClass(/hidden/);
 
-    await page.locator('.nav-item[data-tab="proyeccion"]:visible').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
   });
 });

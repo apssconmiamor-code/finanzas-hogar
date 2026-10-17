@@ -35,7 +35,7 @@ test.describe('Gesto de volver lleva a Inicio', () => {
       await deslizarParaVolver(page);
       await expect(page.locator('#tab-cajas')).toBeVisible();
       await expect(page.locator(`#tab-${tab}`)).toBeHidden();
-      await expect(page.locator('.nav-item[data-tab="cajas"]:visible').first()).toHaveClass(/active/);
+      await expect(page.locator('.nav-item[data-tab="cajas"]').first()).toHaveClass(/active/);
     });
   }
 

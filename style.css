@@ -858,6 +858,16 @@ input, select, textarea, table {
   background: none; border: none; padding: 0; cursor: pointer; font-family: var(--font);
   min-width: 0; flex: 1;
 }
+/* Número de alertas pendientes sobre el círculo (esquina superior derecha). */
+.cajas-atajo-circulo { position: relative; }
+.cajas-atajo-badge {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: var(--red); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1; font-family: var(--font);
+  border: 2px solid var(--surface);
+}
 .cajas-atajo-circulo {
   width: 56px; height: 56px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -927,7 +937,7 @@ input, select, textarea, table {
    las tarjetas que queden debajo cerca del borde de la pantalla. Una línea
    por moneda si las cajas elegidas no comparten la misma. */
 .sumar-cajas-barra {
-  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: max(28px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
   width: calc(100% - 32px); max-width: 420px;
   z-index: 400; pointer-events: none;
   display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
@@ -1604,29 +1614,6 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
 .alerta-titulo { font-size: 14px; font-weight: 600; color: var(--text); }
 .alerta-detalle { font-size: 12px; color: var(--text-3); margin-top: 2px; }
 
-/* ═══════════════ BOTTOM NAV ═══════════════ */
-.bottom-nav {
-  display: none;
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid var(--border);
-  padding: 8px 4px max(14px, env(safe-area-inset-bottom));
-  gap: 0;
-  justify-content: space-around; align-items: center;
-}
-.bottom-nav .nav-item {
-  flex-direction: column; gap: 2px; padding: 6px 8px;
-  font-size: 10px; width: auto; flex: 1;
-  border-radius: 4px; justify-content: center;
-  color: var(--text-3); font-weight: 500;
-}
-.bottom-nav .nav-item.active { background: var(--brand-soft); color: var(--brand); }
-.bottom-nav .nav-icon { font-size: 22px; width: auto; }
-/* "Más" button in bottom nav */
-#btn-bottom-menu .nav-icon { font-size: 24px; letter-spacing: 2px; color: var(--text-3); }
-
 /* ═══════════════ BOTÓN FLOTANTE: nuevo recordatorio ═══════════════ */
 .fab-recordatorio {
   position: fixed;
@@ -1668,9 +1655,9 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
 /* ═══════════════ RESPONSIVE ═══════════════ */
 @media (max-width: 768px) {
   .sidebar { display: none; }
-  .bottom-nav { display: flex; }
   .topbar { display: flex; }
-  .tab-section { padding: 16px 16px 100px; }
+  /* Sin barra inferior (la navegación es por los atajos de Inicio y el gesto de volver). */
+  .tab-section { padding: 16px 16px max(40px, env(safe-area-inset-bottom)); }
   .main-content { padding-top: 0; }
   .proy-4m-grid { grid-template-columns: repeat(2,1fr); }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }

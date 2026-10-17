@@ -8,12 +8,10 @@
 // COP hasta el cierre de ese mes, no el neto del mes solo) más los 6
 // bloques de "Salud del mes".
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 async function abrirResumen(page) {
-  const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
-  await btnMenu.click();
-  await page.locator('[data-tab-nav="resumen"]').click();
+  await irATab(page, 'resumen');
   await expect(page.locator('#tab-resumen')).toBeVisible();
 }
 

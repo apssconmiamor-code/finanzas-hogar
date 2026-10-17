@@ -7,7 +7,7 @@
 // requeriría habilitar hasTouch en todo el navegador para usar la API
 // nativa, y esto corre igual en los dos proyectos).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 async function deslizarParaRefrescar(page) {
   await page.evaluate(() => {
@@ -61,8 +61,7 @@ test.describe('Pull-to-refresh', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
-    await page.locator('#btn-menu, #btn-bottom-menu').first().click();
-    await page.locator('[data-tab-nav="notificaciones"]').click();
+    await irATab(page, 'notificaciones');
     await expect(page.locator('#tab-notificaciones')).not.toHaveClass(/hidden/);
 
     const esperaNotif = page.waitForRequest(req =>
@@ -78,7 +77,7 @@ test.describe('Pull-to-refresh', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
-    await page.locator('.nav-item[data-tab="proyeccion"]').first().click();
+    await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).not.toHaveClass(/hidden/);
 
     let peticionExtra = false;

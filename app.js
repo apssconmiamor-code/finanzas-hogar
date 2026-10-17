@@ -1034,8 +1034,8 @@ async function mostrarApp() {
   }
 
   // Notificaciones: igual que Recordatorios arriba — se carga sola al abrir
-  // la app (no solo al entrar a esa pestaña) para que el badge de la
-  // topbar (notificaciones "enviada" por revisar) esté al día de una vez.
+  // la app (no solo al entrar a esa pestaña) para que el número del
+  // atajo "Alertas" de Inicio esté al día de una vez.
   if (typeof cargarNotificaciones === "function") {
     const cacheN = localStorage.getItem("cache_notificaciones");
     if (cacheN) { try { notificaciones = JSON.parse(cacheN); } catch {} }
@@ -1094,11 +1094,6 @@ function cerrarPantallaActual() {
   const recPanel = document.getElementById("recordatorios-panel");
   if (recPanel && !recPanel.classList.contains("hidden")) {
     animarYCerrar(recPanel, () => recPanel.classList.add("hidden"));
-    return true;
-  }
-  const notifPanel = document.getElementById("notificaciones-panel");
-  if (notifPanel && !notifPanel.classList.contains("hidden")) {
-    animarYCerrar(notifPanel, () => notifPanel.classList.add("hidden"));
     return true;
   }
   // Pantalla de detalle de un bloque de Alertas (ver notificaciones.js) --
@@ -1167,7 +1162,7 @@ let _arrastreVolver = null;
 // (mismos casos que cerrarPantallaActual, sin cerrar nada).
 function _hayAlgoQueCerrar() {
   if (document.querySelector(".modal:not(.hidden)")) return true;
-  for (const id of ["dropdown-menu", "recordatorios-panel", "notificaciones-panel"]) {
+  for (const id of ["dropdown-menu", "recordatorios-panel"]) {
     const el = document.getElementById(id);
     if (el && !el.classList.contains("hidden")) return true;
   }
@@ -1422,17 +1417,6 @@ document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
       }
     );
   }
-
-  // Bottom nav "Más" button — opens dropdown menu
-  document.getElementById("btn-bottom-menu")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const dropdown = document.getElementById("dropdown-menu");
-    const btn = document.getElementById("btn-menu");
-    const abierto = !dropdown.classList.contains("hidden");
-    dropdown.classList.toggle("hidden", abierto);
-    if (btn) btn.setAttribute("aria-expanded", String(!abierto));
-    if (typeof actualizarDropdownUsuario === "function") actualizarDropdownUsuario();
-  });
 
   // Movimientos
 
@@ -1999,6 +1983,16 @@ const tapCaja = crearManejadorDobleToque(nombre => nombre, nombre => abrirDetall
 // "view-model" -- los saldos y el orden siguen siendo de este archivo -- y se
 // le pasan los callbacks que usan lo que todavía es JS plano (detalle, ajuste,
 // guardado de orden).
+// Alertas que necesitan atención (Activos de hoy + Pasados): lo calcula
+// notificaciones.js (renderNotificacionesBadge) y se muestra como número en el
+// atajo redondo "Alertas" de Inicio.
+let _alertasPendientes = 0;
+function actualizarAlertasAtajo(n) {
+  if (n === _alertasPendientes) return;
+  _alertasPendientes = n;
+  renderCajas();
+}
+
 function renderCajas() {
   if (!window.CajasReact) return;
   window.CajasReact.render({
@@ -2013,6 +2007,7 @@ function renderCajas() {
     // carga falló) → no invitar a "crear una" cuando en realidad puede que
     // ya existan y solo no hayan cargado, para no sugerir que se perdieron.
     ocultas: cajasOcultas,
+    alertasPendientes: _alertasPendientes,
     onCambiarOcultas: _guardarCajasOcultas,
     verificadaEnRed: _cajasVerificadasEnRed,
     formatMonto,
@@ -4877,7 +4872,6 @@ function setupTopbarMenu() {
     // Bug real reportado: abrir este menú (los "tres puntos") no cerraba
     // el panel de Alertas si ya estaba abierto -- solo cerraba el de
     // Recordatorios.
-    document.getElementById("notificaciones-panel")?.classList.add("hidden");
     const abierto = !dropdown.classList.contains("hidden");
     dropdown.classList.toggle("hidden", abierto);
     btn.setAttribute("aria-expanded", String(!abierto));

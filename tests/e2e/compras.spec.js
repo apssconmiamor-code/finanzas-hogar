@@ -4,7 +4,7 @@
 // presionada abre Eliminar (no existe "Editar" para una compra, nunca la
 // hubo -- solo se puede crear o borrar).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 test.describe('Compras', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,8 +17,7 @@ test.describe('Compras', () => {
     await esperarAppLista(page);
     // Compromisos (Préstamos + Lista de compras) solo se llega desde el
     // menú ⋯, no está en la barra de pestañas principal.
-    await page.locator('#btn-menu, #btn-bottom-menu').first().click();
-    await page.locator('[data-tab-nav="compromisos"]').click();
+    await irATab(page, 'compromisos');
     await expect(page.locator('#tab-compromisos')).toBeVisible();
   });
 

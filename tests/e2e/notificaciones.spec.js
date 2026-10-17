@@ -9,12 +9,10 @@
 // correctos. No se puede probar la entrega real de un push en un test
 // headless (necesitaría un servicio de push real).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 async function abrirNotificaciones(page) {
-  const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
-  await btnMenu.click();
-  await page.locator('[data-tab-nav="notificaciones"]').click();
+  await irATab(page, 'notificaciones');
   await expect(page.locator('#tab-notificaciones')).toBeVisible();
 }
 
@@ -782,7 +780,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('#notif-header-nota')).toBeHidden();
   });
 
-  test('el badge de la campanita cuenta Activos (hoy) Y Pasados, no solo "enviada" (bug real reportado)', async ({ page }) => {
+  test("el número del atajo Alertas cuenta Activos (hoy) Y Pasados, no solo \"enviada\" (bug real reportado)", async ({ page }) => {
     const hoy730am = new Date();
     hoy730am.setHours(7, 30, 0, 0);
     const ayer = new Date(Date.now() - 86400000).toISOString();
@@ -790,34 +788,31 @@ test.describe('Notificaciones (Web Push)', () => {
     await mockGoogleApis(page, {
       Notificaciones: [
         // "activa", vence hoy -- todavía no la marcó "enviada" el Worker.
-        // Antes NO contaba para el badge (solo miraba estado "enviada").
-        ['N20', 'Agua Colibrí', '', 'unica', hoy730am.toISOString(), '', 'yo', 'prueba@example.com', 'activa', ''],
+        // Antes NO contaba (solo miraba estado "enviada").
+        ["N20", "Agua Colibrí", "", "unica", hoy730am.toISOString(), "", "yo", "prueba@example.com", "activa", ""],
         // "activa", vencida desde ayer -- tampoco contaba antes.
-        ['N21', 'Pagar arriendo', '', 'unica', ayer, '', 'yo', 'prueba@example.com', 'activa', ''],
+        ["N21", "Pagar arriendo", "", "unica", ayer, "", "yo", "prueba@example.com", "activa", ""],
       ],
     });
-    await page.goto('/index.html');
+    await page.goto("/index.html");
     await esperarAppLista(page);
 
-    await expect(page.locator('#notificaciones-count')).toHaveText('2');
-    await page.locator('#btn-notificaciones-badge').click();
-    await expect(page.locator('#notificaciones-panel')).toContainText('Agua Colibrí');
-    await expect(page.locator('#notificaciones-panel')).toContainText('Pagar arriendo');
+    // Activos (1) + Pasados (1) = 2, sobre el botón redondo de Inicio.
+    await expect(page.locator("#atajo-alertas .cajas-atajo-badge")).toHaveText("2");
   });
 
-  test('abrir el menú de los "tres puntos" cierra el panel de Alertas si estaba abierto (bug real reportado)', async ({ page }) => {
-    const hoy = new Date().toISOString();
+  test("sin alertas por revisar, el atajo Alertas no muestra número, y ya no hay campanita en la barra de arriba", async ({ page }) => {
+    const enUnaSemana = new Date(Date.now() + 7 * 86400000).toISOString();
     await mockGoogleApis(page, {
-      Notificaciones: [['N22', 'Agua Colibrí', '', 'unica', hoy, '', 'yo', 'prueba@example.com', 'activa', '']],
+      Notificaciones: [["N22", "Futura", "", "unica", enUnaSemana, "", "yo", "prueba@example.com", "activa", ""]],
     });
-    await page.goto('/index.html');
+    await page.goto("/index.html");
     await esperarAppLista(page);
 
-    await page.locator('#btn-notificaciones-badge').click();
-    await expect(page.locator('#notificaciones-panel')).toBeVisible();
-
-    await page.locator('#btn-menu').click();
-    await expect(page.locator('#notificaciones-panel')).toBeHidden();
+    await expect(page.locator("#atajo-alertas")).toBeVisible();
+    await expect(page.locator("#atajo-alertas .cajas-atajo-badge")).toHaveCount(0);
+    await expect(page.locator("#btn-notificaciones-badge")).toHaveCount(0);
+    await expect(page.locator("#notificaciones-panel")).toHaveCount(0);
   });
 
   test('la URL guardada en una alerta es un link tocable en el resumen (pedido explícito: que lleve a la URL al tocarla)', async ({ page }) => {
