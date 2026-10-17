@@ -1146,18 +1146,70 @@ function cerrarPantallaActual() {
 // de volver lleva a la pantalla principal (Inicio/Cajas) desde cualquier otro
 // módulo: Movimientos, Proyección, Alertas, Mercado, Planes, etc. Estando ya
 // en Inicio no hace nada.
+//
+// Transición tipo "ventana que se desplaza": las dos pantallas están a la vez
+// en pantalla y se mueven juntas -- la actual sale hacia la derecha mientras
+// Inicio entra desde la izquierda, así que a mitad de camino se ve 50% de
+// cada una. Ambas se fijan (position:fixed) en el rectángulo donde estaban
+// durante el movimiento y, al terminar, se limpian en el mismo instante en que
+// se cancela la animación -- sin ese cuidado quedaba un parpadeo al final.
+const ANIM_VOLVER_MS = 300;
+let _volviendoAInicio = false;
+
 function volverAInicio() {
-  const visible = document.querySelector(".tab-section:not(.hidden)");
-  if (!visible || visible.id === "tab-cajas") return false;
+  const saliente = document.querySelector(".tab-section:not(.hidden)");
+  if (!saliente || saliente.id === "tab-cajas") return false;
   if (typeof window.navegarATab !== "function") return false;
-  // Transición: la pantalla actual se va hacia la derecha (el mismo gesto que
-  // hizo el dedo) y Inicio entra desde la izquierda (ver .entrada-volver).
-  animarYCerrar(visible, () => {
+  if (_volviendoAInicio) return true;
+
+  const sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (sinMovimiento || typeof saliente.animate !== "function") {
     window.navegarATab("cajas");
-    const inicio = document.getElementById("tab-cajas");
-    if (!inicio) return;
-    inicio.classList.add("entrada-volver");
-    inicio.addEventListener("animationend", () => inicio.classList.remove("entrada-volver"), { once: true });
+    return true;
+  }
+  _volviendoAInicio = true;
+
+  const fijar = (el, r) => {
+    el.style.position = "fixed";
+    el.style.top = r.top + "px";
+    el.style.left = r.left + "px";
+    el.style.width = r.width + "px";
+    el.style.margin = "0";
+    el.style.zIndex = "1";
+    el.style.animation = "none";   // sin la entrada de pestaña de siempre
+  };
+  const soltar = (el) => ["position", "top", "left", "width", "margin", "zIndex"]
+    .forEach(k => { el.style[k] = ""; });
+
+  // 1) La saliente se queda exactamente donde está, fuera del flujo.
+  fijar(saliente, saliente.getBoundingClientRect());
+
+  // 2) Se navega a Inicio (esto oculta todas las secciones) y se vuelve a
+  //    mostrar la saliente solo mientras dura el movimiento.
+  window.navegarATab("cajas");
+  saliente.classList.remove("hidden");
+  saliente.style.animation = "none"; // navegarATab limpia el inline; sin esto reaparecería con fade
+  const inicio = document.getElementById("tab-cajas");
+  const contenedor = document.querySelector(".main-content");
+  if (contenedor) contenedor.scrollTop = 0;
+  fijar(inicio, inicio.getBoundingClientRect());
+
+  // 3) Las dos se mueven juntas el ancho de la pantalla.
+  const ancho = window.innerWidth;
+  const opciones = { duration: ANIM_VOLVER_MS, easing: "cubic-bezier(.32,.72,0,1)", fill: "forwards" };
+  const animSale = saliente.animate([{ transform: "translateX(0)" }, { transform: `translateX(${ancho}px)` }], opciones);
+  const animEntra = inicio.animate([{ transform: `translateX(-${ancho}px)` }, { transform: "translateX(0)" }], opciones);
+
+  Promise.all([animSale.finished, animEntra.finished]).catch(() => {}).then(() => {
+    saliente.classList.add("hidden");
+    saliente.style.animation = "";   // oculta: no dispara nada
+    soltar(saliente);
+    // Inicio conserva animation:none (quitarla reiniciaría la entrada de
+    // pestaña = el parpadeo); navegarATab lo limpia en la próxima navegación.
+    soltar(inicio);
+    animSale.cancel();
+    animEntra.cancel();
+    _volviendoAInicio = false;
   });
   return true;
 }
@@ -1213,7 +1265,7 @@ function navegarATab(tab) {
     }
     document.querySelectorAll(".nav-item").forEach(b =>
       b.classList.toggle("active", b.dataset.tab === tab));
-    document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
+    document.querySelectorAll(".tab-section").forEach(s => { s.classList.add("hidden"); s.style.animation = ""; });
     const sec = document.getElementById(`tab-${tab}`);
     if (sec) sec.classList.remove("hidden");
     if (tab === "compromisos") { cargarPrestamos(); cargarCompras(); }
