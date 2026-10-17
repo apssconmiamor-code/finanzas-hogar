@@ -858,8 +858,6 @@ input, select, textarea, table {
   background: none; border: none; padding: 0; cursor: pointer; font-family: var(--font);
   min-width: 0; flex: 1;
 }
-/* Tres por fila; si la última fila queda con uno solo, se centra. */
-.cajas-atajo:last-child:nth-child(3n+1) { grid-column: 2; }
 .cajas-atajo-circulo {
   width: 56px; height: 56px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
