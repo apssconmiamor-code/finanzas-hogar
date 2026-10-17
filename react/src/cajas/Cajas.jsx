@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 // Props que arma app.js (ver renderCajas):
-//   cajas[]            { id, nombre, moneda, saldoReal, colorFondo, icono } (TODAS)
+//   cajas[]            { id, nombre, moneda, saldoReal, icono } (TODAS)
 //   ocultas[]          ids que el usuario no quiere ver en Inicio
 //   onCambiarOcultas(ids[])  guarda la elección (app.js la persiste)
 //   verificadaEnRed    false -> aviso de "no se pudieron cargar"
@@ -183,7 +183,6 @@ function Grilla({ cajas, modoSuma, seleccion, alternarCaja, formatMonto, onAbrir
         return (
           <div key={c.nombre} data-nombre={c.nombre}
             className={"caja-card" + (seleccionada ? " caja-card-seleccionada" : "")}
-            style={{ backgroundColor: c.colorFondo }}
             onPointerUpCapture={e => alSoltar(e, c.nombre)}>
             {c.saldoReal < 0 && (
               <div className="caja-card-top">

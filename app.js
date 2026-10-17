@@ -1820,7 +1820,6 @@ function renderCajas() {
       nombre: c.nombre,
       moneda: c.moneda,
       saldoReal: calcularSaldoCaja(c.nombre),
-      colorFondo: cajaColorFondo(c.nombre),
       icono: iconoCajaImagen(c.nombre),
     })),
     // Sin confirmación por red todavía (recién abierta, caché vacía, o la
