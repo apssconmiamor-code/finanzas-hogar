@@ -811,8 +811,15 @@ input, select, textarea, table {
    se eligen filas más abajo en una tabla larga. */
 #proy-menu-root {
   position: sticky; top: 56px; z-index: 50;
-  background: var(--bg); margin: -4px -2px 0; padding: 8px 2px 8px;
+  background: var(--bg); margin: -4px -2px 0; padding: 4px 2px 4px;
 }
+/* Altura fija para la fila: es la misma con el ⋯ solo que con "Listo" + el total
+   de Sumar movimientos (dos renglones), así el contenido de abajo no salta al
+   entrar o salir de ese modo, y no sobra espacio cuando no está. */
+#proy-menu-root .cajas-header { height: 46px; min-height: 46px; margin-bottom: 0; }
+/* Separación fija entre bloques: menú -> meses -> detalle por concepto. */
+#proy-4meses-wrap { margin-bottom: 20px; }
+#proy-4meses-wrap .cajas-atajos-titulo { margin: 2px 4px 6px; }
 /* Total de "Sumar movimientos" en Proyección: Estimado y Real lado a lado. */
 .proy-suma { gap: 2px 16px; }
 .proy-suma-item { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
