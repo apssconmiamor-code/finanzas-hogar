@@ -1142,83 +1142,157 @@ function cerrarPantallaActual() {
   return false;
 }
 
-// Si no hay nada que cerrar (modal, panel, detalle de un bloque...), el gesto
-// de volver lleva a la pantalla principal (Inicio/Cajas) desde cualquier otro
-// módulo: Movimientos, Proyección, Alertas, Mercado, Planes, etc. Estando ya
-// en Inicio no hace nada.
+// ---- GESTO DE VOLVER ----
+// Deslizar desde el borde izquierdo = volver un nivel. Si hay algo abierto
+// (modal, panel, detalle de un bloque...) lo cierra; si no, y se está en otro
+// módulo (Movimientos, Proyección, Alertas, Mercado, Planes, Análisis...),
+// lleva a la pantalla principal (Inicio/Cajas). Estando ya en Inicio no hace
+// nada.
 //
-// Transición tipo "ventana que se desplaza": las dos pantallas están a la vez
-// en pantalla y se mueven juntas -- la actual sale hacia la derecha mientras
-// Inicio entra desde la izquierda, así que a mitad de camino se ve 50% de
-// cada una. Ambas se fijan (position:fixed) en el rectángulo donde estaban
-// durante el movimiento y, al terminar, se limpian en el mismo instante en que
-// se cancela la animación -- sin ese cuidado quedaba un parpadeo al final.
+// Volver a Inicio es un arrastre interactivo, tipo iOS: la pantalla actual y
+// la de Inicio se mueven pegadas al dedo (a mitad de camino se ve 50% de
+// cada una). Al soltar, si pasó de ~40% del ancho (o fue un barrido rápido)
+// se completa; si no, regresa a donde estaba -- sin haber cambiado nada de
+// verdad hasta confirmar.
+//
+// Durante el movimiento las dos pantallas se fijan (position:fixed) en el
+// rectángulo donde estaban. Al terminar se limpian en el mismo instante en
+// que se cancelan las animaciones -- si no, quedaba un parpadeo al final.
 const ANIM_VOLVER_MS = 300;
-let _volviendoAInicio = false;
+const UMBRAL_CONFIRMAR = 0.4;      // fracción del ancho que confirma el volver
+const VELOCIDAD_CONFIRMAR = 0.5;   // px/ms de un barrido rápido que también confirma
+let _arrastreVolver = null;
 
-function volverAInicio() {
-  const saliente = document.querySelector(".tab-section:not(.hidden)");
-  if (!saliente || saliente.id === "tab-cajas") return false;
-  if (typeof window.navegarATab !== "function") return false;
-  if (_volviendoAInicio) return true;
-
-  const sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (sinMovimiento || typeof saliente.animate !== "function") {
-    window.navegarATab("cajas");
-    return true;
+// ¿Hay algo superpuesto que el gesto cerraría antes que cambiar de módulo?
+// (mismos casos que cerrarPantallaActual, sin cerrar nada).
+function _hayAlgoQueCerrar() {
+  if (document.querySelector(".modal:not(.hidden)")) return true;
+  for (const id of ["dropdown-menu", "recordatorios-panel", "notificaciones-panel"]) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains("hidden")) return true;
   }
-  _volviendoAInicio = true;
+  if (typeof bloqueAlertaAbierto !== "undefined" && bloqueAlertaAbierto) return true;
+  if (typeof categoriaMercadoAbierta !== "undefined" && categoriaMercadoAbierta !== null) return true;
+  if (typeof bloquePlanAbierto !== "undefined" && bloquePlanAbierto) return true;
+  return false;
+}
 
-  const fijar = (el, r) => {
-    el.style.position = "fixed";
-    el.style.top = r.top + "px";
-    el.style.left = r.left + "px";
-    el.style.width = r.width + "px";
-    el.style.margin = "0";
-    el.style.zIndex = "1";
-    el.style.animation = "none";   // sin la entrada de pestaña de siempre
-  };
-  const soltar = (el) => ["position", "top", "left", "width", "margin", "zIndex"]
-    .forEach(k => { el.style[k] = ""; });
+function _movimientoReducido() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
-  // 1) La saliente se queda exactamente donde está, fuera del flujo.
-  fijar(saliente, saliente.getBoundingClientRect());
+function _fijarParaVolver(el, r) {
+  el.style.position = "fixed";
+  el.style.top = r.top + "px";
+  el.style.left = r.left + "px";
+  el.style.width = r.width + "px";
+  el.style.margin = "0";
+  el.style.zIndex = "1";
+  el.style.animation = "none";   // sin la entrada de pestaña de siempre
+}
 
-  // 2) Se navega a Inicio (esto oculta todas las secciones) y se vuelve a
-  //    mostrar la saliente solo mientras dura el movimiento.
-  window.navegarATab("cajas");
-  saliente.classList.remove("hidden");
-  saliente.style.animation = "none"; // navegarATab limpia el inline; sin esto reaparecería con fade
+function _soltarDeVolver(el) {
+  ["position", "top", "left", "width", "margin", "zIndex", "transform"].forEach(k => { el.style[k] = ""; });
+}
+
+// Deja listas las dos pantallas para moverlas. No cambia el estado de la app
+// (pestaña activa, título...) hasta confirmar.
+function _prepararArrastreVolver() {
+  if (_arrastreVolver) return false;
+  if (_movimientoReducido()) return false;
+  if (typeof window.navegarATab !== "function") return false;
+  const saliente = document.querySelector(".tab-section:not(.hidden)");
   const inicio = document.getElementById("tab-cajas");
-  const contenedor = document.querySelector(".main-content");
-  if (contenedor) contenedor.scrollTop = 0;
-  fijar(inicio, inicio.getBoundingClientRect());
+  if (!saliente || !inicio || saliente === inicio) return false;
+  if (typeof saliente.animate !== "function") return false;
 
-  // 3) Las dos se mueven juntas el ancho de la pantalla.
-  const ancho = window.innerWidth;
-  const opciones = { duration: ANIM_VOLVER_MS, easing: "cubic-bezier(.32,.72,0,1)", fill: "forwards" };
-  const animSale = saliente.animate([{ transform: "translateX(0)" }, { transform: `translateX(${ancho}px)` }], opciones);
-  const animEntra = inicio.animate([{ transform: `translateX(-${ancho}px)` }, { transform: "translateX(0)" }], opciones);
+  const contenedor = document.querySelector(".main-content");
+  const scrollPrevio = contenedor ? contenedor.scrollTop : 0;
+
+  // La saliente se queda exactamente donde está, fuera del flujo...
+  _fijarParaVolver(saliente, saliente.getBoundingClientRect());
+  // ...e Inicio se muestra (sigue siendo su contenido ya dibujado) desde el
+  // tope, también fijo.
+  inicio.classList.remove("hidden");
+  if (contenedor) contenedor.scrollTop = 0;
+  _fijarParaVolver(inicio, inicio.getBoundingClientRect());
+
+  _arrastreVolver = { saliente, inicio, contenedor, scrollPrevio, ancho: window.innerWidth, dx: 0, terminando: false };
+  _moverArrastreVolver(0);
+  return true;
+}
+
+function _moverArrastreVolver(dx) {
+  const a = _arrastreVolver;
+  if (!a || a.terminando) return;
+  a.dx = Math.min(Math.max(dx, 0), a.ancho);
+  a.saliente.style.transform = `translateX(${a.dx}px)`;
+  a.inicio.style.transform = `translateX(${a.dx - a.ancho}px)`;
+}
+
+// Completa (confirmar) o deshace el movimiento, animando desde donde quedó el
+// dedo hasta el extremo. La duración es proporcional a lo que falta recorrer.
+function _terminarArrastreVolver(confirmar) {
+  const a = _arrastreVolver;
+  if (!a || a.terminando) return;
+  a.terminando = true;
+  const { saliente, inicio, ancho, dx } = a;
+  const falta = confirmar ? ancho - dx : dx;
+  const duration = Math.max(120, Math.round((falta / ancho) * ANIM_VOLVER_MS));
+  const opciones = { duration, easing: "cubic-bezier(.32,.72,0,1)", fill: "forwards" };
+  const finSale = confirmar ? ancho : 0;
+  const finEntra = confirmar ? 0 : -ancho;
+
+  const animSale = saliente.animate([{ transform: `translateX(${dx}px)` }, { transform: `translateX(${finSale}px)` }], opciones);
+  const animEntra = inicio.animate([{ transform: `translateX(${dx - ancho}px)` }, { transform: `translateX(${finEntra}px)` }], opciones);
 
   Promise.all([animSale.finished, animEntra.finished]).catch(() => {}).then(() => {
-    saliente.classList.add("hidden");
-    saliente.style.animation = "";   // oculta: no dispara nada
-    soltar(saliente);
-    // Inicio conserva animation:none (quitarla reiniciaría la entrada de
-    // pestaña = el parpadeo); navegarATab lo limpia en la próxima navegación.
-    soltar(inicio);
+    if (confirmar) {
+      // Recién ahora cambia de verdad: pestaña activa, título, cargas...
+      // navegarATab oculta todas las secciones y limpia su animation inline;
+      // se vuelve a poner "none" en Inicio en el mismo instante (si no, su
+      // entrada de pestaña se reiniciaría = parpadeo).
+      window.navegarATab("cajas");
+      inicio.style.animation = "none";
+      saliente.style.animation = "";   // oculta: no dispara nada
+    } else {
+      inicio.classList.add("hidden");
+      // La saliente sigue visible: conserva animation:none para no repetir
+      // su entrada (navegarATab lo limpia en la próxima navegación).
+      if (a.contenedor) a.contenedor.scrollTop = a.scrollPrevio;
+    }
+    _soltarDeVolver(saliente);
+    _soltarDeVolver(inicio);
     animSale.cancel();
     animEntra.cancel();
-    _volviendoAInicio = false;
+    _arrastreVolver = null;
   });
+}
+
+// Camino sin dedo (tests, o un barrido sin movimientos intermedios): el
+// mismo movimiento, pero animado de principio a fin.
+function volverAInicio() {
+  const visible = document.querySelector(".tab-section:not(.hidden)");
+  if (!visible || visible.id === "tab-cajas") return false;
+  if (typeof window.navegarATab !== "function") return false;
+  if (_arrastreVolver) return true;
+  if (!_prepararArrastreVolver()) {
+    window.navegarATab("cajas");   // movimiento reducido o sin animaciones
+    return true;
+  }
+  _terminarArrastreVolver(true);
   return true;
 }
 
 (function setupGestoVolver() {
-  const BORDE_PX = 28;    // debe iniciar cerca del borde izquierdo, como el gesto de iOS
+  const BORDE_PX = 28;     // debe iniciar cerca del borde izquierdo, como el gesto de iOS
   const SWIPE_MIN_PX = 70; // distancia horizontal mínima para contar como "volver"
   const DESVIO_MAX_PX = 60; // tolerancia vertical antes de descartarlo como scroll
+  const FIJAR_DIRECCION_PX = 8; // desde acá se decide si el dedo va en horizontal o vertical
   let inicioX = null, inicioY = null, valido = false;
+  let direccion = null;          // "h" | "v" | null (aún sin decidir)
+  let puedeArrastrar = false;    // ¿este toque puede arrastrar la pantalla hacia Inicio?
+  let ultimoX = 0, ultimoT = 0, velocidad = 0;
 
   document.addEventListener("touchstart", (e) => {
     if (e.touches.length !== 1) { valido = false; return; }
@@ -1226,7 +1300,31 @@ function volverAInicio() {
     valido = t.clientX <= BORDE_PX;
     inicioX = t.clientX;
     inicioY = t.clientY;
+    direccion = null;
+    ultimoX = t.clientX; ultimoT = e.timeStamp; velocidad = 0;
+    const visible = document.querySelector(".tab-section:not(.hidden)");
+    puedeArrastrar = valido && !_arrastreVolver && !_hayAlgoQueCerrar() &&
+      !!visible && visible.id !== "tab-cajas";
   }, { passive: true });
+
+  // No pasivo a propósito: una vez que se sabe que el dedo va en horizontal
+  // hay que frenar el scroll vertical nativo de la pantalla.
+  document.addEventListener("touchmove", (e) => {
+    if (!valido || inicioX === null) return;
+    const t = e.touches[0];
+    const dx = t.clientX - inicioX;
+    const dy = t.clientY - inicioY;
+    if (direccion === null && (Math.abs(dx) > FIJAR_DIRECCION_PX || Math.abs(dy) > FIJAR_DIRECCION_PX)) {
+      direccion = Math.abs(dx) > Math.abs(dy) && dx > 0 ? "h" : "v";
+    }
+    if (direccion !== "h" || !puedeArrastrar) return;
+    if (!_arrastreVolver && !_prepararArrastreVolver()) { puedeArrastrar = false; return; }
+    if (e.cancelable) e.preventDefault();
+    const dt = e.timeStamp - ultimoT;
+    if (dt > 0) velocidad = (t.clientX - ultimoX) / dt;
+    ultimoX = t.clientX; ultimoT = e.timeStamp;
+    _moverArrastreVolver(dx);
+  }, { passive: false });
 
   document.addEventListener("touchend", (e) => {
     if (!valido || inicioX === null) return;
@@ -1234,11 +1332,24 @@ function volverAInicio() {
     const t = e.changedTouches[0];
     const dx = t.clientX - inicioX;
     const dy = Math.abs(t.clientY - inicioY);
+    if (_arrastreVolver && !_arrastreVolver.terminando) {
+      const ancho = _arrastreVolver.ancho;
+      const confirmar = _arrastreVolver.dx > ancho * UMBRAL_CONFIRMAR ||
+        (velocidad > VELOCIDAD_CONFIRMAR && _arrastreVolver.dx > 30);
+      _terminarArrastreVolver(confirmar);
+      return;
+    }
     if (dx > SWIPE_MIN_PX && dy < DESVIO_MAX_PX) {
-      // Primero cierra lo que esté abierto (un nivel hacia atrás); si no hay
-      // nada, vuelve a Inicio.
+      // Sin arrastre en vivo (hay algo abierto que cerrar, o el toque no
+      // generó movimientos): primero cierra lo que esté abierto, un nivel
+      // hacia atrás; si no hay nada, vuelve a Inicio.
       if (!cerrarPantallaActual()) volverAInicio();
     }
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", () => {
+    valido = false;
+    if (_arrastreVolver && !_arrastreVolver.terminando) _terminarArrastreVolver(false);
   }, { passive: true });
 })();
 
