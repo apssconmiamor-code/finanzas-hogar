@@ -419,18 +419,6 @@
         </div>
 
         <!-- Modal nuevo concepto de presupuesto -->
-        <!-- Conceptos ya creados que el mes activo no tiene (ver
-             abrirModalAgregarExistente en app.js) -->
-        <div id="modal-agregar-existente" class="modal hidden">
-          <div class="modal-card">
-            <h3 class="modal-title">Agregar concepto</h3>
-            <div class="card-section-sub" id="agregar-existente-sub" style="margin-bottom:10px"></div>
-            <div id="agregar-existente-lista" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-            <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cerrar-agregar-existente">Cerrar</button>
-            </div>
-          </div>
-        </div>
         <div id="modal-nuevo-concepto" class="modal hidden">
           <div class="modal-card">
             <h3 class="modal-title">Nuevo concepto</h3>
@@ -951,7 +939,10 @@
     <div id="modal-config-mes" class="modal hidden">
       <div class="modal-card">
         <h3 class="modal-title" id="modal-config-mes-titulo">Configurar mes</h3>
-        <p class="modal-subtitle">Ingresos estimados para este mes</p>
+        <div class="modal-subtitle-fila">
+          <p class="modal-subtitle">Ingresos estimados para este mes</p>
+          <button type="button" class="btn-sutil" id="btn-config-nuevo-concepto">Agregar nuevo concepto</button>
+        </div>
         <div id="modal-config-mes-body" class="pres-form-body"></div>
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-cancelar-config-mes">Cancelar</button>

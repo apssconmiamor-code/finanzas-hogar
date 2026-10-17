@@ -866,6 +866,11 @@ input, select, textarea, table {
 .cajas-punto { width: 5px; height: 5px; border-radius: 50%; background: rgba(2,32,48,0.22); transition: all .2s; }
 .cajas-punto.activo { width: 14px; border-radius: 3px; background: var(--brand); }
 
+/* Fila del subtítulo de Configurar mes: texto a la izquierda, botón en la misma fila. */
+.modal-subtitle-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modal-subtitle-fila .modal-subtitle { margin: 0; min-width: 0; flex: 1; }
+.modal-subtitle-fila .btn-sutil { font-size: 11.5px; padding: 5px 11px; }
+
 /* Atajos redondos (Movimientos, Proyección, Recordatorios): dentro de una caja
    contenedora de un tinte sutil de la marca; cada círculo va relleno con el
    color de marca y el ícono (SVG, trazo currentColor) en blanco. */

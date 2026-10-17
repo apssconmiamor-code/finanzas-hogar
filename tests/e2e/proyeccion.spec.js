@@ -30,7 +30,7 @@ test.describe('Proyección', () => {
     await expect(filasOtros).toHaveCount(1);
   });
 
-  test('agregar un concepto nuevo lo muestra en la tabla y evita duplicados', async ({ page }) => {
+  test('Agregar nuevo concepto (en Configurar mes) lo suma al formulario, se guarda con el mes y evita duplicados', async ({ page }) => {
     await mockGoogleApis(page);
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
@@ -38,8 +38,11 @@ test.describe('Proyección', () => {
     await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
-    await page.locator('#btn-menu-proyeccion').click();
-    await page.locator('#btn-agregar-concepto').click();
+    await page.locator('.proy-4m-card .proy-4m-config').first().click();
+    await expect(page.locator('#modal-config-mes')).toBeVisible();
+    await page.locator('#btn-config-nuevo-concepto').click();
+    // El formulario del mes se oculta un momento y se abre el de concepto nuevo.
+    await expect(page.locator('#modal-config-mes')).toBeHidden();
     await expect(page.locator('#modal-nuevo-concepto')).toBeVisible();
 
     await page.locator('#nuevo-concepto-nombre').fill('Gimnasio');
@@ -47,19 +50,90 @@ test.describe('Proyección', () => {
     await page.locator('#nuevo-concepto-monto').fill('80000');
     await page.locator('#btn-guardar-nuevo-concepto').click();
 
+    // Se vuelve a Configurar mes, con el concepto nuevo ya puesto con su monto.
     await expect(page.locator('#modal-nuevo-concepto')).toBeHidden();
+    await expect(page.locator('#modal-config-mes')).toBeVisible();
+    await expect(page.locator('#modal-config-mes-body input[data-concepto="Gimnasio"]')).toHaveValue('80.000');
+
+    await page.locator('#btn-guardar-config-mes').click();
     await expect(page.locator('#proy-tabla-body')).toContainText('Gimnasio');
 
     // Intentar agregarlo de nuevo debe avisar que ya existe, no duplicarlo.
-    await page.locator('#btn-menu-proyeccion').click();
-    await page.locator('#btn-agregar-concepto').click();
+    await page.locator('.proy-4m-card .proy-4m-config').first().click();
+    await page.locator('#btn-config-nuevo-concepto').click();
     await page.locator('#nuevo-concepto-nombre').fill('Gimnasio');
     await expect(page.locator('#nuevo-concepto-duplicado')).toBeVisible();
   });
 
+  test('cancelar el concepto nuevo vuelve a Configurar mes con lo que ya se había escrito', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Presupuesto: [['Gasto fijo', 'Alquiler', 800000, 0, '']],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await irATab(page, 'proyeccion');
+
+    await page.locator('.proy-4m-card .proy-4m-config').first().click();
+    const alquiler = page.locator('#modal-config-mes-body input[data-concepto="Alquiler"]');
+    await alquiler.fill('900000');
+    await page.locator('#btn-config-nuevo-concepto').click();
+    await page.locator('#btn-cancelar-nuevo-concepto').click();
+
+    await expect(page.locator('#modal-config-mes')).toBeVisible();
+    await expect(alquiler).toHaveValue('900.000');
+  });
+
+  // Configurar mes lista TODOS los conceptos; los que valen 0 van al final de su
+  // grupo y, al guardar, solo quedan en la tabla los que tienen valor.
+  test('Configurar mes: todos los conceptos, los 0 al final de cada grupo, y al guardar solo se ven los que tienen valor', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Presupuesto: [
+        ['Gasto fijo', 'Alquiler', 800000, 0, ''],
+        ['Gasto variable', 'Mercado', 500000, 0, ''],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await irATab(page, 'proyeccion');
+
+    await page.locator('.proy-4m-card .proy-4m-config').first().click();
+    await expect(page.locator('#modal-config-mes')).toBeVisible();
+
+    // El botón vive en la misma fila que "Ingresos estimados para este mes".
+    const fila = page.locator('#modal-config-mes .modal-subtitle-fila');
+    await expect(fila).toContainText('Ingresos estimados para este mes');
+    await expect(fila.locator('#btn-config-nuevo-concepto')).toHaveText('Agregar nuevo concepto');
+
+    // Gastos fijos: Alquiler (800.000) primero; el resto de fijos, en 0, después.
+    const fijos = page.locator('#modal-config-mes-body input[data-tipo="gasto"]');
+    const valores = await fijos.evaluateAll(els => els.map(e => ({ n: e.dataset.concepto, v: e.value })));
+    const idxAlquiler = valores.findIndex(x => x.n === 'Alquiler');
+    const idxMercado = valores.findIndex(x => x.n === 'Mercado');
+    expect(valores[idxAlquiler].v).toBe('800.000');
+    expect(valores[idxMercado].v).toBe('500.000');
+    // Todos los que valen 0 muestran "0" y nunca están antes de uno con valor
+    // dentro de su grupo (fijos y variables por separado).
+    const hayCeros = valores.filter(x => x.v === '0').length;
+    expect(hayCeros).toBeGreaterThan(0);
+
+    // Ingresos: sin ninguno configurado, todos en 0 por defecto.
+    const ingresos = await page.locator('#modal-config-mes-body input[data-tipo="ingreso"]').evaluateAll(els => els.map(e => e.value));
+    expect(ingresos.length).toBeGreaterThan(0);
+    expect(ingresos.every(v => v === '0')).toBe(true);
+
+    // Al guardar, la tabla solo muestra lo que tiene valor.
+    await page.locator('#btn-guardar-config-mes').click();
+    const tabla = page.locator('#proy-tabla-body');
+    await expect(tabla).toContainText('Alquiler');
+    await expect(tabla).toContainText('Mercado');
+    await expect(page.locator('#proy-tabla-body .proy-tabla-row[data-categoria="Ingreso"]')).toHaveCount(0);
+  });
+
   // Las acciones de Proyección viven en un submenú ⋯ (igual que en Cajas) y ya
   // no hay botones sueltos en la pantalla.
-  test("el menú ⋯ reúne las acciones, con sus nombres nuevos, y no quedan botones sueltos", async ({ page }) => {
+  test("el menú ⋯ reúne Agregar mes y Sumar movimientos, y no quedan botones sueltos", async ({ page }) => {
     await mockGoogleApis(page);
     await iniciarSesionFalsa(page);
     await page.goto("/index.html");
@@ -68,16 +142,16 @@ test.describe('Proyección', () => {
 
     // Nada suelto en la pantalla: solo el ⋯ (los ítems existen solo con el menú abierto).
     await expect(page.locator("#btn-menu-proyeccion")).toBeVisible();
-    for (const id of ["btn-agregar-mes", "btn-agregar-concepto", "btn-agregar-existente", "btn-sumar-proy"]) {
+    for (const id of ["btn-agregar-mes", "btn-sumar-proy"]) {
       await expect(page.locator("#" + id)).toHaveCount(0);
     }
 
     await page.locator("#btn-menu-proyeccion").click();
     await expect(page.locator("#btn-agregar-mes")).toHaveText(/Agregar mes a proyectar/);
-    await expect(page.locator("#btn-agregar-concepto")).toHaveText(/Crear nuevo concepto/);
-    await expect(page.locator("#btn-agregar-existente")).toHaveText(/Agregar concepto/);
     await expect(page.locator("#btn-sumar-proy")).toHaveText(/Sumar movimientos/);
-    // Sin Filtrar por ahora (decisión explícita).
+    // Crear/agregar concepto se movieron a Configurar mes; y sin Filtrar por ahora.
+    await expect(page.locator("#btn-agregar-concepto")).toHaveCount(0);
+    await expect(page.locator("#btn-agregar-existente")).toHaveCount(0);
     await expect(page.locator("#tab-proyeccion").getByText("Filtrar")).toHaveCount(0);
   });
 
@@ -92,18 +166,6 @@ test.describe('Proyección', () => {
     await page.locator("#btn-menu-proyeccion").click();
     await page.locator("#btn-agregar-mes").click();
     await expect(page.locator(".proy-4m-card")).toHaveCount(antes + 1);
-  });
-
-  test("el menú ⋯: Agregar concepto abre la lista de conceptos que faltan en el mes", async ({ page }) => {
-    await mockGoogleApis(page);
-    await iniciarSesionFalsa(page);
-    await page.goto("/index.html");
-    await esperarAppLista(page);
-    await irATab(page, "proyeccion");
-
-    await page.locator("#btn-menu-proyeccion").click();
-    await page.locator("#btn-agregar-existente").click();
-    await expect(page.locator("#modal-agregar-existente")).toBeVisible();
   });
 
   test("el menú ⋯: Sumar movimientos arma el total de las filas elegidas en la fila de arriba, y Listo lo apaga", async ({ page }) => {
@@ -185,7 +247,7 @@ test.describe('Proyección', () => {
 
     await irATab(page, "proyeccion");
     await page.locator("#btn-menu-proyeccion").click();
-    for (const id of ["btn-agregar-mes", "btn-agregar-concepto", "btn-agregar-existente", "btn-sumar-proy"]) {
+    for (const id of ["btn-agregar-mes", "btn-sumar-proy"]) {
       await expect(page.locator("#" + id + " .dd-icon svg")).toHaveCount(1);
       // Nada de emojis como texto del ícono.
       await expect(page.locator("#" + id + " .dd-icon")).toHaveText("");
@@ -203,6 +265,9 @@ test.describe('Proyección', () => {
       ],
       'Movimiento de Caja': [
         ['M1', hoy, 'prueba@example.com', 'Alquiler', 'Gasto fijo', 'Efectivo', 800000, '', ''],
+        // Un ingreso con valor: los ingresos en 0 ya no aparecen en la tabla, así que
+        // sin esto no habría grupo "Ingresos".
+        ['M2', hoy, 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 1000000, '', ''],
       ],
     });
     await iniciarSesionFalsa(page);
