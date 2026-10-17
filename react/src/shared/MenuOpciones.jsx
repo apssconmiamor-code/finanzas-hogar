@@ -8,7 +8,8 @@ import { Icono } from "./Iconos.jsx";
 //   id          id del botón ⋯ (los tests lo usan)
 //   etiqueta    aria-label del botón
 //   items[]     { id, icono (nombre en Iconos.jsx), texto, accion }
-export function MenuOpciones({ id, etiqueta, items }) {
+//   arriba      el panel se abre hacia arriba (los menús viven en la franja inferior)
+export function MenuOpciones({ id, etiqueta, items, arriba = true }) {
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
 
@@ -32,7 +33,7 @@ export function MenuOpciones({ id, etiqueta, items }) {
         id={id} aria-haspopup="menu" aria-expanded={abierto} aria-label={etiqueta}
         onClick={() => setAbierto(a => !a)}>⋯</button>
       {abierto && (
-        <div className="dropdown-menu cajas-menu-panel" role="menu">
+        <div className={"dropdown-menu cajas-menu-panel" + (arriba ? " cajas-menu-panel-arriba" : "")} role="menu">
           {items.map(it => (
             <button key={it.id} type="button" role="menuitem" className="dropdown-item" id={it.id}
               onClick={() => elegir(it.accion)}>

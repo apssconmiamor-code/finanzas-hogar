@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
 import { FilaDeslizable } from "../shared/FilaDeslizable.jsx";
 import { Icono } from "../shared/Iconos.jsx";
+import { BarraInferior } from "../shared/BarraInferior.jsx";
+import { crearManejadorLargo } from "../shared/gestos.js";
 
 // Props que arma app.js (ver renderCajas):
 //   cajas[]            { id, nombre, moneda, saldoReal, icono } (TODAS)
@@ -17,10 +19,14 @@ import { Icono } from "../shared/Iconos.jsx";
 //   onAccionesRapidas() el rayo ⚡ de la zona Widgets y acciones rápidas
 //   onIrATab(tab)      atajos redondos: movimientos, proyeccion, notificaciones (Alertas),
 //                      mercado, planes, compromisos, resumen (Análisis)
+//   version            versión de la app, en la franja inferior de Inicio
+//   onBuscarActualizacion()  devuelve una promesa: mantener presionada la versión
+//   onMostrarAyudaVersion()  un toque corto en la versión: avisa cómo se fuerza
+//   onCerrarSesion()   ítem "Cerrar sesión" del menú de la franja
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, onAccionesRapidas, alertasPendientes = 0, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, onAccionesRapidas, alertasPendientes = 0, version, onBuscarActualizacion, onMostrarAyudaVersion, onCerrarSesion, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
@@ -52,18 +58,21 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
 
   return (
     <>
-      <div className="cajas-header">
+      <BarraInferior tab="cajas">
         {modoSuma
           ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
               onClick={alternarModo}>Listo</button>
           : <MenuOpciones id="btn-menu-cajas" etiqueta="Opciones de cajas" items={[
               { id: "btn-sumar-cajas", icono: "sumar", texto: "Sumar cajas", accion: alternarModo },
               { id: "btn-elegir-cajas", icono: "elegir", texto: "Elegir cajas", accion: () => setEligiendo(true) },
+              { id: "btn-cerrar-sesion", icono: "salir", texto: "Cerrar sesión", accion: onCerrarSesion },
             ]} />}
         <div className="cajas-header-der">
-          {modoSuma && <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />}
+          {modoSuma
+            ? <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />
+            : <CampoVersion version={version} onBuscar={onBuscarActualizacion} onAyuda={onMostrarAyudaVersion} />}
         </div>
-      </div>
+      </BarraInferior>
       {cajas.length === 0
         ? <div id="cajas-grid" className="cajas-grid">
             <EstadoVacio verificadaEnRed={verificadaEnRed} hayOcultas={todas.length > 0} />
@@ -126,6 +135,31 @@ function Widgets({ onAccionesRapidas }) {
         </button>
       </div>
     </>
+  );
+}
+
+// Versión de la app, en la franja inferior de Inicio. Mantenerla presionada FUERZA la
+// búsqueda de una actualización (si no, la app se actualiza sola cuando encuentra una
+// nueva). Un toque corto solo recuerda cómo se fuerza, para que un roce no dispare nada.
+function CampoVersion({ version, onBuscar, onAyuda }) {
+  const [buscando, setBuscando] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    return crearManejadorLargo(ref.current, {
+      onLargo: async () => {
+        setBuscando(true);
+        try { await onBuscar(); } finally { setBuscando(false); }
+      },
+      onCorto: () => onAyuda && onAyuda(),
+    });
+  }, [onBuscar, onAyuda]);
+
+  return (
+    <button type="button" id="campo-version" ref={ref} className={"campo-version" + (buscando ? " buscando" : "")}
+      title="Mantén presionada para buscar una actualización" aria-label={"Versión " + version + ". Mantén presionada para buscar una actualización"}>
+      {buscando ? "Buscando…" : "v" + version}
+    </button>
   );
 }
 

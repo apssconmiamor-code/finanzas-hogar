@@ -85,16 +85,16 @@ const SyncManager = (() => {
     const n   = await contarPendientes();
     const el  = document.getElementById("sync-badge");
     const bar = document.getElementById("sync-bar");
-    if (!el || !bar) return;
+    // El contador de la barra superior ya no existe: queda el aviso de #sync-bar.
+    if (!bar) return;
 
     if (n > 0) {
-      el.textContent  = n;
-      el.classList.remove("hidden");
+      if (el) { el.textContent = n; el.classList.remove("hidden"); }
       bar.classList.remove("hidden");
       bar.querySelector("#sync-pendientes-count").textContent =
         `${n} cambio${n > 1 ? "s" : ""} pendiente${n > 1 ? "s" : ""} de sincronizar`;
     } else {
-      el.classList.add("hidden");
+      el?.classList.add("hidden");
       bar.classList.add("hidden");
     }
   }

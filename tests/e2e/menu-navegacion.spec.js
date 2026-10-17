@@ -32,35 +32,47 @@ test.describe('Navegación a Compromisos y menú ⋯', () => {
     await expect(page.locator('#btn-nueva-compra')).toBeVisible();
   });
 
-  // Análisis, Compromisos, Alertas y Planes se quitaron del menú ⋯: ahora
-  // viven como atajos en Inicio. Mercado sigue en el menú.
-  test('el menú ⋯ ya no ofrece Análisis, Compromisos, Alertas ni Planes, pero sí Mercado', async ({ page }) => {
-    await page.locator('#btn-menu').click();
-    await expect(page.locator('#dropdown-menu')).toBeVisible();
-    for (const tab of ['resumen', 'compromisos', 'notificaciones', 'planes']) {
-      await expect(page.locator(`[data-tab-nav="${tab}"]`)).toHaveCount(0);
+  // Se quitó la barra superior (título, foto de la cuenta y menú principal): la
+  // navegación es por los botones de Inicio y cada vista lleva su menú en la franja
+  // inferior.
+  test('ya no hay barra superior ni menú principal', async ({ page }) => {
+    for (const id of ['topbar', 'btn-menu', 'dropdown-menu', 'topbar-avatar', 'topbar-title']) {
+      await expect(page.locator('#' + id)).toHaveCount(0);
     }
-    await expect(page.locator('[data-tab-nav="mercado"]')).toBeVisible();
   });
 
-  // Los tests corren con serviceWorkers:'block' (ver playwright.config.js),
-  // así que no hay una suscripción real que actualizar -- esto solo prueba
-  // que el botón existe y que, sin Service Worker registrado, avisa en vez
-  // de romper la app (bug real reportado: en iOS el chequeo automático de
-  // actualización de una PWA "agregada a inicio" no siempre nota sola que
-  // hay versión nueva, aunque se cierre y abra la app varias veces).
-  test('"Buscar actualización" del menú ⋯ no rompe la app sin un Service Worker real', async ({ page }) => {
-    const btnMenu = page.locator('#btn-menu, #btn-bottom-menu').first();
-    await btnMenu.click();
-    await expect(page.locator('#dd-buscar-actualizacion')).toBeVisible();
+  // La versión vive en la franja inferior de Inicio. Mantenerla presionada FUERZA la
+  // búsqueda de una actualización; un toque corto solo avisa cómo se hace. (Los tests
+  // corren con serviceWorkers:'block', así que no hay un SW real: lo que se prueba
+  // es que el gesto dispara la búsqueda y que, sin SW registrado, avisa en vez de
+  // romper la app.)
+  test('la versión se ve en la franja inferior de Inicio', async ({ page }) => {
+    const version = await page.evaluate(() => CONFIG.VERSION);
+    await expect(page.locator('.barra-inferior #campo-version')).toHaveText('v' + version);
+  });
 
+  test('un toque corto en la versión solo avisa cómo forzar la actualización', async ({ page }) => {
+    let dialogo = null;
+    page.on('dialog', (d) => { dialogo = d.message(); d.dismiss(); });
+    await page.locator('#campo-version').click();
+    await expect(page.locator('#sync-toast')).toContainText('Mantén presionada la versión');
+    expect(dialogo).toBeNull();   // no se disparó ninguna búsqueda
+  });
+
+  test('mantener presionada la versión busca una actualización y no rompe la app sin Service Worker real', async ({ page }) => {
     let dialogo = null;
     page.once('dialog', (d) => { dialogo = d.message(); d.accept(); });
-    await page.locator('#dd-buscar-actualizacion').click();
+    const caja = await page.locator('#campo-version').boundingBox();
+    await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
 
     await expect.poll(() => dialogo).not.toBeNull();
     expect(dialogo).toContain('Service Worker');
-    // La app sigue funcionando después del aviso.
+    // Terminó la búsqueda: el campo vuelve a mostrar la versión y la app sigue funcionando.
+    const version = await page.evaluate(() => CONFIG.VERSION);
+    await expect(page.locator('#campo-version')).toHaveText('v' + version);
     await expect(page.locator('#app')).toBeVisible();
   });
 });

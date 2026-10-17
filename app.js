@@ -157,15 +157,6 @@ function _guardarOrdenCajas(nuevoOrdenIds) {
   Sheets.guardarConfigUsuario(currentUser.email, "orden_cajas", nuevoOrdenIds);
 }
 
-// El Service Worker ahora se auto-actualiza solo (ver sw-register.js) --
-// este texto es puramente informativo, ya no hace falta tocarlo para
-// sincronizar nada.
-function actualizarTextoVersion() {
-  const ddVersion = document.getElementById("dropdown-version");
-  if (!ddVersion) return;
-  ddVersion.textContent = `Finanzas Luni-Chuni v${CONFIG.VERSION}`;
-}
-
 // Si sw-register.js aplicó una actualización que había quedado lista de
 // una sesión anterior, avisa UNA sola vez cuánto tiempo pasó desde que
 // quedó lista hasta que se aplicó -- después borra la marca, así no vuelve
@@ -197,7 +188,7 @@ function avisarSiSeActualizoSola() {
   if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ Actualizado ${transcurrido}`);
 }
 
-// Chequeo manual (menú ⋯ → "Buscar actualización"). A diferencia del
+// Chequeo manual (mantener presionada la versión en la franja inferior de Inicio). A diferencia del
 // automático de sw-register.js -- que espera a un arranque en frío para no
 // interrumpir nada -- acá SÍ se aplica de una si encuentra algo nuevo,
 // porque lo pidió el usuario a propósito. Existe porque en iOS el chequeo
@@ -235,10 +226,6 @@ async function buscarActualizacionManual() {
     alert("Este navegador no soporta actualizaciones automáticas.");
     return;
   }
-  const btn = document.getElementById("dd-buscar-actualizacion");
-  const htmlOriginal = btn?.innerHTML;
-  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="dd-icon">🔄</span> Buscando…`; }
-
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     if (!reg) { alert("No se encontró el Service Worker registrado."); return; }
@@ -284,8 +271,6 @@ async function buscarActualizacionManual() {
     }
   } catch (err) {
     alert("No se pudo buscar la actualización: " + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; if (htmlOriginal) btn.innerHTML = htmlOriginal; }
   }
 }
 
@@ -990,10 +975,6 @@ async function mostrarApp() {
   document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
   const mesCorriente = new Date().toISOString().slice(0, 7);
   document.getElementById("filtro-mes").value  = mesCorriente;
-  // topbar avatar
-  const ta = document.getElementById("topbar-avatar");
-  if (ta && currentUser?.picture) ta.src = currentUser.picture;
-
   // Cargar caché SIEMPRE antes de tocar la red
   const cacheC    = localStorage.getItem("cache_cajas");
   const cacheM    = localStorage.getItem("cache_movimientos");
@@ -1087,11 +1068,6 @@ function cerrarPantallaActual() {
     animarYCerrar(modalAbierto, () => cerrarModal(modalAbierto));
     return true;
   }
-  const dropdown = document.getElementById("dropdown-menu");
-  if (dropdown && !dropdown.classList.contains("hidden")) {
-    animarYCerrar(dropdown, () => dropdown.classList.add("hidden"));
-    return true;
-  }
   const recPanel = document.getElementById("recordatorios-panel");
   if (recPanel && !recPanel.classList.contains("hidden")) {
     animarYCerrar(recPanel, () => recPanel.classList.add("hidden"));
@@ -1163,7 +1139,7 @@ let _arrastreVolver = null;
 // (mismos casos que cerrarPantallaActual, sin cerrar nada).
 function _hayAlgoQueCerrar() {
   if (document.querySelector(".modal:not(.hidden)")) return true;
-  for (const id of ["dropdown-menu", "recordatorios-panel"]) {
+  for (const id of ["recordatorios-panel"]) {
     const el = document.getElementById(id);
     if (el && !el.classList.contains("hidden")) return true;
   }
@@ -1381,10 +1357,9 @@ function navegarATab(tab) {
     if (tab === "mercado" && typeof cargarMercado === "function") cargarMercado();
     if (tab === "resumen") renderResumen();
     if (tab === "proyeccion") renderProyBarra();
-    if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
-    // update topbar avatar
-    const ta = document.getElementById("topbar-avatar");
-    if (ta && currentUser?.picture) ta.src = currentUser.picture;
+    // La franja inferior de cada vista (React) se muestra solo en su pestaña.
+    window.__tabActiva = tab;
+    document.dispatchEvent(new CustomEvent("finanzas:tab", { detail: tab }));
   }
   window.navegarATab = navegarATab;
 
@@ -1392,14 +1367,6 @@ function navegarATab(tab) {
     btn.addEventListener("click", () => navegarATab(btn.dataset.tab));
   });
 
-  // Dropdown tab navigation
-  document.querySelectorAll("[data-tab-nav]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const tab = btn.dataset.tabNav;
-      document.getElementById("dropdown-menu").classList.add("hidden");
-      navegarATab(tab);
-    });
-  });
 document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
   document.getElementById("btn-refrescar-mov")?.addEventListener("click", cargarTodo);
 
@@ -1525,7 +1492,6 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
       if (e.target === modal) cerrarModal(modal);
     });
   });
-  setupTopbarMenu();
 }
 
 // ---- LÓGICA CONCEPTO DINÁMICO ----
@@ -2019,6 +1985,11 @@ function renderCajas() {
     onIrATab: tab => window.navegarATab(tab),
     // El rayo ⚡ de Inicio: abre el menú de Acciones rápidas (recordatorios.js).
     onAccionesRapidas: () => abrirMenuAcciones(),
+    // Franja inferior de Inicio: versión (mantener presionada = buscar actualización) y cerrar sesión.
+    version: CONFIG.VERSION,
+    onBuscarActualizacion: buscarActualizacionManual,
+    onMostrarAyudaVersion: () => SyncManager.mostrarToast("Mantén presionada la versión para buscar una actualización"),
+    onCerrarSesion: () => document.getElementById("btn-logout")?.click(),
   });
 }
 
@@ -5006,83 +4977,6 @@ if (document.readyState === "loading") {
   setTimeout(setupProyeccionListeners, 0);
 }
 
-function setupTopbarMenu() {
-  const btn      = document.getElementById("btn-menu");
-  const dropdown = document.getElementById("dropdown-menu");
-  const ddLogout = document.getElementById("dd-logout");
-  const ddLogin  = document.getElementById("dd-login");
-
-  if (!btn) return;
-
-  actualizarTextoVersion();
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    document.getElementById("recordatorios-panel")?.classList.add("hidden");
-    // Bug real reportado: abrir este menú (los "tres puntos") no cerraba
-    // el panel de Alertas si ya estaba abierto -- solo cerraba el de
-    // Recordatorios.
-    const abierto = !dropdown.classList.contains("hidden");
-    dropdown.classList.toggle("hidden", abierto);
-    btn.setAttribute("aria-expanded", String(!abierto));
-    actualizarDropdownUsuario();
-  });
-
-  document.addEventListener("click", () => {
-    dropdown.classList.add("hidden");
-    btn.setAttribute("aria-expanded", "false");
-  });
-
-  dropdown.addEventListener("click", (e) => e.stopPropagation());
-
-  ddLogout.addEventListener("click", () => {
-    dropdown.classList.add("hidden");
-    document.getElementById("btn-logout").click();
-  });
-
-  ddLogin.addEventListener("click", () => {
-    dropdown.classList.add("hidden");
-    document.getElementById("btn-login").click();
-  });
-
-  document.getElementById("dd-buscar-actualizacion")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    buscarActualizacionManual();
-  });
-}
-
-function actualizarDropdownUsuario() {
-  const info     = document.getElementById("dropdown-user-info");
-  const ddLogout = document.getElementById("dd-logout");
-  const ddLogin  = document.getElementById("dd-login");
-
-  if (currentUser) {
-    const initials = currentUser.name
-      ? currentUser.name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()
-      : "?";
-    info.innerHTML = `
-      ${currentUser.picture
-        ? `<img src="${currentUser.picture}" class="dropdown-avatar" alt="avatar"/>`
-        : `<div class="dropdown-avatar-placeholder">${initials}</div>`
-      }
-      <div style="min-width:0">
-        <div class="dropdown-user-name">${currentUser.name}</div>
-        <div class="dropdown-user-email">${currentUser.email}</div>
-      </div>
-    `;
-    ddLogout.style.display = "";
-    ddLogin.style.display  = "none";
-  } else {
-    info.innerHTML = `
-      <div style="font-size:13px;color:var(--text-light);width:100%;text-align:center">
-        Sin sesión activa
-      </div>
-    `;
-    ddLogout.style.display = "none";
-    ddLogin.style.display  = "";
-  }
-}
-
 // =============================================
 // MÓDULO RESUMEN — KPIs financieros
 // =============================================
@@ -5287,10 +5181,6 @@ const TAB_TITLES = {
   planes: "Planes", resumen: "Análisis"
 };
 
-function actualizarTopbarTitulo(tab) {
-  const el = document.getElementById("topbar-title");
-  if (el) el.textContent = TAB_TITLES[tab] || "";
-}
 
 // =============================================
 // SOPORTE EN MOVIMIENTOS (fotos + audio) -- comparten el mismo array y el

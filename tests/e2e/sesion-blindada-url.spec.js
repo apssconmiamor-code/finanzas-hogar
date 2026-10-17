@@ -119,8 +119,8 @@ test.describe('Sesión blindada en el start_url (sobrevive a un vaciado total de
     await page.goto(`/index.html?u=FAKE_SESSION_TOKEN&g=${g}`);
     await esperarAppLista(page);
 
-    await page.locator('#btn-menu').click();
-    await page.locator('#dd-logout').click();
+    await page.locator('#btn-menu-cajas').click();
+    await page.locator('#btn-cerrar-sesion').click();
 
     await expect(page.locator('#login-screen')).toBeVisible();
     const url = new URL(page.url());

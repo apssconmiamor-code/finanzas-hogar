@@ -1,6 +1,7 @@
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
+import { BarraInferior } from "../shared/BarraInferior.jsx";
 
-// Fila de arriba de Proyección. Lo demás (tarjetas de meses, tabla de detalle)
+// Franja inferior de Proyección. Lo demás (tarjetas de meses, tabla de detalle)
 // sigue siendo JS plano en app.js; esto solo reemplaza los botones sueltos por
 // un submenú ⋯ -- igual que en Cajas.
 //
@@ -23,7 +24,7 @@ export function ProyeccionBarra({
     { id: "btn-sumar-proy", icono: "sumar", texto: "Sumar movimientos", accion: onToggleSuma },
   ];
   return (
-    <div className="cajas-header">
+    <BarraInferior tab="proyeccion">
       {modoSuma
         ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-proy-listo"
             onClick={onToggleSuma}>Listo</button>
@@ -42,6 +43,6 @@ export function ProyeccionBarra({
           </div>
         )}
       </div>
-    </div>
+    </BarraInferior>
   );
 }

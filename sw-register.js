@@ -3,20 +3,19 @@
 // =============================================
 
 // ---- REGISTRO DEL SERVICE WORKER ----
-// Se auto-actualiza sola, pero solo en un momento seguro: recién al abrir
-// la app "en frío" (recién se entró desde el ícono, todavía no se tocó
-// nada) — nunca mientras la app ya está abierta y en uso, para no
-// interrumpir algo a medio llenar (ej. un modal de movimiento). Por eso
-// hay dos casos bien distintos más abajo:
-//   1. reg.waiting YA existe apenas se registra el Service Worker -> quedó
-//      lista de una sesión anterior (se cerró la app antes de aplicarla).
-//      Este es el momento seguro: se aplica de una.
-//   2. La versión nueva se instala DURANTE esta sesión (updatefound) -> NO
-//      se aplica ahora aunque técnicamente sea "la misma carga de página",
-//      porque para cuando termina de instalar (unos segundos después) el
-//      usuario ya pudo haber empezado a tocar algo. Se guarda el momento
-//      en que quedó lista y se aplica sola recién la próxima vez que se
-//      abra la app de cero (que entonces cae en el caso 1).
+// Se auto-actualiza sola: cuando encuentra una versión nueva la aplica en cuanto
+// hay un momento seguro, sin que nadie tenga que pedirlo (mantener presionada la
+// versión en Inicio solo FUERZA la búsqueda ya mismo).
+//
+// "Momento seguro" = no hay un formulario/ventana abierta ni se está escribiendo
+// en un campo -- recargar justo ahí perdería lo que se está llenando. Mientras no
+// lo sea, la actualización queda lista y se aplica en cuanto se cierre la ventana
+// o se salga del campo (se revisa cada pocos segundos).
+//
+// Cuándo se busca una versión nueva:
+//   - al abrir la app,
+//   - cada vez que la app vuelve a primer plano o recupera la conexión,
+//   - y cada 15 minutos mientras está abierta.
 if ("serviceWorker" in navigator) {
   const CLAVE_TS_LISTA = "sw_actualizacion_lista_en";
 
@@ -32,22 +31,41 @@ if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
       console.info("SW registrado:", reg.scope);
 
-      if (reg.waiting && navigator.serviceWorker.controller) {
-        reg.waiting.postMessage({ type: "SKIP_WAITING" });
-      }
+      // ¿Es un buen momento para recargar? (ver el comentario de arriba)
+      const esMomentoSeguro = () => {
+        if (document.hidden) return true;                              // en segundo plano: nadie lo nota
+        if (document.querySelector(".modal:not(.hidden)")) return false;  // hay una ventana/formulario abierto
+        const a = document.activeElement;
+        if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false; // se está escribiendo
+        return true;
+      };
+      const aplicarSiHayUna = () => {
+        if (reg.waiting && navigator.serviceWorker.controller && esMomentoSeguro()) {
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+      };
+
+      aplicarSiHayUna();                       // quedó lista de una sesión anterior
+      setInterval(aplicarSiHayUna, 4000);      // o termina de instalarse mientras se usa
 
       reg.addEventListener("updatefound", () => {
         const newWorker = reg.installing;
         newWorker.addEventListener("statechange", () => {
           if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
             try { localStorage.setItem(CLAVE_TS_LISTA, String(Date.now())); } catch {}
+            aplicarSiHayUna();
           }
         });
       });
 
-      // Revisa contra el servidor si hay una versión más nueva cada vez
-      // que se abre la app (además del chequeo automático del navegador).
-      reg.update().catch(() => {});
+      // Revisa contra el servidor si hay una versión más nueva: al abrir, al volver
+      // a primer plano, al recuperar conexión y cada 15 minutos (además del chequeo
+      // automático del navegador, que en iOS es poco confiable).
+      const revisar = () => { reg.update().catch(() => {}); };
+      revisar();
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) revisar(); });
+      window.addEventListener("online", revisar);
+      setInterval(revisar, 15 * 60 * 1000);
     } catch (err) {
       console.warn("SW no se pudo registrar:", err);
     }

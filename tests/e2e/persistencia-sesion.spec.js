@@ -98,10 +98,10 @@ test.describe('Persistencia de sesión (respaldo en cookie)', () => {
     await page.reload();
     await page.waitForFunction(() => typeof window.navegarATab === 'function');
     // #btn-logout vive en el sidebar de escritorio, oculto en el viewport
-    // mobile del proyecto "iphone" — el menú ⋯ (topbar, visible en ambos)
-    // es el camino real para cerrar sesión desde el teléfono.
-    await page.locator('#btn-menu').click();
-    await page.locator('#dd-logout').click();
+    // mobile del proyecto "iphone" — el menú ⋯ de la franja inferior de Inicio
+    // (visible en ambos) es el camino real para cerrar sesión desde el teléfono.
+    await page.locator('#btn-menu-cajas').click();
+    await page.locator('#btn-cerrar-sesion').click();
 
     const cookiesTrasLogout = await context.cookies('http://127.0.0.1:4173');
     const nombresConValor = cookiesTrasLogout.filter(c => ['guser', 'gtoken', 'worker_session'].includes(c.name) && c.value);

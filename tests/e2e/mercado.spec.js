@@ -10,11 +10,10 @@
 // gris), pedido explícito del usuario. Mantener presionado un producto
 // sigue siendo el único camino a Editar/Eliminar el producto.
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
 
 async function abrirMercado(page) {
-  await page.locator('#btn-menu, #btn-bottom-menu').first().click();
-  await page.locator('[data-tab-nav="mercado"]').click();
+  await irATab(page, 'mercado');
   await expect(page.locator('#tab-mercado')).toBeVisible();
 }
 
