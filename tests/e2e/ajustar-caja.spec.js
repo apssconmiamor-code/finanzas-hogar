@@ -158,6 +158,29 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator(".cajas-fade")).toHaveCount(0);
   });
 
+  // Botones redondos de acceso rápido debajo de las cajas.
+  test("atajos redondos: llevan a Movimientos, a Proyección y abren Recordatorios", async ({ page }) => {
+    await mockGoogleApis(page, {
+      "Cajas": [["C1", "prueba@example.com", "Efectivo", "COP"]],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto("/");
+    await esperarAppLista(page);
+
+    await expect(page.locator(".cajas-atajo")).toHaveCount(3);
+    await page.locator("#atajo-movimientos").click();
+    await expect(page.locator("#tab-movimientos")).toBeVisible();
+    await expect(page.locator("#tab-cajas")).toBeHidden();
+
+    await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
+    await page.locator("#atajo-proyeccion").click();
+    await expect(page.locator("#tab-proyeccion")).toBeVisible();
+
+    await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
+    await page.locator("#atajo-recordatorios").click();
+    await expect(page.locator("#recordatorios-panel")).toBeVisible();
+  });
+
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)
   // que arma un modo selección -- tocar una caja la suma/resta del total,
   // que aparece en una barra flotante abajo (#sumar-cajas-barra). Nada de

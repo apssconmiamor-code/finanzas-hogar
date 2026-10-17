@@ -10,10 +10,12 @@ import { createPortal } from "react-dom";
 //   onAbrirDetalle(n)  doble toque (tapCaja) sobre una tarjeta
 //   onAjustar(n)       mantener presionado, solo con saldo negativo
 //   onReordenar(nombres[])  tras arrastrar una tarjeta
+//   onIrATab(tab)      atajos redondos: "movimientos" | "proyeccion"
+//   onRecordatorios()  atajo redondo: abre el panel de recordatorios
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, onRecordatorios, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
@@ -46,13 +48,13 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   return (
     <>
       <div className="cajas-header">
-        <div className="cajas-header-izq">
-          {modoSuma && <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />}
-        </div>
         {modoSuma
           ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
               onClick={alternarModo}>Listo</button>
           : <MenuCajas onSumar={alternarModo} onElegir={() => setEligiendo(true)} />}
+        <div className="cajas-header-der">
+          {modoSuma && <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />}
+        </div>
       </div>
       {cajas.length === 0
         ? <div id="cajas-grid" className="cajas-grid">
@@ -61,11 +63,31 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
         : <Grilla key={`${renderId}-${modoSuma}`} scrollRef={scrollRef} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
+      <Atajos onIrATab={onIrATab} onRecordatorios={onRecordatorios} />
       {eligiendo && createPortal(
         <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
           onCerrar={() => setEligiendo(false)} />,
         document.body)}
     </>
+  );
+}
+
+// Botones redondos de acceso rápido, debajo de las cajas.
+function Atajos({ onIrATab, onRecordatorios }) {
+  const atajos = [
+    { id: "atajo-movimientos", icono: "💸", texto: "Movimientos", accion: () => onIrATab("movimientos") },
+    { id: "atajo-proyeccion", icono: "📊", texto: "Proyección", accion: () => onIrATab("proyeccion") },
+    { id: "atajo-recordatorios", icono: "📝", texto: "Recordatorios", accion: () => onRecordatorios() },
+  ];
+  return (
+    <div className="cajas-atajos">
+      {atajos.map(a => (
+        <button key={a.id} type="button" id={a.id} className="cajas-atajo" onClick={a.accion}>
+          <span className="cajas-atajo-circulo" aria-hidden="true">{a.icono}</span>
+          <span className="cajas-atajo-texto">{a.texto}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -246,8 +268,8 @@ function SumaCajas({ cajas, seleccion, formatMonto }) {
     porMoneda[c.moneda] = (porMoneda[c.moneda] || 0) + Math.max(0, c.saldoReal);
   });
   const totales = Object.entries(porMoneda);
-  // Vive en la fila de arriba, a la izquierda (frente al ⋯/Listo de la
-  // derecha), en vez de una barra flotante.
+  // Vive en la fila de arriba, a la derecha (frente al ⋯/Listo de la
+  // izquierda), en vez de una barra flotante.
   return (
     <div id="sumar-cajas-barra" className="cajas-suma">
       {totales.length === 0
