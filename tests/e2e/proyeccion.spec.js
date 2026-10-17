@@ -38,6 +38,7 @@ test.describe('Proyección', () => {
     await irATab(page, 'proyeccion');
     await expect(page.locator('#tab-proyeccion')).toBeVisible();
 
+    await page.locator('#btn-menu-proyeccion').click();
     await page.locator('#btn-agregar-concepto').click();
     await expect(page.locator('#modal-nuevo-concepto')).toBeVisible();
 
@@ -50,9 +51,101 @@ test.describe('Proyección', () => {
     await expect(page.locator('#proy-tabla-body')).toContainText('Gimnasio');
 
     // Intentar agregarlo de nuevo debe avisar que ya existe, no duplicarlo.
+    await page.locator('#btn-menu-proyeccion').click();
     await page.locator('#btn-agregar-concepto').click();
     await page.locator('#nuevo-concepto-nombre').fill('Gimnasio');
     await expect(page.locator('#nuevo-concepto-duplicado')).toBeVisible();
+  });
+
+  // Las acciones de Proyección viven en un submenú ⋯ (igual que en Cajas) y ya
+  // no hay botones sueltos en la pantalla.
+  test("el menú ⋯ reúne las acciones, con sus nombres nuevos, y no quedan botones sueltos", async ({ page }) => {
+    await mockGoogleApis(page);
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    // Nada suelto en la pantalla: solo el ⋯ (los ítems existen solo con el menú abierto).
+    await expect(page.locator("#btn-menu-proyeccion")).toBeVisible();
+    for (const id of ["btn-agregar-mes", "btn-agregar-concepto", "btn-agregar-existente", "btn-sumar-proy"]) {
+      await expect(page.locator("#" + id)).toHaveCount(0);
+    }
+
+    await page.locator("#btn-menu-proyeccion").click();
+    await expect(page.locator("#btn-agregar-mes")).toHaveText(/Agregar mes a proyectar/);
+    await expect(page.locator("#btn-agregar-concepto")).toHaveText(/Crear nuevo concepto/);
+    await expect(page.locator("#btn-agregar-existente")).toHaveText(/Agregar concepto/);
+    await expect(page.locator("#btn-sumar-proy")).toHaveText(/Sumar movimientos/);
+    // Sin Filtrar por ahora (decisión explícita).
+    await expect(page.locator("#tab-proyeccion").getByText("Filtrar")).toHaveCount(0);
+  });
+
+  test("el menú ⋯: Agregar mes a proyectar suma una tarjeta de mes", async ({ page }) => {
+    await mockGoogleApis(page);
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    const antes = await page.locator(".proy-4m-card").count();
+    await page.locator("#btn-menu-proyeccion").click();
+    await page.locator("#btn-agregar-mes").click();
+    await expect(page.locator(".proy-4m-card")).toHaveCount(antes + 1);
+  });
+
+  test("el menú ⋯: Agregar concepto abre la lista de conceptos que faltan en el mes", async ({ page }) => {
+    await mockGoogleApis(page);
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    await page.locator("#btn-menu-proyeccion").click();
+    await page.locator("#btn-agregar-existente").click();
+    await expect(page.locator("#modal-agregar-existente")).toBeVisible();
+  });
+
+  test("el menú ⋯: Sumar movimientos arma el total de las filas elegidas en la fila de arriba, y Listo lo apaga", async ({ page }) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await mockGoogleApis(page, {
+      Cajas: [["C1", "prueba@example.com", "Efectivo", "COP"]],
+      Presupuesto: [
+        ["Ingreso", "SURA", 0, 3000000, ""],
+        ["Gasto fijo", "Alquiler", 800000, 0, ""],
+      ],
+      "Movimiento de Caja": [
+        ["M1", hoy, "prueba@example.com", "SURA", "Ingreso", "Efectivo", 500000, "", ""],
+        ["M2", hoy, "prueba@example.com", "Alquiler", "Gasto fijo", "Efectivo", 200000, "", ""],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    await page.locator("#btn-menu-proyeccion").click();
+    await page.locator("#btn-sumar-proy").click();
+    await expect(page.locator("#btn-sumar-proy-listo")).toBeVisible();
+    await expect(page.locator("#btn-menu-proyeccion")).toHaveCount(0);
+    await expect(page.locator("#sumar-proy-total")).toContainText("Tocá los conceptos");
+
+    // Tocar filas las selecciona (sin abrir nada) y el total aparece arriba.
+    const filaSura = page.locator(".proy-tabla-row", { hasText: "SURA" });
+    const filaAlquiler = page.locator(".proy-tabla-row", { hasText: "Alquiler" });
+    await filaSura.click();
+    await expect(filaSura).toHaveClass(/proy-tabla-row-seleccionada/);
+    await filaAlquiler.click();
+    await expect(page.locator("#sumar-proy-total")).toContainText("Real");
+    // Estimado: SURA no tiene estimado en el mes (los ingresos se configuran por
+    // mes) + Alquiler 800.000. Real: 500.000 + 200.000.
+    await expect(page.locator("#sumar-proy-total")).toContainText("800.000");
+    await expect(page.locator("#sumar-proy-total")).toContainText("700.000");
+
+    await page.locator("#btn-sumar-proy-listo").click();
+    await expect(page.locator("#btn-menu-proyeccion")).toBeVisible();
+    await expect(page.locator("#sumar-proy-total")).toHaveCount(0);
+    await expect(filaSura).not.toHaveClass(/proy-tabla-row-seleccionada/);
   });
 
   test('Detalle por concepto: sin botones sueltos, agrupado por Ingresos/Fijos/Variables, un toque no hace nada, doble toque abre el resumen y mantener presionado abre Editar/Eliminar', async ({ page }) => {

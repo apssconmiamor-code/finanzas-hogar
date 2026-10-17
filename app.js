@@ -1379,6 +1379,7 @@ function navegarATab(tab) {
     if (tab === "planes" && typeof cargarPlanes === "function") cargarPlanes();
     if (tab === "mercado" && typeof cargarMercado === "function") cargarMercado();
     if (tab === "resumen") renderResumen();
+    if (tab === "proyeccion") renderProyBarra();
     if (typeof actualizarTopbarTitulo === "function") actualizarTopbarTitulo(tab);
     // update topbar avatar
     const ta = document.getElementById("topbar-avatar");
@@ -1978,7 +1979,7 @@ function iconoCajaImagen(nombre) {
 // debe hacer nada, antes abría el detalle directo).
 const tapCaja = crearManejadorDobleToque(nombre => nombre, nombre => abrirDetalleCaja(nombre));
 
-// Cajas ya se dibuja con React (react/src/cajas, bundle en react-dist/cajas.js):
+// Cajas ya se dibuja con React (react/src/cajas, bundle en react-dist/react-app.js):
 // grilla, modo "Sumar" y barra flotante viven allá. Acá solo se arma el
 // "view-model" -- los saldos y el orden siguen siendo de este archivo -- y se
 // le pasan los callbacks que usan lo que todavía es JS plano (detalle, ajuste,
@@ -3487,6 +3488,7 @@ function renderProyeccion() {
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes));
   renderTablaComparacion(movsDelMes);
   render4MesesResumen();
+  renderProyBarra();
 }
 
 // ---- PANEL DE INGRESOS POR MES (obsoleto, conservado por compatibilidad) ----
@@ -3580,12 +3582,6 @@ function render4MesesResumen() {
       </div>
     </div>`;
   }).join("") + "</div>";
-
-  // Botón agregar mes
-  const btnAgregar = document.getElementById("btn-agregar-mes");
-  if (btnAgregar) {
-    btnAgregar.onclick = agregarMesProyeccion;
-  }
 
   // Eliminar mes (×)
   grid.querySelectorAll(".proy-4m-remove").forEach(btn => {
@@ -3892,8 +3888,6 @@ function renderTablaComparacion(movsDelMes) {
 
   if (modoSumaProyActivo) _conectarSeleccionTablaProy();
   else _conectarLargoPresionTablaComparacion();
-  renderBotonSumarProy();
-  renderSumarProyBarra();
 }
 
 // ---- Sumar conceptos (Proyección) ----
@@ -3909,13 +3903,6 @@ function toggleModoSumaProy() {
   renderProyeccion();
 }
 
-function renderBotonSumarProy() {
-  const btn = document.getElementById("btn-sumar-proy");
-  if (!btn) return;
-  btn.textContent = modoSumaProyActivo ? "Listo" : "Sumar";
-  btn.classList.toggle("active", modoSumaProyActivo);
-}
-
 function _conectarSeleccionTablaProy() {
   document.querySelectorAll("#proy-tabla-body .proy-tabla-row[data-concepto]").forEach(row => {
     row.addEventListener("pointerup", () => {
@@ -3923,28 +3910,32 @@ function _conectarSeleccionTablaProy() {
       if (conceptosSeleccionadosParaSumar.has(concepto)) conceptosSeleccionadosParaSumar.delete(concepto);
       else conceptosSeleccionadosParaSumar.add(concepto);
       row.classList.toggle("proy-tabla-row-seleccionada");
-      renderSumarProyBarra();
+      renderProyBarra();
     });
   });
 }
 
-function renderSumarProyBarra() {
-  const barra = document.getElementById("sumar-proy-barra");
-  if (!barra) return;
-  if (!modoSumaProyActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
-  barra.classList.remove("hidden");
-  if (conceptosSeleccionadosParaSumar.size === 0) {
-    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá los conceptos que querés sumar</span>`;
-    return;
-  }
+// Fila de arriba de Proyección (menú ⋯ y, en modo Sumar, "Listo" + el total).
+// Se dibuja con React (react/src/proyeccion); acá solo se arma lo que muestra
+// y se le pasan las acciones de siempre. El total sale de las filas elegidas
+// en la tabla (data-estimado / data-real).
+function renderProyBarra() {
+  if (!window.ProyeccionReact) return;
   let estimado = 0, real = 0;
   document.querySelectorAll("#proy-tabla-body .proy-tabla-row-seleccionada").forEach(row => {
     estimado += Number(row.dataset.estimado) || 0;
     real     += Number(row.dataset.real) || 0;
   });
-  barra.innerHTML = `
-    <span class="sumar-proy-total"><small>Estimado</small><span class="sumar-cajas-barra-total">${formatMonto(estimado)}</span></span>
-    <span class="sumar-proy-total"><small>Real</small><span class="sumar-cajas-barra-total">${formatMonto(real)}</span></span>`;
+  window.ProyeccionReact.render({
+    modoSuma: modoSumaProyActivo,
+    seleccionados: conceptosSeleccionadosParaSumar.size,
+    totales: { estimado, real },
+    formatMonto,
+    onToggleSuma: toggleModoSumaProy,
+    onAgregarMes: agregarMesProyeccion,
+    onNuevoConcepto: abrirModalNuevoConcepto,
+    onAgregarConcepto: abrirModalAgregarExistente,
+  });
 }
 
 // Mantener presionada una fila abre Editar/Eliminar (ver abrirMenuEditarBorrar
@@ -4765,7 +4756,7 @@ async function guardarNuevoConcepto() {
 function quitarConceptoDelMes(concepto, categoria) {
   const mes = proyMesActivo;
   const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" });
-  if (!confirm(`¿Quitar "${concepto}" solo de ${label}?\n\nSigue existiendo y lo puedes volver a agregar con + Concepto.\n\n(Cancelar te deja borrarlo definitivamente de todos los meses.)`)) {
+  if (!confirm(`¿Quitar "${concepto}" solo de ${label}?\n\nSigue existiendo y lo puedes volver a agregar con Agregar concepto (menú ⋯).\n\n(Cancelar te deja borrarlo definitivamente de todos los meses.)`)) {
     // Salida al borrado definitivo, con su propia confirmación.
     eliminarConceptoPresupuesto(concepto, categoria);
     return;
@@ -4827,10 +4818,6 @@ function setupProyeccionListeners() {
     if (e.target === document.getElementById("modal-presupuesto")) cerrarModalPresupuesto();
   });
 
-  document.getElementById("btn-agregar-concepto")
-    ?.addEventListener("click", abrirModalNuevoConcepto);
-  document.getElementById("btn-agregar-existente")
-    ?.addEventListener("click", abrirModalAgregarExistente);
   document.getElementById("btn-cerrar-agregar-existente")
     ?.addEventListener("click", () => document.getElementById("modal-agregar-existente").classList.add("hidden"));
   document.getElementById("btn-cancelar-nuevo-concepto")

@@ -806,6 +806,18 @@ input, select, textarea, table {
 .cajas-suma { display: flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 4px 12px; }
 .cajas-suma .sumar-cajas-barra-total { font-size: 18px; }
 .cajas-suma .sumar-cajas-barra-vacio { font-size: 12.5px; }
+/* La fila de arriba de Proyección se queda fija bajo la barra superior (56px)
+   al desplazarse: así el total de "Sumar movimientos" sigue a la vista mientras
+   se eligen filas más abajo en una tabla larga. */
+#proy-menu-root {
+  position: sticky; top: 56px; z-index: 50;
+  background: var(--bg); margin: -4px -2px 0; padding: 8px 2px 8px;
+}
+/* Total de "Sumar movimientos" en Proyección: Estimado y Real lado a lado. */
+.proy-suma { gap: 2px 16px; }
+.proy-suma-item { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.proy-suma-item small { font-size: 10.5px; color: var(--text-4); font-weight: 600; letter-spacing: .2px; }
+.proy-suma .sumar-cajas-barra-total { font-size: 16px; }
 /* Submenú de Cajas (⋯): el panel reusa .dropdown-menu/.dropdown-item. */
 .cajas-menu { position: relative; }
 .cajas-menu-btn { font-size: 18px; line-height: 1; padding: 3px 14px 6px; letter-spacing: 1px; }

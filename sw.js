@@ -2,7 +2,7 @@
 // SERVICE WORKER — Finanzas Luni-Chuni
 // =============================================
 
-const CACHE_NAME = "finanzas-v223";
+const CACHE_NAME = "finanzas-v224";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -20,7 +20,7 @@ const STATIC_ASSETS = [
   "./badge.js",
   "./config.js",
   "./gestos.js",
-  "./react-dist/cajas.js",
+  "./react-dist/react-app.js",
   "./manifest.json",
   "./icono.png",
   "./nequi.png",

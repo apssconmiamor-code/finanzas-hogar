@@ -215,7 +215,7 @@
 
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
       <section id="tab-cajas" class="tab-section">
-        <!-- Cajas se dibuja con React (react/src/cajas -> react-dist/cajas.js):
+        <!-- Cajas se dibuja con React (react/src/cajas -> react-dist/react-app.js):
              botón "Sumar", grilla y barra flotante. Lo de adentro es solo el
              estado inicial hasta que app.js llama a CajasReact.render(). -->
         <div id="cajas-root">
@@ -366,11 +366,14 @@
 
       <!-- ══ TAB: PROYECCIÓN ══ -->
       <section id="tab-proyeccion" class="tab-section hidden">
+        <!-- Menú ⋯ de Proyección (react/src/proyeccion): Agregar mes a proyectar,
+             Crear nuevo concepto, Agregar concepto y Sumar movimientos. Antes eran
+             botones sueltos en esta pantalla. -->
+        <div id="proy-menu-root"></div>
         <!-- Grid meses dinámico -->
         <div class="card-section" id="proy-4meses-wrap">
           <div class="card-section-header">
             <span class="card-section-title">📅 Meses en proyección</span>
-            <button class="btn-agregar-mes" id="btn-agregar-mes" title="Agregar mes">+ mes</button>
           </div>
           <div id="proy-4meses-grid"></div>
         </div>
@@ -381,12 +384,7 @@
         <div class="card-section">
           <div class="card-section-header">
             <div>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <span class="card-section-title">Detalle por concepto</span>
-                <button class="btn-agregar-mes" id="btn-agregar-concepto" title="Agregar concepto">+ Concepto</button>
-                <button type="button" class="btn-sutil" id="btn-agregar-existente">Agregar concepto</button>
-                <button type="button" class="btn-sutil" id="btn-sumar-proy" onclick="toggleModoSumaProy()">Sumar</button>
-              </div>
+              <span class="card-section-title">Detalle por concepto</span>
               <div class="card-section-sub" id="proy-detalle-mes-label"></div>
             </div>
             <div class="proy-leyenda">
@@ -540,8 +538,6 @@
     <!-- ══ BOTÓN FLOTANTE: nuevo recordatorio (arrastrable, todas las pestañas) ══ -->
     <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">⚡</button>
 
-    <!-- Igual, para "Sumar" en Proyección (ver renderSumarProyBarra en app.js) -->
-    <div id="sumar-proy-barra" class="sumar-cajas-barra hidden"></div>
     <div id="sumar-mov-barra" class="sumar-cajas-barra hidden"></div>
 
     <!-- ══ MODALES GLOBALES ══ -->
@@ -1147,7 +1143,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
   <script src="gestos.js"></script>
-  <script src="react-dist/cajas.js"></script>
+  <script src="react-dist/react-app.js"></script>
   <script src="sheets.js"></script>
   <script src="sync.js"></script>
   <script src="sheets-offline.js"></script>

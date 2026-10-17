@@ -18,8 +18,9 @@ Google real.
 La app sigue siendo estática (GitHub Pages sirve la raíz del repo), pero los
 módulos migrados se escriben en React y se compilan con Vite:
 
-- Código fuente: `react/src/<modulo>/` (hoy: `cajas`).
-- Bundle compilado: `react-dist/<modulo>.js` (IIFE, **se commitea**), cargado
+- Código fuente: `react/src/<modulo>/` (hoy: `cajas`, `proyeccion`), con lo compartido en
+  `react/src/shared/` y el punto de entrada en `react/src/entry.jsx`.
+- Bundle compilado: `react-dist/react-app.js` (uno solo, IIFE, **se commitea**), cargado
   con un `<script>` normal en `index.html` antes de `app.js` y listado en
   `sw.js` (subir `CACHE_NAME` al cambiarlo).
 - Después de tocar algo en `react/src/`: `npm run build:react` y commitear
