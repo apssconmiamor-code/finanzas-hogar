@@ -200,7 +200,17 @@ test.describe('Ajustar caja', () => {
     await expect(titulos.nth(1)).toHaveText("Widgets y acciones rápidas");
     const rayo = page.locator("#fab-recordatorio");
     await expect(rayo).toBeVisible();
-    await expect(rayo).toContainText("Acciones rápidas");
+    await expect(rayo).toContainText("Nuevo movimiento");
+    // Círculo en azul marino, distinto al azul de "Más opciones".
+    const colorRayo = await rayo.locator(".cajas-atajo-circulo").evaluate(e => getComputedStyle(e).backgroundColor);
+    const colorMas = await page.locator("#atajo-movimientos .cajas-atajo-circulo").evaluate(e => getComputedStyle(e).backgroundColor);
+    expect(colorRayo).toBe("rgb(35, 57, 93)");
+    expect(colorRayo).not.toBe(colorMas);
+    // Y de forma cuadrada con esquinas redondeadas (no círculo como los de arriba).
+    const radioRayo = await rayo.locator(".cajas-atajo-circulo").evaluate(e => getComputedStyle(e).borderTopLeftRadius);
+    const radioMas = await page.locator("#atajo-movimientos .cajas-atajo-circulo").evaluate(e => getComputedStyle(e).borderTopLeftRadius);
+    expect(radioRayo).toBe("16px");
+    expect(radioMas).not.toBe("16px");
     await expect(rayo.locator("svg")).toHaveCount(1);
 
     // Está debajo de la caja "Más opciones".

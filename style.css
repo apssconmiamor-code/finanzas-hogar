@@ -910,6 +910,12 @@ input, select, textarea, table {
 }
 .cajas-atajo:hover .cajas-atajo-circulo { box-shadow: 0 6px 16px rgba(var(--brand-rgb), .38); }
 .cajas-atajo:active .cajas-atajo-circulo { transform: scale(0.94); }
+/* Zona de widgets y acciones rápidas: azul marino (el --brand-hover de la paleta) y
+   cuadritos de esquinas redondeadas, en vez del azul y los círculos de "Más opciones",
+   para distinguirla en color y en forma sin salirse de la app. */
+.cajas-atajos-marino { background: rgba(35,57,93,.06); border-color: rgba(35,57,93,.14); }
+.cajas-atajos-marino .cajas-atajo-circulo { background: var(--brand-hover); box-shadow: 0 4px 12px rgba(35,57,93,.30); border-radius: 16px; }
+.cajas-atajos-marino .cajas-atajo:hover .cajas-atajo-circulo { box-shadow: 0 6px 16px rgba(35,57,93,.40); }
 .cajas-atajo-texto { font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
 .caja-card {
   background: var(--surface); border: 1px solid var(--border);

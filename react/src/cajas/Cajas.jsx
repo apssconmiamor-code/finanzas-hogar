@@ -112,16 +112,17 @@ function Atajos({ onIrATab, alertasPendientes }) {
 }
 
 // Zona de widgets y acciones rápidas, debajo de "Más opciones". El primero es el
-// rayo ⚡, que abre el menú de Acciones rápidas (antes era un botón flotante que
-// seguía a todas las pantallas). Mantiene el id fab-recordatorio de siempre.
+// rayo ⚡ "Nuevo movimiento", que abre el menú de Acciones rápidas (antes era un
+// botón flotante que seguía a todas las pantallas). Esta zona va en azul marino
+// (la otra caja, en azul) para distinguirlas. Mantiene el id fab-recordatorio de siempre.
 function Widgets({ onAccionesRapidas }) {
   return (
     <>
       <div className="cajas-atajos-titulo">Widgets y acciones rápidas</div>
-      <div className="cajas-atajos">
+      <div className="cajas-atajos cajas-atajos-marino">
         <button type="button" id="fab-recordatorio" className="cajas-atajo" onClick={onAccionesRapidas}>
           <span className="cajas-atajo-circulo" aria-hidden="true"><Icono nombre="rayo" /></span>
-          <span className="cajas-atajo-texto">Acciones rápidas</span>
+          <span className="cajas-atajo-texto">Nuevo movimiento</span>
         </button>
       </div>
     </>
