@@ -231,14 +231,10 @@
 
       <!-- ══ TAB: INICIO (CAJAS) ══ -->
       <section id="tab-cajas" class="tab-section">
-        <!-- Botón sutil que arma un "modo selección": tocar una caja la
-             suma/resta del total en vez de abrir su detalle o arrastrarla
-             (ver toggleModoSumaCajas en app.js). Nada de mantener
-             presionado ni ventana aparte -- pedido explícito. -->
-        <div class="cajas-header">
-          <button type="button" class="btn-sumar-cajas" id="btn-sumar-cajas" onclick="toggleModoSumaCajas()">Sumar</button>
-        </div>
-        <div id="cajas-grid" class="cajas-grid">
+        <!-- Cajas se dibuja con React (react/src/cajas -> react-dist/cajas.js):
+             botón "Sumar", grilla y barra flotante. Lo de adentro es solo el
+             estado inicial hasta que app.js llama a CajasReact.render(). -->
+        <div id="cajas-root">
           <div class="loading-state">Cargando…</div>
         </div>
       </section>
@@ -573,10 +569,6 @@
     <!-- ══ BOTÓN FLOTANTE: nuevo recordatorio (arrastrable, todas las pestañas) ══ -->
     <button id="fab-recordatorio" class="fab-recordatorio" title="Nuevo recordatorio" aria-label="Nuevo recordatorio">⚡</button>
 
-    <!-- Barra flotante con el total de "Sumar cajas" -- fondo transparente,
-         solo visible mientras el modo selección está activo (ver
-         renderSumarCajasBarra en app.js). -->
-    <div id="sumar-cajas-barra" class="sumar-cajas-barra hidden"></div>
     <!-- Igual, para "Sumar" en Proyección (ver renderSumarProyBarra en app.js) -->
     <div id="sumar-proy-barra" class="sumar-cajas-barra hidden"></div>
     <div id="sumar-mov-barra" class="sumar-cajas-barra hidden"></div>
@@ -1184,6 +1176,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="config.js"></script>
   <script src="gestos.js"></script>
+  <script src="react-dist/cajas.js"></script>
   <script src="sheets.js"></script>
   <script src="sync.js"></script>
   <script src="sheets-offline.js"></script>

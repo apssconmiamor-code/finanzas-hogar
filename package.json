@@ -2,13 +2,20 @@
   "name": "finanzas-hogar",
   "private": true,
   "version": "1.0.0",
-  "description": "Tests E2E para la app estatica Finanzas Hogar (sin build step).",
+  "description": "App estatica Finanzas Hogar. Modulos migrados a React se compilan con Vite a react-dist/ (commiteado).",
   "scripts": {
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "build:react": "vite build"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

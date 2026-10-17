@@ -1133,14 +1133,10 @@ function cerrarPantallaActual() {
 
 function setupEventListeners() {
 function navegarATab(tab) {
-    // El modo "Sumar cajas" (y su barra flotante, que vive fuera de
-    // #tab-cajas) no tendría cómo apagarse solo si el usuario cambia de
-    // pestaña con el modo activo -- se resetea acá.
-    if (tab !== "cajas" && typeof modoSumaCajasActivo !== "undefined" && modoSumaCajasActivo) {
-      modoSumaCajasActivo = false;
-      cajasSeleccionadasParaSumar = new Set();
-      renderCajas();
-    }
+    // Los modos "Sumar" de Movimientos y Proyección (y sus barras flotantes,
+    // que viven fuera de sus pestañas) no tendrían cómo apagarse solos si el
+    // usuario cambia de pestaña con el modo activo -- se resetean acá. El de
+    // Cajas ya lo resuelve su propio componente React.
     if (tab !== "movimientos" && typeof modoSumaMovActivo !== "undefined" && modoSumaMovActivo) {
       modoSumaMovActivo = false;
       movimientosSeleccionadosParaSumar = new Set();
@@ -1771,151 +1767,48 @@ function iconoCajaImagen(nombre) {
 // debe hacer nada, antes abría el detalle directo).
 const tapCaja = crearManejadorDobleToque(nombre => nombre, nombre => abrirDetalleCaja(nombre));
 
+// Cajas ya se dibuja con React (react/src/cajas, bundle en react-dist/cajas.js):
+// grilla, modo "Sumar" y barra flotante viven allá. Acá solo se arma el
+// "view-model" -- los saldos y el orden siguen siendo de este archivo -- y se
+// le pasan los callbacks que usan lo que todavía es JS plano (detalle, ajuste,
+// guardado de orden).
 function renderCajas() {
-  const grid = document.getElementById("cajas-grid");
-  renderBotonSumarCajas();
-  if (cajas.length === 0) {
+  if (!window.CajasReact) return;
+  window.CajasReact.render({
+    cajas: cajas.map(c => ({
+      nombre: c.nombre,
+      moneda: c.moneda,
+      saldoReal: calcularSaldoCaja(c.nombre),
+      colorFondo: cajaColorFondo(c.nombre),
+      icono: iconoCajaImagen(c.nombre),
+    })),
     // Sin confirmación por red todavía (recién abierta, caché vacía, o la
     // carga falló) → no invitar a "crear una" cuando en realidad puede que
     // ya existan y solo no hayan cargado, para no sugerir que se perdieron.
-    grid.innerHTML = _cajasVerificadasEnRed
-      ? `<div class="empty-state" style="grid-column:1/-1">
-          <div class="empty-state-icon">🏦</div>
-          <div class="empty-state-text">No tienes cajas aún. Crea una para empezar.</div></div>`
-      : `<div class="empty-state" style="grid-column:1/-1">
-          <div class="empty-state-icon">📡</div>
-          <div class="empty-state-text">No se pudieron cargar tus cajas — revisa tu conexión o toca Reconectar.</div></div>`;
-    renderSumarCajasBarra();
-    return;
-  }
-  // En modo "Sumar cajas" el toque simple selecciona en vez de abrir el
-  // detalle -- por eso no lleva el onpointerup de tapCaja (doble toque)
-  // mientras el modo está activo (ver toggleModoSumaCajas más abajo).
-  grid.innerHTML = cajas.map(c => {
-    const saldoReal = calcularSaldoCaja(c.nombre);
-    const saldo     = Math.max(0, saldoReal);
-    const colorFondo = cajaColorFondo(c.nombre);
-    const requiereAjuste = saldoReal < 0;
-    const icono = iconoCajaImagen(c.nombre);
-    const seleccionada = modoSumaCajasActivo && cajasSeleccionadasParaSumar.has(c.nombre);
-    const tapNormal = modoSumaCajasActivo ? "" : ` onpointerup="tapCaja('${c.nombre.replace(/'/g, "\\'")}', event)"`;
-    return `<div class="caja-card${seleccionada ? " caja-card-seleccionada" : ""}" data-nombre="${c.nombre.replace(/"/g, "&quot;")}" style="background-color:${colorFondo}"${tapNormal}>
-      ${requiereAjuste ? `<div class="caja-card-top"><span class="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span></div>` : ""}
-      <div class="caja-nombre-fila">
-        <span class="caja-nombre">${c.nombre}</span>
-        ${icono ? `<img class="caja-card-icono" src="${icono}" alt="" />` : ""}
-      </div>
-      <div class="caja-saldo positivo">${formatMonto(saldo, c.moneda)}</div>
-    </div>`;
-  }).join("");
-  if (modoSumaCajasActivo) _conectarSeleccionCajas(grid);
-  else _conectarLargoPresionCajas(grid);
-  renderSumarCajasBarra();
-}
-
-// Mantener presionada una tarjeta ofrece "Ajustar" -- solo cuando el saldo
-// real es negativo (mismo criterio que ya usa el botón dentro del detalle,
-// ver abrirDetalleCaja/botonAjustar) -- y arrastrarla desde ahí la reordena
-// (ver crearManejadorArrastrable en gestos.js), sin importar el saldo. Solo
-// se conecta fuera del modo "Sumar cajas" (ver _conectarSeleccionCajas):
-// mientras ese modo está activo, el toque simple selecciona en vez de abrir
-// el detalle o arrastrar. Sin onCorto: el toque corto ya lo maneja el
-// onpointerup inline de la tarjeta (tapCaja, doble toque) -- mismo
-// contrato de dataset.gestoPresionLarga que usa ese doble toque para saber
-// si el toque vino de un mantener presionado o un arrastre, así que no
-// hace falta tocarlo acá.
-function _conectarLargoPresionCajas(grid) {
-  grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
-    const nombre = card.dataset.nombre;
-    const saldoReal = calcularSaldoCaja(nombre);
-    crearManejadorArrastrable(card, grid, ".caja-card[data-nombre]", {
-      onLargo: saldoReal < 0 ? () => abrirMenuEditarBorrar({
-        titulo: nombre,
-        labelEditar: "⚖️ Ajustar",
-        onEditar: () => ajustarCaja(nombre)
-      }) : undefined,
-      onReordenar: () => _reordenarCajasDesdeGrid(grid)
-    });
+    verificadaEnRed: _cajasVerificadasEnRed,
+    formatMonto,
+    onAbrirDetalle: tapCaja,
+    onAjustar: ajustarCaja,
+    onReordenar: _reordenarCajas,
   });
-}
-
-// ---- Sumar cajas ----
-// Botón sutil arriba de la cuadrícula (ver #btn-sumar-cajas en index.html)
-// que arma un modo selección: tocar una caja la suma/resta del total, que
-// se ve en una barra flotante abajo -- sin ventana aparte ni mantener
-// presionado (pedido explícito).
-let modoSumaCajasActivo = false;
-let cajasSeleccionadasParaSumar = new Set();
-
-function toggleModoSumaCajas() {
-  modoSumaCajasActivo = !modoSumaCajasActivo;
-  cajasSeleccionadasParaSumar = new Set();
-  renderCajas();
-}
-
-function renderBotonSumarCajas() {
-  const btn = document.getElementById("btn-sumar-cajas");
-  if (!btn) return;
-  btn.textContent = modoSumaCajasActivo ? "Listo" : "Sumar";
-  btn.classList.toggle("active", modoSumaCajasActivo);
-}
-
-// Reemplaza a _conectarLargoPresionCajas mientras el modo está activo --
-// nada de doble toque, mantener presionado ni arrastre: un toque simple
-// alterna la selección.
-function _conectarSeleccionCajas(grid) {
-  grid.querySelectorAll(".caja-card[data-nombre]").forEach(card => {
-    card.addEventListener("pointerup", () => {
-      const nombre = card.dataset.nombre;
-      if (cajasSeleccionadasParaSumar.has(nombre)) cajasSeleccionadasParaSumar.delete(nombre);
-      else cajasSeleccionadasParaSumar.add(nombre);
-      card.classList.toggle("caja-card-seleccionada");
-      renderSumarCajasBarra();
-    });
-  });
-}
-
-// Un total por moneda -- sumar COP con USD en un solo número no tendría
-// sentido, así que si las cajas elegidas mezclan monedas se muestra una
-// línea por cada una. Usa el saldo tal como se ve en la tarjeta (nunca
-// negativo, ver renderCajas) para que el total coincida con lo que el
-// usuario ya está mirando en la cuadrícula.
-function renderSumarCajasBarra() {
-  const barra = document.getElementById("sumar-cajas-barra");
-  if (!barra) return;
-  if (!modoSumaCajasActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
-  barra.classList.remove("hidden");
-  if (cajasSeleccionadasParaSumar.size === 0) {
-    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá las cajas que querés sumar</span>`;
-    return;
-  }
-  const porMoneda = {};
-  cajasSeleccionadasParaSumar.forEach(nombre => {
-    const caja = cajas.find(c => c.nombre === nombre);
-    const moneda = caja ? caja.moneda : "COP";
-    const saldo = Math.max(0, calcularSaldoCaja(nombre));
-    porMoneda[moneda] = (porMoneda[moneda] || 0) + saldo;
-  });
-  barra.innerHTML = Object.entries(porMoneda)
-    .map(([moneda, total]) => `<span class="sumar-cajas-barra-total">${formatMonto(total, moneda)}</span>`)
-    .join("");
 }
 
 // Se llama al soltar tras arrastrar una caja a un lugar nuevo. Igual que
 // Mercado (ver _guardarOrdenMercadoCategorias), el orden es personal por
 // usuario -- guarda IDs en ConfigUsuario para no desordenarse si alguien
 // renombra una caja.
-function _reordenarCajasDesdeGrid(grid) {
-  const nuevoOrdenIds = Array.from(grid.querySelectorAll(".caja-card[data-nombre]"))
-    .map(card => cajas.find(c => c.nombre === card.dataset.nombre)?.id)
+function _reordenarCajas(nombres) {
+  const nuevoOrdenIds = nombres
+    .map(nombre => cajas.find(c => c.nombre === nombre)?.id)
     .filter(Boolean);
   _guardarOrdenCajas(nuevoOrdenIds);
   // El arrastre ya reordenó el DOM en pantalla, pero "cajas" (la fuente de
-  // la que se reconstruye la cuadrícula) todavía no -- sin esto, el render
-  // de abajo la regresa a como estaba antes del arrastre.
+  // la que se arma la vista) todavía no -- sin esto, el render de abajo la
+  // regresa a como estaba antes del arrastre.
   _aplicarOrdenCajas();
   renderCajas();
 }
+
 
 function abrirDetalleCaja(nombre) {
   const caja = cajas.find(c => c.nombre === nombre);
