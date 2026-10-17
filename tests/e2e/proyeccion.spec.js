@@ -210,6 +210,28 @@ test.describe('Proyección', () => {
     await expect(filaSura).not.toHaveClass(/proy-tabla-row-seleccionada/);
   });
 
+  // La tabla ya no lleva el título "Detalle por concepto": una sola fila con el mes que se
+  // está viendo y, en la misma fila, la leyenda de Excedido.
+  test("la tabla muestra una sola fila con el mes y Excedido, sin el título Detalle por concepto", async ({ page }) => {
+    await mockGoogleApis(page);
+    await iniciarSesionFalsa(page);
+    await page.goto("/index.html");
+    await esperarAppLista(page);
+    await irATab(page, "proyeccion");
+
+    await expect(page.locator("#tab-proyeccion")).not.toContainText("Detalle por concepto");
+    const mes = page.locator("#proy-detalle-mes-label");
+    await expect(mes).toHaveText(/[0-9]{4}/);                       // ej. "Octubre de 2026"
+    const leyenda = page.locator("#tab-proyeccion .proy-leyenda");
+    await expect(leyenda).toContainText("Excedido");
+
+    // Misma fila: el mes a la izquierda y Excedido a la derecha, a la misma altura.
+    const a = await mes.boundingBox();
+    const b = await leyenda.boundingBox();
+    expect(Math.abs((a.y + a.height / 2) - (b.y + b.height / 2))).toBeLessThan(8);
+    expect(b.x).toBeGreaterThan(a.x + a.width);
+  });
+
   // Los meses proyectados usan las mismas tarjetas que las Cajas, en una sola fila
   // que se desliza (tres visibles).
   test("Meses proyectados: tarjetas iguales a las de Cajas, fila deslizable, un toque activa el mes", async ({ page }) => {

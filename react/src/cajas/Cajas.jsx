@@ -14,12 +14,13 @@ import { Icono } from "../shared/Iconos.jsx";
 //   onAjustar(n)       mantener presionado, solo con saldo negativo
 //   onReordenar(nombres[])  tras arrastrar una tarjeta
 //   alertasPendientes  número (Activos + Pasados) que se muestra sobre el atajo Alertas
+//   onAccionesRapidas() el rayo ⚡ de la zona Widgets y acciones rápidas
 //   onIrATab(tab)      atajos redondos: movimientos, proyeccion, notificaciones (Alertas),
 //                      mercado, planes, compromisos, resumen (Análisis)
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, alertasPendientes = 0, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, onAccionesRapidas, alertasPendientes = 0, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
@@ -71,6 +72,7 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
       <Atajos onIrATab={onIrATab} alertasPendientes={alertasPendientes} />
+      <Widgets onAccionesRapidas={onAccionesRapidas} />
       {eligiendo && createPortal(
         <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
           onCerrar={() => setEligiendo(false)} />,
@@ -105,6 +107,23 @@ function Atajos({ onIrATab, alertasPendientes }) {
         </button>
       ))}
     </div>
+    </>
+  );
+}
+
+// Zona de widgets y acciones rápidas, debajo de "Más opciones". El primero es el
+// rayo ⚡, que abre el menú de Acciones rápidas (antes era un botón flotante que
+// seguía a todas las pantallas). Mantiene el id fab-recordatorio de siempre.
+function Widgets({ onAccionesRapidas }) {
+  return (
+    <>
+      <div className="cajas-atajos-titulo">Widgets y acciones rápidas</div>
+      <div className="cajas-atajos">
+        <button type="button" id="fab-recordatorio" className="cajas-atajo" onClick={onAccionesRapidas}>
+          <span className="cajas-atajo-circulo" aria-hidden="true"><Icono nombre="rayo" /></span>
+          <span className="cajas-atajo-texto">Acciones rápidas</span>
+        </button>
+      </div>
     </>
   );
 }

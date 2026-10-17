@@ -167,8 +167,8 @@ test.describe('Ajustar caja', () => {
     await page.goto("/");
     await esperarAppLista(page);
 
-    await expect(page.locator("#tab-cajas .cajas-atajos-titulo")).toHaveText("Más opciones");
-    await expect(page.locator(".cajas-atajo")).toHaveCount(7);
+    await expect(page.locator("#tab-cajas .cajas-atajos-titulo").first()).toHaveText("Más opciones");
+    await expect(page.locator("#tab-cajas .cajas-atajos").first().locator(".cajas-atajo")).toHaveCount(7);
     await page.locator("#atajo-movimientos").click();
     await expect(page.locator("#tab-movimientos")).toBeVisible();
     await expect(page.locator("#tab-cajas")).toBeHidden();
@@ -186,6 +186,36 @@ test.describe('Ajustar caja', () => {
       await page.locator("#atajo-" + atajo).click();
       await expect(page.locator("#tab-" + tab)).toBeVisible();
     }
+  });
+
+  // Debajo de "Más opciones" está la zona de widgets y acciones rápidas; el primero es el
+  // rayo ⚡ (antes un botón flotante en todas las pantallas).
+  test("el rayo ⚡ vive solo en Inicio, debajo de Más opciones, y abre las Acciones rápidas", async ({ page }) => {
+    await mockGoogleApis(page, { "Cajas": [["C1", "prueba@example.com", "Efectivo", "COP"]] });
+    await iniciarSesionFalsa(page);
+    await page.goto("/");
+    await esperarAppLista(page);
+
+    const titulos = page.locator("#tab-cajas .cajas-atajos-titulo");
+    await expect(titulos.nth(1)).toHaveText("Widgets y acciones rápidas");
+    const rayo = page.locator("#fab-recordatorio");
+    await expect(rayo).toBeVisible();
+    await expect(rayo).toContainText("Acciones rápidas");
+    await expect(rayo.locator("svg")).toHaveCount(1);
+
+    // Está debajo de la caja "Más opciones".
+    const yMas = (await page.locator("#tab-cajas .cajas-atajos").first().boundingBox()).y;
+    const yRayo = (await rayo.boundingBox()).y;
+    expect(yRayo).toBeGreaterThan(yMas);
+
+    await rayo.click();
+    await expect(page.locator("#modal-menu-acciones")).toBeVisible();
+    await page.locator("#modal-menu-acciones .modal-close, #modal-menu-acciones").first().press("Escape").catch(() => {});
+
+    // En otras pantallas ya no flota ningún botón de acciones rápidas.
+    await irATab(page, "proyeccion");
+    await expect(rayo).toBeHidden();
+    await expect(page.locator(".fab-recordatorio")).toHaveCount(0);
   });
 
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)

@@ -2017,6 +2017,8 @@ function renderCajas() {
     onAjustar: ajustarCaja,
     onReordenar: _reordenarCajas,
     onIrATab: tab => window.navegarATab(tab),
+    // El rayo ⚡ de Inicio: abre el menú de Acciones rápidas (recordatorios.js).
+    onAccionesRapidas: () => abrirMenuAcciones(),
   });
 }
 

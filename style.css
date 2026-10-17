@@ -965,7 +965,7 @@ input, select, textarea, table {
 
 /* Barra flotante con el total de "Sumar cajas" (ver sumar-cajas-barra en
    index.html) -- fondo transparente de vidrio esmerilado, mismo lenguaje
-   visual que .fab-recordatorio, y pointer-events:none porque es solo
+   visual que el resto de paneles flotantes, y pointer-events:none porque es solo
    informativa (no tiene ningún botón adentro) -- así no le roba toques a
    las tarjetas que queden debajo cerca del borde de la pantalla. Una línea
    por moneda si las cajas elegidas no comparten la misma. */
@@ -1633,33 +1633,6 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
 .alerta-icono { font-size: 20px; flex-shrink: 0; }
 .alerta-titulo { font-size: 14px; font-weight: 600; color: var(--text); }
 .alerta-detalle { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-
-/* ═══════════════ BOTÓN FLOTANTE: nuevo recordatorio ═══════════════ */
-.fab-recordatorio {
-  position: fixed;
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(var(--brand-rgb),0.55);
-  backdrop-filter: blur(6px) saturate(140%);
-  -webkit-backdrop-filter: blur(6px) saturate(140%);
-  color: #fff;
-  font-size: 28px;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow-lg);
-  z-index: 500;
-  cursor: grab;
-  touch-action: none;
-  -webkit-user-select: none; user-select: none;
-  transition: opacity 0.2s, transform 0.15s, box-shadow 0.15s;
-  opacity: 0.82;
-}
-.fab-recordatorio:hover { opacity: 1; }
-.fab-recordatorio:active { transform: scale(0.94); }
-.fab-recordatorio.arrastrando {
-  opacity: 1; cursor: grabbing; transition: none;
-  box-shadow: var(--shadow-lg), 0 0 0 6px rgba(var(--brand-rgb),0.15);
-}
 
 /* ═══════════════ SYNC TOAST ═══════════════ */
 .sync-toast {
