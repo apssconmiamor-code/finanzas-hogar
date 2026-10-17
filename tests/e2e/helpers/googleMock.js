@@ -133,11 +133,15 @@ async function mockGoogleApis(page, seed = {}) {
         // filaGrilla 2 = primera fila de datos (índice 0 en estado[hoja]).
         // Solo sirve para columnas A-Z (única letra) -- suficiente, ninguna
         // hoja de esta app pasa de Z columnas.
-        const idxFila = filaGrilla - 2;
+        // Un PUT puede traer varias filas (ej. guardarPresupuesto escribe toda la
+        // hoja de una vez): cada una va a su fila, una debajo de otra.
         const idxCol = colInicio.charCodeAt(0) - 65;
-        const filaActual = estado[hoja][idxFila] ? [...estado[hoja][idxFila]] : [];
-        body.values[0].forEach((valor, i) => { filaActual[idxCol + i] = valor; });
-        estado[hoja][idxFila] = filaActual;
+        body.values.forEach((valoresFila, r) => {
+          const idxFila = filaGrilla - 2 + r;
+          const filaActual = estado[hoja][idxFila] ? [...estado[hoja][idxFila]] : [];
+          valoresFila.forEach((valor, i) => { filaActual[idxCol + i] = valor; });
+          estado[hoja][idxFila] = filaActual;
+        });
       }
       return route.fulfill({ json: {} });
     }

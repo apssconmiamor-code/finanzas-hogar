@@ -866,6 +866,11 @@ input, select, textarea, table {
 .cajas-punto { width: 5px; height: 5px; border-radius: 50%; background: rgba(2,32,48,0.22); transition: all .2s; }
 .cajas-punto.activo { width: 14px; border-radius: 3px; background: var(--brand); }
 
+/* Aviso de conceptos parecidos al crear uno nuevo. */
+.nuevo-concepto-parecido { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.nuevo-concepto-parecido.hidden { display: none; }
+.nuevo-concepto-parecidos { display: flex; flex-wrap: wrap; gap: 6px; }
+
 /* Fila del subtítulo de Configurar mes: texto a la izquierda, botón en la misma fila. */
 .modal-subtitle-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .modal-subtitle-fila .modal-subtitle { margin: 0; min-width: 0; flex: 1; }
@@ -1663,6 +1668,9 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
   border-radius: 4px; font-size: 14px; font-weight: 500;
   opacity: 0; transition: all .3s; z-index: 9999; white-space: nowrap;
   box-shadow: var(--shadow-md);
+  /* Solo informa: sin esto, aun invisible (opacity 0) tapaba los clics de lo que
+     hubiera debajo -- p. ej. los botones de un formulario abierto en escritorio. */
+  pointer-events: none;
 }
 .sync-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 .sync-toast.sync-toast-warn { background: var(--amber-dark); }
