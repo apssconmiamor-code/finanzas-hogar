@@ -59,15 +59,18 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   return (
     <>
       <BarraInferior tab="cajas">
-        {modoSuma
-          ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
-              onClick={alternarModo}>Listo</button>
-          : <MenuOpciones id="btn-menu-cajas" etiqueta="Opciones de cajas" items={[
-              { id: "btn-sumar-cajas", icono: "sumar", texto: "Sumar cajas", accion: alternarModo },
-              { id: "btn-elegir-cajas", icono: "elegir", texto: "Elegir cajas", accion: () => setEligiendo(true) },
-              { id: "btn-cerrar-sesion", icono: "salir", texto: "Cerrar sesión", accion: onCerrarSesion },
-            ]} />}
-        <div className="cajas-header-der">
+        <div className="barra-lado barra-lado-izq" />
+        <div className="barra-centro">
+          {modoSuma
+            ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
+                onClick={alternarModo}>Listo</button>
+            : <MenuOpciones id="btn-menu-cajas" etiqueta="Opciones de cajas" items={[
+                { id: "btn-sumar-cajas", icono: "sumar", texto: "Sumar cajas", accion: alternarModo },
+                { id: "btn-elegir-cajas", icono: "elegir", texto: "Elegir cajas", accion: () => setEligiendo(true) },
+                { id: "btn-cerrar-sesion", icono: "salir", texto: "Cerrar sesión", accion: onCerrarSesion },
+              ]} />}
+        </div>
+        <div className="barra-lado barra-lado-der">
           {modoSuma
             ? <SumaCajas cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />
             : <CampoVersion version={version} onBuscar={onBuscarActualizacion} onAyuda={onMostrarAyudaVersion} />}

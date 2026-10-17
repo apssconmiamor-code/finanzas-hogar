@@ -28,6 +28,24 @@ test('Inicio: franja pegada al borde inferior con el menú ⋯ a la izquierda y 
   expect(menu.y).toBeGreaterThan(caja.y);
 });
 
+test("el menú ⋯ es un círculo y queda centrado en la franja", async ({ page }) => {
+  const barra = page.locator(".barra-inferior[data-barra=\"cajas\"]");
+  await expect(barra).toBeVisible();
+  const caja = await barra.boundingBox();
+  const btn = page.locator("#btn-menu-cajas");
+  const b = await btn.boundingBox();
+  // Redondo: ancho = alto y radio del 50%.
+  expect(Math.abs(b.width - b.height)).toBeLessThan(1);
+  await expect(btn).toHaveCSS("border-top-left-radius", "50%");
+  // Centrado horizontalmente en la franja.
+  expect(Math.abs((b.x + b.width / 2) - (caja.x + caja.width / 2))).toBeLessThan(3);
+
+  // El panel que se abre queda centrado sobre el botón.
+  await btn.click();
+  const p = await page.locator(".barra-inferior .cajas-menu-panel").boundingBox();
+  expect(Math.abs((p.x + p.width / 2) - (b.x + b.width / 2))).toBeLessThan(3);
+});
+
 test('la franja es estática: no se mueve aunque la pantalla se desplace', async ({ page }) => {
   const barra = page.locator('.barra-inferior[data-barra="cajas"]');
   await expect(barra).toBeVisible();

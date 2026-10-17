@@ -25,11 +25,14 @@ export function ProyeccionBarra({
   ];
   return (
     <BarraInferior tab="proyeccion">
-      {modoSuma
-        ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-proy-listo"
-            onClick={onToggleSuma}>Listo</button>
-        : <MenuOpciones id="btn-menu-proyeccion" etiqueta="Opciones de proyección" items={items} />}
-      <div className="cajas-header-der">
+      <div className="barra-lado barra-lado-izq" />
+      <div className="barra-centro">
+        {modoSuma
+          ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-proy-listo"
+              onClick={onToggleSuma}>Listo</button>
+          : <MenuOpciones id="btn-menu-proyeccion" etiqueta="Opciones de proyección" items={items} />}
+      </div>
+      <div className="barra-lado barra-lado-der">
         {modoSuma && (
           <div id="sumar-proy-total" className="cajas-suma proy-suma">
             {seleccionados === 0

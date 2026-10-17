@@ -637,19 +637,8 @@ function setupRecordatoriosListeners() {
 
   document.getElementById("btn-cancelar-mov")?.addEventListener("click", _limpiarRecordatorioContexto);
 
-  // Acciones rápidas (menú del botón flotante) — se cierra tocando fuera
-  // (backdrop) o con el gesto de deslizar; ya no tiene botón "Cerrar" propio.
-  document.getElementById("modal-menu-acciones")?.addEventListener("click", (e) => {
-    if (e.target === document.getElementById("modal-menu-acciones")) cerrarMenuAcciones();
-  });
-  document.getElementById("config-accion-categoria")?.addEventListener("change", actualizarConceptoAccion);
-  document.getElementById("btn-guardar-config-accion")?.addEventListener("click", guardarConfigAccion);
-  document.getElementById("btn-borrar-accion")?.addEventListener("click", borrarConfigAccion);
-  document.getElementById("btn-cancelar-config-accion")?.addEventListener("click", cerrarConfigAccion);
-  document.getElementById("btn-guardar-usar-accion")?.addEventListener("click", guardarUsarAccion);
-  document.getElementById("btn-cancelar-usar-accion")?.addEventListener("click", cerrarUsarAccion);
-  document.getElementById("usar-accion-camara-file")?.addEventListener("change", (e) => cargarFotoAccion(e.target.files[0]));
-  document.getElementById("btn-usar-accion-camara")?.addEventListener("click", () => document.getElementById("usar-accion-camara-file")?.click());
+  // Las acciones rápidas (menú, usar, configurar) son React: ver renderAccionesReact.
+  renderAccionesReact();
 
   // Cerrar el panel de recordatorios al tocar afuera -- pointerup, no
   // click (mismo motivo que el panel de Alertas en notificaciones.js: el
@@ -671,8 +660,9 @@ if (document.readyState === "loading") {
 }
 
 // =============================================
-// ACCIONES RÁPIDAS — movimientos preconfigurados desde el botón flotante
-// (categoría + concepto + caja), que solo piden el monto al usarse. Se
+// ACCIONES RÁPIDAS — movimientos preconfigurados (categoría + concepto + caja),
+// que solo piden el monto al usarse. La interfaz (menú, usar y configurar)
+// ahora es React (react/src/acciones); acá quedan los datos y Sheets. Se
 // pueden agregar tantas como se quiera (ya no hay tope de 3). Se guardan
 // del lado del servidor (Sheets, ver Sheets.getConfigUsuario/
 // guardarConfigUsuario), por email de quien las creó -- así si Royer las
@@ -712,6 +702,7 @@ async function cargarAccionesRapidas() {
     const cache = localStorage.getItem(_accionesRapidasCacheKey());
     if (cache) { try { accionesRapidas = JSON.parse(cache); } catch { accionesRapidas = []; } }
   }
+  renderAccionesReact();
 }
 
 function obtenerAccionesRapidas() {
@@ -721,443 +712,76 @@ function obtenerAccionesRapidas() {
 async function _guardarAccionesRapidas(lista) {
   accionesRapidas = lista;
   localStorage.setItem(_accionesRapidasCacheKey(), JSON.stringify(lista));
+  renderAccionesReact();   // la interfaz ya ve la lista nueva sin esperar a Sheets
   await Sheets.guardarConfigUsuario(currentUser.email, "acciones_rapidas", lista);
 }
 
-// Se llama al soltar tras arrastrar una tarjeta a un lugar nuevo (ver
-// crearManejadorArrastrable en gestos.js) -- el DOM ya quedó reordenado
-// visualmente durante el arrastre, así que alcanza con leerlo tal cual para
-// saber el nuevo orden. _guardarAccionesRapidas actualiza accionesRapidas
-// de una (antes del await a Sheets), y renderMenuAcciones reconstruye la
-// cuadrícula con los data-slot ya al día para el próximo arrastre.
-function _reordenarAccionesRapidasDesdeGrid(grid) {
-  const actuales = obtenerAccionesRapidas();
-  const nuevoOrden = Array.from(grid.querySelectorAll(".accion-rapida-card[data-slot]"))
-    .map(card => actuales[parseInt(card.dataset.slot, 10)])
-    .filter(Boolean);
-  _guardarAccionesRapidas(nuevoOrden);
-  renderMenuAcciones();
-}
-
-let accionSlotActual = null; // índice dentro de accionesRapidas, o -1 = configurando una nueva
-let accionFotoData = null; // { data: dataURL, type: mime } -- foto opcional al usar una acción con cámara activada
-let accionCajaElegida = null; // caja elegida al USAR una acción con más de una configurada
-
-// Una acción guarda una o más cajas ("cajas": [...]) -- las acciones ya
-// configuradas antes de este cambio solo tenían una ("caja": "..."), se
-// leen igual sin migrar nada en Sheets (pedido explícito: elegir 1 o más
-// cajas por acción, y que el usuario elija entre ellas al usarla si hay
-// más de una).
-function _cajasDeAccion(accion) {
-  if (!accion) return [];
-  if (Array.isArray(accion.cajas)) return accion.cajas;
-  return accion.caja ? [accion.caja] : [];
-}
-
+// ---- Interfaz en React (react/src/acciones) ----
+// El menú del rayo ⚡ "Nuevo movimiento" de Inicio abre las acciones rápidas.
 function abrirMenuAcciones() {
-  renderMenuAcciones();
-  document.getElementById("modal-menu-acciones")?.classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("acciones:abrir"));
 }
 
-function cerrarMenuAcciones() {
-  document.getElementById("modal-menu-acciones")?.classList.add("hidden");
-}
-
-function renderMenuAcciones() {
-  const grid = document.getElementById("acciones-rapidas-grid");
-  if (!grid) return;
-  const acciones = obtenerAccionesRapidas();
-
-  // "Agregar" siempre va al final -- de nada sirve como referencia de
-  // posición fija si las acciones ya configuradas lo van corriendo cada
-  // vez que se agrega una nueva (pedido explícito del usuario).
-  grid.innerHTML = acciones.map((accion, i) => {
-    // Logo de la entidad de la caja que esta acción usa (Nequi/Bancolombia/
-    // etc., ver iconoCajaImagen en app.js) junto al ícono elegido -- pedido
-    // explícito, para identificar de un vistazo a qué caja va cada acción
-    // sin tener que abrirla a configurar. Con más de una caja configurada
-    // no hay un logo único que mostrar -- se calla en vez de mostrar el de
-    // cualquiera de las dos al azar.
-    const cajasDeEstaAccion = _cajasDeAccion(accion);
-    const iconoCaja = cajasDeEstaAccion.length === 1 && typeof iconoCajaImagen === "function"
-      ? iconoCajaImagen(cajasDeEstaAccion[0])
-      : null;
-    return `
-    <button class="accion-rapida-card" data-slot="${i}">
-      <span class="accion-rapida-icono-fila">
-        <span class="accion-rapida-icono">${escapeHtml(accion.icono || "⚡")}</span>
-        ${iconoCaja ? `<img class="accion-rapida-caja-icono" src="${iconoCaja}" alt="" />` : ""}
-      </span>
-      <span class="accion-rapida-nombre">${escapeHtml(accion.nombre)}</span>
-    </button>`;
-  }).join("") + `
-    <button class="accion-rapida-card" id="accion-recordatorio">
-      <span class="accion-rapida-icono">📝</span>
-      <span class="accion-rapida-nombre">Recordatorio</span>
-    </button>
-    <button class="accion-rapida-card accion-rapida-vacia" id="btn-agregar-accion">
-      <span class="accion-rapida-icono">➕</span>
-      <span class="accion-rapida-nombre">Agregar</span>
-    </button>`;
-
-  // Toque corto = usar la acción; mantener presionado ~500ms = configurarla;
-  // mantener presionado y ARRASTRAR = reordenarla (ver crearManejadorArrastrable
-  // en gestos.js -- pedido explícito de poder acomodar las tarjetas).
-  grid.querySelectorAll(".accion-rapida-card[data-slot]").forEach((card) => {
-    const slot = parseInt(card.dataset.slot, 10);
-    crearManejadorArrastrable(card, grid, ".accion-rapida-card[data-slot]", {
-      onCorto: () => {
-        const accion = obtenerAccionesRapidas()[slot];
-        if (accion) abrirUsarAccion(slot, accion);
-      },
-      onLargo: () => abrirConfigAccion(slot),
-      onReordenar: () => _reordenarAccionesRapidasDesdeGrid(grid)
-    });
-  });
-
-  document.getElementById("btn-agregar-accion")?.addEventListener("click", () => abrirConfigAccion(-1));
-
-  document.getElementById("accion-recordatorio")?.addEventListener("click", () => {
-    cerrarMenuAcciones();
-    abrirModalCrearRecordatorio();
+function renderAccionesReact() {
+  if (!window.AccionesReact) return;
+  window.AccionesReact.render({
+    acciones: obtenerAccionesRapidas(),
+    // Se leen al abrir (no una copia vieja): "cajas" puede llegar de la red después.
+    getCajas: () => {
+      if (typeof cajas !== "undefined" && cajas.length === 0) {
+        try {
+          const cache = localStorage.getItem("cache_cajas");
+          if (cache) cajas = JSON.parse(cache);
+        } catch {}
+      }
+      return typeof cajas !== "undefined" ? cajas : [];
+    },
+    cajaVisible: (c) => cajaVisibleParaUsuario(c, currentUser?.email),
+    getConceptos: (categoria) =>
+      categoria === "Gasto fijo" ? GASTOS_FIJOS
+      : categoria === "Gasto variable" ? GASTOS_VARIABLES
+      : categoria === "Ingreso" ? FUENTES_INGRESO
+      : [],
+    iconoCaja: (nombre) => (typeof iconoCajaImagen === "function" ? iconoCajaImagen(nombre) : null),
+    evaluarMonto: (texto) => (typeof evaluarMonto === "function" ? evaluarMonto(texto) : parseFloat(texto)),
+    onGuardarLista: _guardarAccionesRapidas,
+    onRegistrar: registrarAccionRapida,
+    onAbrirRecordatorio: () => abrirModalCrearRecordatorio(),
   });
 }
 
-// ---- Configurar una acción rápida ----
-
-function actualizarConceptoAccion() {
-  const categoria = document.getElementById("config-accion-categoria").value;
-  const esTransferencia = categoria === "Transferencia";
-
-  // "Transferencia" no tiene concepto ni caja(s) a elegir -- usa origen y
-  // destino fijos (ver config-accion-transferencia-wrap), así que esos dos
-  // bloques se ocultan/muestran según la categoría elegida.
-  document.getElementById("config-accion-concepto-wrap")?.classList.toggle("hidden", esTransferencia);
-  document.getElementById("config-accion-cajas-wrap")?.classList.toggle("hidden", esTransferencia);
-  document.getElementById("config-accion-transferencia-wrap")?.classList.toggle("hidden", !esTransferencia);
-  if (esTransferencia) { poblarSelectsTransferenciaAccion(); return; }
-
-  const sel = document.getElementById("config-accion-concepto");
-  if (!sel) return;
-  let lista = [];
-  if (categoria === "Gasto fijo") lista = GASTOS_FIJOS;
-  else if (categoria === "Gasto variable") lista = GASTOS_VARIABLES;
-  else if (categoria === "Ingreso") lista = FUENTES_INGRESO;
-  sel.innerHTML = lista.map(c => `<option value="${c}">${c}</option>`).join("");
-}
-
-// Mismo respaldo de caché que poblarCajasConfigAccion, por si "cajas"
-// todavía no cargó de la red cuando se abre este modal. A diferencia de
-// esa función, acá NO se filtra por cajaVisibleParaUsuario -- mismo
-// criterio que ya usa "Nueva transferencia" en el formulario normal (ver
-// poblarSelectCajas("mov-caja-origen"/"mov-caja-destino") en app.js, sin
-// el filtro de visibilidad que sí lleva el campo "Caja" de Ingreso/Gasto):
-// una transferencia mueve plata ENTRE cajas, así que origen y destino
-// tienen que poder ser cualquier caja, no solo las que este usuario
-// administra.
-function poblarSelectsTransferenciaAccion(origenSeleccionada, destinoSeleccionada) {
-  const selOrigen  = document.getElementById("config-accion-caja-origen");
-  const selDestino = document.getElementById("config-accion-caja-destino");
-  if (!selOrigen || !selDestino) return;
-  if (typeof cajas !== "undefined" && cajas.length === 0) {
-    try {
-      const cache = localStorage.getItem("cache_cajas");
-      if (cache) cajas = JSON.parse(cache);
-    } catch {}
+// Crea el/los movimiento(s) de una acción rápida. "datos" viene de la ventana de usar:
+//   { monto, descripcion, tipoCambio, foto, caja, origen, destino }
+// (caja: la elegida en Ingreso/Gasto; origen/destino: las elegidas en una Transferencia).
+async function registrarAccionRapida(accion, { monto, descripcion, tipoCambio, foto, caja, origen, destino }) {
+  const hoy = new Date().toISOString().split("T")[0];
+  let recibo = "";
+  if (accion.camara && foto) {
+    const ext = foto.type.includes("png") ? "png" : "jpg";
+    const { url } = await Sheets.subirArchivoDrive(foto.data, `accion-${accion.nombre}-${Date.now()}.${ext}`, foto.type);
+    recibo = url;
   }
-  const cajasDisp = typeof cajas !== "undefined" ? cajas : [];
-  const opciones = (placeholder) => `<option value="">${placeholder}</option>` +
-    cajasDisp.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</option>`).join("");
-  selOrigen.innerHTML  = opciones("Caja origen…");
-  selDestino.innerHTML = opciones("Caja destino…");
-  selOrigen.value  = origenSeleccionada || "";
-  selDestino.value = destinoSeleccionada || "";
-}
-
-// Multi-selección con chips (checkbox) en vez del <select> de una sola
-// caja que había antes -- pedido explícito: elegir una o más cajas por
-// acción. Solo las que este usuario puede manejar (mismo criterio de
-// antes, ver cajaVisibleParaUsuario), y con el mismo respaldo de caché que
-// poblarSelectCajas por si "cajas" todavía no cargó de la red.
-function poblarCajasConfigAccion(cajasSeleccionadas) {
-  const cont = document.getElementById("config-accion-cajas");
-  if (!cont) return;
-  if (typeof cajas !== "undefined" && cajas.length === 0) {
-    try {
-      const cache = localStorage.getItem("cache_cajas");
-      if (cache) cajas = JSON.parse(cache);
-    } catch {}
-  }
-  const cajasDisp = (typeof cajas !== "undefined" ? cajas : [])
-    .filter(c => cajaVisibleParaUsuario(c, currentUser?.email));
-  const seleccionadas = new Set(cajasSeleccionadas || []);
-
-  cont.innerHTML = cajasDisp.map(c => `
-    <button type="button" class="accion-caja-chip${seleccionadas.has(c.nombre) ? " active" : ""}" data-caja="${escapeAttr(c.nombre)}">${escapeHtml(c.nombre)}</button>`
-  ).join("") || `<span class="label-opcional">No hay cajas todavía</span>`;
-
-  cont.querySelectorAll(".accion-caja-chip").forEach(chip => {
-    chip.addEventListener("click", () => chip.classList.toggle("active"));
-  });
-}
-
-// slot: índice a editar dentro de accionesRapidas, o -1 para crear una nueva.
-function abrirConfigAccion(slot) {
-  accionSlotActual = slot;
-  const accion = slot >= 0 ? obtenerAccionesRapidas()[slot] : null;
-
-  document.getElementById("config-accion-nombre").value = accion?.nombre || "";
-  document.getElementById("config-accion-icono").value  = accion?.icono || "";
-  document.getElementById("config-accion-categoria").value = accion?.categoria || "Gasto fijo";
-  actualizarConceptoAccion();
-  if (accion?.concepto) document.getElementById("config-accion-concepto").value = accion.concepto;
-  poblarCajasConfigAccion(_cajasDeAccion(accion));
-  if (accion?.categoria === "Transferencia") poblarSelectsTransferenciaAccion(accion.cajaOrigen, accion.cajaDestino);
-  document.getElementById("config-accion-descripcion").checked = !!accion?.pedirDescripcion;
-  document.getElementById("config-accion-camara").checked = !!accion?.camara;
-
-  const btnBorrar = document.getElementById("btn-borrar-accion");
-  if (btnBorrar) btnBorrar.style.display = accion ? "" : "none";
-
-  cerrarMenuAcciones();
-  document.getElementById("modal-config-accion")?.classList.remove("hidden");
-}
-
-function cerrarConfigAccion() {
-  document.getElementById("modal-config-accion")?.classList.add("hidden");
-  abrirMenuAcciones();
-}
-
-async function guardarConfigAccion() {
-  const nombre    = document.getElementById("config-accion-nombre").value.trim();
-  const icono     = document.getElementById("config-accion-icono").value.trim() || "⚡";
-  const categoria = document.getElementById("config-accion-categoria").value;
-  const pedirDescripcion = document.getElementById("config-accion-descripcion").checked;
-  const camara    = document.getElementById("config-accion-camara").checked;
-
-  const btn = document.getElementById("btn-guardar-config-accion");
-  const textoOriginal = btn?.textContent;
-
-  let nuevaAccion;
-  if (categoria === "Transferencia") {
-    // Origen y destino quedan fijos acá -- ya no se eligen al usar la
-    // acción (pedido explícito: solo pedir el monto en ese momento).
-    const cajaOrigen  = document.getElementById("config-accion-caja-origen").value;
-    const cajaDestino = document.getElementById("config-accion-caja-destino").value;
-    if (!nombre || !cajaOrigen || !cajaDestino) {
-      alert("Completa el nombre y las dos cajas (origen y destino)");
-      return;
-    }
-    if (cajaOrigen === cajaDestino) {
-      alert("La caja origen y destino no pueden ser la misma");
-      return;
-    }
-    nuevaAccion = { nombre, icono, categoria, cajaOrigen, cajaDestino, pedirDescripcion, camara };
+  if (accion.categoria === "Transferencia") {
+    const montoDestino = tipoCambio ? monto * tipoCambio : monto;
+    const descOrigen = tipoCambio
+      ? `TC: 1 = ${tipoCambio}${descripcion ? " — " + descripcion : ""}`
+      : descripcion;
+    await Sheets.agregarMovimiento(
+      currentUser.email, hoy, `Transferencia → ${destino}`,
+      "Transferencia", origen, monto, descOrigen, recibo
+    );
+    await Sheets.agregarMovimientoIngreso(
+      currentUser.email, hoy, `Transferencia ← ${origen}`,
+      "Transferencia", destino, montoDestino, descOrigen
+    );
+  } else if (accion.categoria === "Ingreso") {
+    await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, caja, monto, descripcion, recibo);
   } else {
-    const concepto = document.getElementById("config-accion-concepto").value;
-    const cajasElegidas = [...document.querySelectorAll("#config-accion-cajas .accion-caja-chip.active")].map(el => el.dataset.caja);
-    if (!nombre || !categoria || !concepto || cajasElegidas.length === 0) {
-      alert("Completa todos los campos (elige al menos una caja)");
-      return;
-    }
-    nuevaAccion = { nombre, icono, categoria, concepto, cajas: cajasElegidas, pedirDescripcion, camara };
+    await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, caja, monto, descripcion, recibo);
   }
-
-  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
-  try {
-    const acciones = [...obtenerAccionesRapidas()];
-    if (accionSlotActual >= 0) acciones[accionSlotActual] = nuevaAccion;
-    else acciones.push(nuevaAccion);
-    await _guardarAccionesRapidas(acciones);
-    document.getElementById("modal-config-accion")?.classList.add("hidden");
-    abrirMenuAcciones();
-  } catch (err) {
-    alert("Error guardando la acción: " + err.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = textoOriginal || "Guardar"; }
-  }
-}
-
-async function borrarConfigAccion() {
-  if (accionSlotActual === null || accionSlotActual < 0) return;
-  try {
-    const acciones = [...obtenerAccionesRapidas()];
-    acciones.splice(accionSlotActual, 1);
-    await _guardarAccionesRapidas(acciones);
-    document.getElementById("modal-config-accion")?.classList.add("hidden");
-    abrirMenuAcciones();
-  } catch (err) {
-    alert("Error borrando la acción: " + err.message);
-  }
-}
-
-// ---- Usar una acción rápida ya configurada ----
-
-function abrirUsarAccion(slot, accion) {
-  accionSlotActual = slot;
-  document.getElementById("usar-accion-titulo").textContent = `${accion.icono || "⚡"} ${accion.nombre}`;
-  document.getElementById("usar-accion-monto").value = "";
-  const inputDescripcion = document.getElementById("usar-accion-descripcion");
-  if (inputDescripcion) inputDescripcion.value = "";
-  const wrapDescripcion = document.getElementById("usar-accion-descripcion-wrap");
-  if (wrapDescripcion) wrapDescripcion.style.display = accion.pedirDescripcion ? "" : "none";
-  accionFotoData = null;
-  renderFotoAccionPreview();
-  const wrapCamara = document.getElementById("usar-accion-camara-wrap");
-  if (wrapCamara) wrapCamara.style.display = accion.camara ? "" : "none";
-
-  // Transferencia rápida: origen y destino ya vienen fijos desde que se
-  // configuró la acción (ver guardarConfigAccion) -- acá solo se muestran
-  // de referencia, nunca se eligen. Si las cajas tienen monedas distintas,
-  // se pide el tipo de cambio, igual que en "Nueva transferencia" (ver
-  // guardarMovimiento en app.js).
-  const esTransferencia = accion.categoria === "Transferencia";
-  document.getElementById("usar-accion-transferencia-info")?.classList.toggle("hidden", !esTransferencia);
-  const wrapTC = document.getElementById("usar-accion-tipo-cambio-wrap");
-  if (esTransferencia) {
-    document.getElementById("usar-accion-transferencia-origen").textContent = accion.cajaOrigen;
-    document.getElementById("usar-accion-transferencia-destino").textContent = accion.cajaDestino;
-    const cajaOrigen  = (typeof cajas !== "undefined" ? cajas : []).find(c => c.nombre === accion.cajaOrigen);
-    const cajaDestino = (typeof cajas !== "undefined" ? cajas : []).find(c => c.nombre === accion.cajaDestino);
-    const monedasDiferentes = cajaOrigen && cajaDestino && cajaOrigen.moneda !== cajaDestino.moneda;
-    document.getElementById("usar-accion-tipo-cambio").value = "";
-    if (wrapTC) wrapTC.classList.toggle("hidden", !monedasDiferentes);
-    if (monedasDiferentes) {
-      document.getElementById("usar-accion-tc-moneda-origen").textContent = cajaOrigen.moneda;
-      document.getElementById("usar-accion-tc-moneda-destino").textContent = cajaDestino.moneda;
-    }
-  } else if (wrapTC) {
-    wrapTC.classList.add("hidden");
-  }
-
-  // Con una sola caja configurada se usa directo, sin preguntar (igual
-  // que siempre). Con más de una, hay que elegir entre esas -- pedido
-  // explícito -- antes de poder guardar (ver guardarUsarAccion).
-  const cajasAccion = _cajasDeAccion(accion);
-  const wrapCaja = document.getElementById("usar-accion-caja-wrap");
-  const contCaja = document.getElementById("usar-accion-caja-opciones");
-  if (cajasAccion.length > 1) {
-    accionCajaElegida = null;
-    if (wrapCaja) wrapCaja.style.display = "";
-    if (contCaja) {
-      contCaja.innerHTML = cajasAccion.map(nombre =>
-        `<button type="button" class="accion-caja-chip" data-caja="${escapeAttr(nombre)}">${escapeHtml(nombre)}</button>`
-      ).join("");
-      contCaja.querySelectorAll(".accion-caja-chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-          contCaja.querySelectorAll(".accion-caja-chip").forEach(c => c.classList.remove("active"));
-          chip.classList.add("active");
-          accionCajaElegida = chip.dataset.caja;
-        });
-      });
-    }
-  } else {
-    accionCajaElegida = cajasAccion[0] || null;
-    if (wrapCaja) wrapCaja.style.display = "none";
-  }
-
-  cerrarMenuAcciones();
-  document.getElementById("modal-usar-accion")?.classList.remove("hidden");
-  // Si hay que elegir caja primero, el teclado del monto no se adelanta a
-  // taparle los chips -- se enfoca recién cuando ya no hace falta elegir.
-  if (cajasAccion.length <= 1) {
-    setTimeout(() => document.getElementById("usar-accion-monto")?.focus(), 150);
-  }
-}
-
-function cerrarUsarAccion() {
-  document.getElementById("modal-usar-accion")?.classList.add("hidden");
-}
-
-function cargarFotoAccion(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    accionFotoData = { data: e.target.result, type: file.type };
-    renderFotoAccionPreview();
-  };
-  reader.readAsDataURL(file);
-}
-
-function renderFotoAccionPreview() {
-  const preview = document.getElementById("usar-accion-foto-preview");
-  if (!preview) return;
-  preview.innerHTML = accionFotoData ? `
-    <div class="foto-thumb">
-      <img src="${accionFotoData.data}" alt="foto adjunta" class="foto-thumb-img"/>
-      <button class="foto-thumb-remove" type="button" onclick="quitarFotoAccion()">×</button>
-    </div>` : "";
-}
-
-window.quitarFotoAccion = function() {
-  accionFotoData = null;
-  renderFotoAccionPreview();
-};
-
-async function guardarUsarAccion() {
-  const accion = obtenerAccionesRapidas()[accionSlotActual];
-  if (!accion) { cerrarUsarAccion(); return; }
-
-  const esTransferencia = accion.categoria === "Transferencia";
-  let cajaElegida = null;
-  if (!esTransferencia) {
-    const cajasAccion = _cajasDeAccion(accion);
-    if (cajasAccion.length > 1 && !accionCajaElegida) { alert("Elige con qué caja"); return; }
-    cajaElegida = accionCajaElegida || cajasAccion[0];
-    if (!cajaElegida) { alert("Esta acción no tiene ninguna caja configurada"); return; }
-  }
-
-  const montoInput = document.getElementById("usar-accion-monto");
-  const monto = typeof evaluarMonto === "function" ? evaluarMonto(montoInput.value) : parseFloat(montoInput.value);
-  if (!monto) { alert("Ingresa un monto"); return; }
-
-  let tipoCambio = null;
-  if (esTransferencia) {
-    const wrapTC = document.getElementById("usar-accion-tipo-cambio-wrap");
-    if (wrapTC && !wrapTC.classList.contains("hidden")) {
-      tipoCambio = parseFloat(document.getElementById("usar-accion-tipo-cambio").value);
-      if (!tipoCambio || tipoCambio <= 0) { alert("Las cajas tienen monedas diferentes. Ingresa el tipo de cambio."); return; }
-    }
-  }
-
-  const descripcion = accion.pedirDescripcion
-    ? (document.getElementById("usar-accion-descripcion")?.value.trim() || "")
-    : "";
-
-  const btn = document.getElementById("btn-guardar-usar-accion");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-  try {
-    const hoy = new Date().toISOString().split("T")[0];
-    let recibo = "";
-    if (accion.camara && accionFotoData) {
-      const ext = accionFotoData.type.includes("png") ? "png" : "jpg";
-      const { url } = await Sheets.subirArchivoDrive(accionFotoData.data, `accion-${accion.nombre}-${Date.now()}.${ext}`, accionFotoData.type);
-      recibo = url;
-    }
-    if (esTransferencia) {
-      const montoDestino = tipoCambio ? monto * tipoCambio : monto;
-      const descOrigen = tipoCambio
-        ? `TC: 1 = ${tipoCambio}${descripcion ? " — " + descripcion : ""}`
-        : descripcion;
-      await Sheets.agregarMovimiento(
-        currentUser.email, hoy, `Transferencia → ${accion.cajaDestino}`,
-        "Transferencia", accion.cajaOrigen, monto, descOrigen, recibo
-      );
-      await Sheets.agregarMovimientoIngreso(
-        currentUser.email, hoy, `Transferencia ← ${accion.cajaOrigen}`,
-        "Transferencia", accion.cajaDestino, montoDestino, descOrigen
-      );
-    } else if (accion.categoria === "Ingreso") {
-      await Sheets.agregarMovimientoIngreso(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);
-    } else {
-      await Sheets.agregarMovimiento(currentUser.email, hoy, accion.concepto, accion.categoria, cajaElegida, monto, descripcion, recibo);
-    }
-    cerrarUsarAccion();
+  // Lo siguiente no demora el cierre de la ventana de usar.
+  Promise.resolve().then(async () => {
     if (typeof SyncManager !== "undefined") SyncManager.mostrarToast(`✅ ${accion.nombre} registrado`);
     if (typeof cargarTodo === "function") await cargarTodo();
-  } catch (err) {
-    alert("Error guardando: " + err.message);
-  } finally {
-    btn.textContent = "Guardar"; btn.disabled = false;
-  }
+  });
 }

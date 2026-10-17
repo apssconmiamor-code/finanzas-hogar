@@ -1050,6 +1050,11 @@ function animarYCerrar(el, cerrarDeVerdad) {
 // gesto de deslizar.
 function cerrarModal(modalEl) {
   if (!modalEl) return;
+  // Modales de React (data-react="1"): ellos deciden qué es "cerrar" (ver shared/Modal.jsx).
+  if (modalEl.dataset.react === "1") {
+    modalEl.dispatchEvent(new CustomEvent("finanzas:cerrar"));
+    return;
+  }
   if (modalEl.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
     cerrarModalCrearRecordatorio();
     return;

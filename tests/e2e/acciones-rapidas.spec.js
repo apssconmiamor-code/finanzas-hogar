@@ -20,6 +20,14 @@ async function elegirCajaAccion(page, nombre) {
   await page.locator('#config-accion-cajas .accion-caja-chip', { hasText: nombre }).click();
 }
 
+// Transferencia: origen y destino son chips (se puede elegir más de uno de cada lado).
+async function elegirOrigen(page, nombre) {
+  await page.locator('#config-accion-origenes .accion-caja-chip', { hasText: nombre }).click();
+}
+async function elegirDestino(page, nombre) {
+  await page.locator('#config-accion-destinos .accion-caja-chip', { hasText: nombre }).click();
+}
+
 test.describe('Acciones rápidas (botón flotante)', () => {
   test.beforeEach(async ({ page }) => {
     await mockGoogleApis(page, {
@@ -92,8 +100,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#config-accion-concepto-wrap')).toBeHidden();
     await expect(page.locator('#config-accion-cajas-wrap')).toBeHidden();
     await expect(page.locator('#config-accion-transferencia-wrap')).toBeVisible();
-    await page.locator('#config-accion-caja-origen').selectOption('Efectivo');
-    await page.locator('#config-accion-caja-destino').selectOption('Ahorros');
+    await elegirOrigen(page, 'Efectivo');
+    await elegirDestino(page, 'Ahorros');
     await page.locator('#btn-guardar-config-accion').click();
 
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
@@ -136,8 +144,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Cambio de dólares');
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
-    await page.locator('#config-accion-caja-origen').selectOption('Cuenta USD');
-    await page.locator('#config-accion-caja-destino').selectOption('Efectivo COP');
+    await elegirOrigen(page, 'Cuenta USD');
+    await elegirDestino(page, 'Efectivo COP');
     await page.locator('#btn-guardar-config-accion').click();
 
     await page.locator('.accion-rapida-card[data-slot="0"]').click();
@@ -351,8 +359,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
 
-    const opcionesOrigen = await page.locator('#config-accion-caja-origen option').allTextContents();
-    const opcionesDestino = await page.locator('#config-accion-caja-destino option').allTextContents();
+    const opcionesOrigen = await page.locator('#config-accion-origenes .accion-caja-chip').allTextContents();
+    const opcionesDestino = await page.locator('#config-accion-destinos .accion-caja-chip').allTextContents();
     expect(opcionesOrigen.some(t => t.includes('Nequi de otra persona'))).toBe(true);
     expect(opcionesDestino.some(t => t.includes('Nequi de otra persona'))).toBe(true);
   });
@@ -499,5 +507,175 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     page.once('dialog', (d) => d.accept());
     await page.locator('#btn-guardar-config-accion').click();
     await expect(page.locator('#modal-config-accion')).toBeVisible();
+  });
+
+  // ---- Transferencia con más de una caja de origen y de destino ----
+
+  test('Transferencia rápida con varias cajas de origen y destino: se elige entre ellas al usarla', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+        ['C3', 'prueba@example.com', 'Ahorros', 'COP'],
+        ['C4', 'prueba@example.com', 'Emergencia', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Ahorrar');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+    // Dos orígenes y dos destinos.
+    await elegirOrigen(page, 'Efectivo');
+    await elegirOrigen(page, 'Nequi');
+    await elegirDestino(page, 'Ahorros');
+    await elegirDestino(page, 'Emergencia');
+    await expect(page.locator('#config-accion-origenes .accion-caja-chip.active')).toHaveCount(2);
+    await expect(page.locator('#config-accion-destinos .accion-caja-chip.active')).toHaveCount(2);
+    await page.locator('#btn-guardar-config-accion').click();
+
+    // Quedó guardada con las listas (y la primera de cada una, para versiones anteriores).
+    const guardada = await page.evaluate(() => obtenerAccionesRapidas()[0]);
+    expect(guardada.cajasOrigen).toEqual(['Efectivo', 'Nequi']);
+    expect(guardada.cajasDestino).toEqual(['Ahorros', 'Emergencia']);
+    expect(guardada.cajaOrigen).toBe('Efectivo');
+    expect(guardada.cajaDestino).toBe('Ahorros');
+
+    // Al usarla se elige de cuál sale y a cuál llega.
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await expect(page.locator('#usar-accion-origen-opciones .accion-caja-chip')).toHaveCount(2);
+    await expect(page.locator('#usar-accion-destino-opciones .accion-caja-chip')).toHaveCount(2);
+    await page.locator('#usar-accion-monto').fill('30000');
+
+    // Sin elegir no deja guardar.
+    let aviso = null;
+    page.once('dialog', d => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect.poll(() => aviso).toContain('Elige de qué caja sale');
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+
+    await page.locator('#usar-accion-origen-opciones .accion-caja-chip', { hasText: 'Nequi' }).click();
+    page.once('dialog', d => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect.poll(() => aviso).toContain('Elige a qué caja llega');
+
+    await page.locator('#usar-accion-destino-opciones .accion-caja-chip', { hasText: 'Emergencia' }).click();
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+
+    // Salió de Nequi y llegó a Emergencia (no a las otras opciones).
+    const movimientos = await page.evaluate(() => Sheets.getMovimientos());
+    const salida  = movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Nequi');
+    const entrada = movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Emergencia');
+    expect(salida).toBeDefined();
+    expect(entrada).toBeDefined();
+    expect(Math.abs(salida.monto)).toBe(30000);
+    expect(movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo')).toBeUndefined();
+    expect(movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Ahorros')).toBeUndefined();
+  });
+
+  test('una transferencia con varias cajas no deja usar la misma caja de origen y de destino', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Entre cuentas');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+    // Las dos cajas valen tanto de origen como de destino.
+    await elegirOrigen(page, 'Efectivo');
+    await elegirOrigen(page, 'Nequi');
+    await elegirDestino(page, 'Efectivo');
+    await elegirDestino(page, 'Nequi');
+    await page.locator('#btn-guardar-config-accion').click();
+
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await page.locator('#usar-accion-monto').fill('1000');
+    await page.locator('#usar-accion-origen-opciones .accion-caja-chip', { hasText: 'Efectivo' }).click();
+    await page.locator('#usar-accion-destino-opciones .accion-caja-chip', { hasText: 'Efectivo' }).click();
+    let aviso = null;
+    page.once('dialog', d => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect.poll(() => aviso).toContain('no pueden ser la misma');
+    await expect(page.locator('#modal-usar-accion')).toBeVisible();
+  });
+
+  test('al configurar una transferencia hay que elegir al menos una caja de origen y una de destino', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Incompleta');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+    await elegirOrigen(page, 'Efectivo');            // falta el destino
+    let aviso = null;
+    page.once('dialog', d => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-config-accion').click();
+    await expect.poll(() => aviso).toContain('al menos una caja de origen y una de destino');
+    await expect(page.locator('#modal-config-accion')).toBeVisible();
+  });
+
+  test('una transferencia guardada con una sola caja por lado (formato anterior) se sigue usando igual', async ({ page }) => {
+    const vieja = [{ nombre: 'Guardar', icono: '🔁', categoria: 'Transferencia', cajaOrigen: 'Efectivo', cajaDestino: 'Ahorros', camara: false }];
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Ahorros', 'COP'],
+      ],
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'acciones_rapidas', JSON.stringify(vieja)]],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    // Una sola de cada lado: no se pregunta nada, solo se muestran de referencia.
+    await expect(page.locator('#usar-accion-origen-opciones')).toHaveCount(0);
+    await expect(page.locator('#usar-accion-destino-opciones')).toHaveCount(0);
+    await expect(page.locator('#usar-accion-transferencia-origen')).toHaveText('Efectivo');
+    await expect(page.locator('#usar-accion-transferencia-destino')).toHaveText('Ahorros');
+    await page.locator('#usar-accion-monto').fill('2000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+    const movimientos = await page.evaluate(() => Sheets.getMovimientos());
+    expect(movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo')).toBeDefined();
+    expect(movimientos.find(m => m.categoria === 'Transferencia' && m.caja === 'Ahorros')).toBeDefined();
+
+    // Y al abrirla para configurar, sus cajas aparecen ya elegidas en los chips.
+    await page.locator('#fab-recordatorio').click();
+    const box = await page.locator('.accion-rapida-card[data-slot="0"]').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#modal-config-accion')).toBeVisible();
+    await expect(page.locator('#config-accion-origenes .accion-caja-chip.active')).toHaveText('Efectivo');
+    await expect(page.locator('#config-accion-destinos .accion-caja-chip.active')).toHaveText('Ahorros');
+  });
+
+  test('el gesto de volver cierra las ventanas de acciones rápidas', async ({ page }) => {
+    await page.locator('#fab-recordatorio').click();
+    await expect(page.locator('#modal-menu-acciones')).toBeVisible();
+    await page.evaluate(() => cerrarPantallaActual());
+    await expect(page.locator('#modal-menu-acciones')).toBeHidden();
   });
 });

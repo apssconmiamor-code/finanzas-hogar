@@ -826,15 +826,28 @@ input, select, textarea, table {
 .barra-inferior {
   position: sticky; bottom: 0; margin-top: auto; z-index: 60;
   width: 100%; box-sizing: border-box; min-height: 56px;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  /* Tres zonas: izquierda | menú ⋯ redondo y CENTRADO | derecha (versión o total). */
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
   padding: 8px 16px max(10px, env(safe-area-inset-bottom));
   background: rgba(255,255,255,.92);
   backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
 }
-.barra-inferior .cajas-header-der { min-width: 0; flex: 1; display: flex; justify-content: flex-end; text-align: right; }
-/* El panel del menú se abre hacia arriba (la franja está abajo del todo). */
-.cajas-menu-panel-arriba { top: auto !important; bottom: calc(100% + 8px); }
+.barra-lado { min-width: 0; display: flex; align-items: center; }
+.barra-lado-der { justify-content: flex-end; text-align: right; }
+.barra-centro { display: flex; align-items: center; justify-content: center; }
+/* El botón ⋯ de la franja es un círculo. */
+.barra-inferior .cajas-menu-btn {
+  width: 48px; height: 48px; padding: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border-mid); box-shadow: var(--shadow-sm);
+  color: var(--text-2);
+}
+.barra-inferior .cajas-menu-btn.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+/* El panel del menú se abre hacia arriba (la franja está abajo del todo) y centrado sobre el
+   botón. Centrado con margen negativo y no con transform: la animación de entrada de los
+   menús usa transform y lo pisaría. */
+.cajas-menu-panel-arriba { top: auto !important; bottom: calc(100% + 10px); left: 50% !important; right: auto; width: 240px; min-width: 240px; margin-left: -120px; }
 /* Versión de la app: discreta; mantenerla presionada fuerza la búsqueda de actualización. */
 .campo-version {
   background: none; border: none; padding: 8px 6px; margin: 0; cursor: pointer;
