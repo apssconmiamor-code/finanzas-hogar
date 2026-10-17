@@ -10,12 +10,11 @@ import { createPortal } from "react-dom";
 //   onAbrirDetalle(n)  doble toque (tapCaja) sobre una tarjeta
 //   onAjustar(n)       mantener presionado, solo con saldo negativo
 //   onReordenar(nombres[])  tras arrastrar una tarjeta
-//   onIrATab(tab)      atajos redondos: "movimientos" | "proyeccion"
-//   onRecordatorios()  atajo redondo: abre el panel de recordatorios
+//   onIrATab(tab)      atajos redondos: "movimientos" | "proyeccion" | "notificaciones" (Alertas)
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, onRecordatorios, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, onIrATab, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
   const [eligiendo, setEligiendo] = useState(false);
@@ -63,7 +62,7 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
         : <Grilla key={`${renderId}-${modoSuma}`} scrollRef={scrollRef} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
-      <Atajos onIrATab={onIrATab} onRecordatorios={onRecordatorios} />
+      <Atajos onIrATab={onIrATab} />
       {eligiendo && createPortal(
         <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
           onCerrar={() => setEligiendo(false)} />,
@@ -72,22 +71,41 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   );
 }
 
-// Botones redondos de acceso rápido, debajo de las cajas.
-function Atajos({ onIrATab, onRecordatorios }) {
+// Íconos de línea (SVG, no imágenes ni emojis): trazo blanco sobre el círculo
+// de color. Son trazados propios, sin librería.
+const ICONOS_ATAJO = {
+  movimientos: <><path d="M7 7h13" /><path d="m16 3 4 4-4 4" /><path d="M17 17H4" /><path d="m8 13-4 4 4 4" /></>,
+  proyeccion: <><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
+  alertas: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></>,
+};
+
+function IconoAtajo({ nombre }) {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ICONOS_ATAJO[nombre]}</svg>
+  );
+}
+
+// Botones redondos de acceso rápido, dentro de una caja contenedora debajo de
+// las cajas.
+function Atajos({ onIrATab }) {
   const atajos = [
-    { id: "atajo-movimientos", icono: "💸", texto: "Movimientos", accion: () => onIrATab("movimientos") },
-    { id: "atajo-proyeccion", icono: "📊", texto: "Proyección", accion: () => onIrATab("proyeccion") },
-    { id: "atajo-recordatorios", icono: "📝", texto: "Recordatorios", accion: () => onRecordatorios() },
+    { id: "atajo-movimientos", icono: "movimientos", texto: "Movimientos", accion: () => onIrATab("movimientos") },
+    { id: "atajo-proyeccion", icono: "proyeccion", texto: "Proyección", accion: () => onIrATab("proyeccion") },
+    { id: "atajo-alertas", icono: "alertas", texto: "Alertas", accion: () => onIrATab("notificaciones") },
   ];
   return (
+    <>
+    <div className="cajas-atajos-titulo">Más opciones</div>
     <div className="cajas-atajos">
       {atajos.map(a => (
         <button key={a.id} type="button" id={a.id} className="cajas-atajo" onClick={a.accion}>
-          <span className="cajas-atajo-circulo" aria-hidden="true">{a.icono}</span>
+          <span className="cajas-atajo-circulo" aria-hidden="true"><IconoAtajo nombre={a.icono} /></span>
           <span className="cajas-atajo-texto">{a.texto}</span>
         </button>
       ))}
     </div>
+    </>
   );
 }
 

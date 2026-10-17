@@ -159,7 +159,7 @@ test.describe('Ajustar caja', () => {
   });
 
   // Botones redondos de acceso rápido debajo de las cajas.
-  test("atajos redondos: llevan a Movimientos, a Proyección y abren Recordatorios", async ({ page }) => {
+  test("atajos redondos: llevan a Movimientos, a Proyección y a Alertas", async ({ page }) => {
     await mockGoogleApis(page, {
       "Cajas": [["C1", "prueba@example.com", "Efectivo", "COP"]],
     });
@@ -167,6 +167,7 @@ test.describe('Ajustar caja', () => {
     await page.goto("/");
     await esperarAppLista(page);
 
+    await expect(page.locator(".cajas-atajos-titulo")).toHaveText("Más opciones");
     await expect(page.locator(".cajas-atajo")).toHaveCount(3);
     await page.locator("#atajo-movimientos").click();
     await expect(page.locator("#tab-movimientos")).toBeVisible();
@@ -177,8 +178,8 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator("#tab-proyeccion")).toBeVisible();
 
     await page.locator(".nav-item[data-tab=\"cajas\"]:visible").first().click();
-    await page.locator("#atajo-recordatorios").click();
-    await expect(page.locator("#recordatorios-panel")).toBeVisible();
+    await page.locator("#atajo-alertas").click();
+    await expect(page.locator("#tab-notificaciones")).toBeVisible();
   });
 
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)

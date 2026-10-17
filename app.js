@@ -1833,7 +1833,6 @@ function renderCajas() {
     onAjustar: ajustarCaja,
     onReordenar: _reordenarCajas,
     onIrATab: tab => window.navegarATab(tab),
-    onRecordatorios: () => toggleRecordatoriosPanel(),
   });
 }
 
