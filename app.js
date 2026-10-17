@@ -1150,7 +1150,15 @@ function volverAInicio() {
   const visible = document.querySelector(".tab-section:not(.hidden)");
   if (!visible || visible.id === "tab-cajas") return false;
   if (typeof window.navegarATab !== "function") return false;
-  window.navegarATab("cajas");
+  // Transición: la pantalla actual se va hacia la derecha (el mismo gesto que
+  // hizo el dedo) y Inicio entra desde la izquierda (ver .entrada-volver).
+  animarYCerrar(visible, () => {
+    window.navegarATab("cajas");
+    const inicio = document.getElementById("tab-cajas");
+    if (!inicio) return;
+    inicio.classList.add("entrada-volver");
+    inicio.addEventListener("animationend", () => inicio.classList.remove("entrada-volver"), { once: true });
+  });
   return true;
 }
 
