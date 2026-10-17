@@ -82,6 +82,51 @@ test.describe('Ajustar caja', () => {
     await expect(tarjeta.locator('.caja-alerta-ajuste')).toBeHidden({ timeout: 10000 });
   });
 
+  // Inicio muestra solo las cajas que el usuario elige (botón "Cajas",
+  // #btn-elegir-cajas). Ocultar una no la borra: solo sale de Inicio.
+  test("Elegir qué cajas ver: ocultar una la saca de Inicio, y se vuelve a mostrar al marcarla", async ({ page }) => {
+    await mockGoogleApis(page, {
+      "Cajas": [
+        ["C1", "prueba@example.com", "Efectivo", "COP"],
+        ["C2", "prueba@example.com", "Nequi", "COP"],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto("/");
+    await esperarAppLista(page);
+
+    const tarjetaEfectivo = page.locator(".caja-card", { hasText: "Efectivo" });
+    const tarjetaNequi = page.locator(".caja-card", { hasText: "Nequi" });
+    await expect(tarjetaEfectivo).toBeVisible();
+    await expect(tarjetaNequi).toBeVisible();
+
+    await page.locator("#btn-elegir-cajas").click();
+    const panel = page.locator("#modal-elegir-cajas");
+    await expect(panel).toBeVisible();
+    await panel.getByLabel("Nequi").uncheck();
+    await expect(tarjetaNequi).toHaveCount(0);
+    await expect(tarjetaEfectivo).toBeVisible();
+
+    // La elección se recuerda al recargar.
+    await page.reload();
+    await esperarAppLista(page);
+    await expect(tarjetaNequi).toHaveCount(0);
+    await expect(tarjetaEfectivo).toBeVisible();
+
+    await page.locator("#btn-elegir-cajas").click();
+    await page.locator("#modal-elegir-cajas").getByLabel("Nequi").check();
+    await expect(tarjetaNequi).toBeVisible();
+    await page.locator("#btn-cerrar-elegir-cajas").click();
+    await expect(page.locator("#modal-elegir-cajas")).toHaveCount(0);
+
+    // Con todas ocultas, Inicio explica cómo recuperarlas.
+    await page.locator("#btn-elegir-cajas").click();
+    await page.locator("#modal-elegir-cajas").getByLabel("Efectivo").uncheck();
+    await page.locator("#modal-elegir-cajas").getByLabel("Nequi").uncheck();
+    await page.locator("#btn-cerrar-elegir-cajas").click();
+    await expect(page.locator("#cajas-grid")).toContainText("No tienes cajas visibles");
+  });
+
   // "Sumar cajas": botón sutil arriba de la cuadrícula (#btn-sumar-cajas)
   // que arma un modo selección -- tocar una caja la suma/resta del total,
   // que aparece en una barra flotante abajo (#sumar-cajas-barra). Nada de

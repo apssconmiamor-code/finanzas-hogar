@@ -97,6 +97,44 @@ async function cargarOrdenCajas() {
   }
 }
 
+// Qué cajas NO se muestran en Inicio (elección personal, botón "Cajas" -- ver
+// react/src/cajas). Se guardan las ocultas y no las visibles a propósito: una
+// caja nueva aparece sola, sin que el usuario tenga que activarla. Ocultar
+// solo afecta a Inicio; la caja sigue existiendo en movimientos, selectores,
+// Proyección, etc.
+let cajasOcultas = [];
+
+function _cajasOcultasCacheKey() {
+  return `cache_cajas_ocultas_${currentUser?.email || "anon"}`;
+}
+
+function _leerCajasOcultasDeCache() {
+  try {
+    const cache = JSON.parse(localStorage.getItem(_cajasOcultasCacheKey()) || "[]");
+    cajasOcultas = Array.isArray(cache) ? cache : [];
+  } catch { cajasOcultas = []; }
+}
+
+async function cargarCajasOcultas() {
+  try {
+    const valor = await Sheets.getConfigUsuario(currentUser.email, "cajas_ocultas");
+    cajasOcultas = Array.isArray(valor) ? valor : [];
+    localStorage.setItem(_cajasOcultasCacheKey(), JSON.stringify(cajasOcultas));
+  } catch (err) {
+    if (err.message === "TOKEN_EXPIRADO") return;
+    _leerCajasOcultasDeCache();
+  }
+}
+
+// No espera a Sheets para re-renderizar -- igual que el orden, ya vive en
+// memoria+localStorage de una.
+function _guardarCajasOcultas(ids) {
+  cajasOcultas = ids;
+  localStorage.setItem(_cajasOcultasCacheKey(), JSON.stringify(ids));
+  Sheets.guardarConfigUsuario(currentUser.email, "cajas_ocultas", ids);
+  renderCajas();
+}
+
 // Cajas nuevas (todavía sin entrar en ordenCajas) quedan al final, en el
 // orden en que ya venían de Sheets -- así una caja recién creada no se
 // cuela al principio.
@@ -966,6 +1004,8 @@ async function mostrarApp() {
   if (cacheM) { try { movimientos  = JSON.parse(cacheM); } catch {} }
   if (cacheP) { try { presupuesto  = JSON.parse(cacheP); } catch {} }
 
+  _leerCajasOcultasDeCache();
+
   // Renderizar INMEDIATAMENTE con lo que haya en caché
   renderCajas();
   renderMovimientos();
@@ -1652,7 +1692,7 @@ async function _cargarTodoInterno(reintentando) {
     // Cajas y movimientos son lecturas independientes → en paralelo (antes
     // eran 2 round-trips secuenciales a la API de Sheets). El orden personal
     // de las cajas (arrastrar para reordenar) viaja en el mismo Promise.all.
-    [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos(), cargarOrdenCajas()]);
+    [cajas, movimientos] = await Promise.all([Sheets.getCajas(), Sheets.getMovimientos(), cargarOrdenCajas(), cargarCajasOcultas()]);
     _aplicarOrdenCajas();
     _cajasVerificadasEnRed = true;
     renderCajas();
@@ -1776,6 +1816,7 @@ function renderCajas() {
   if (!window.CajasReact) return;
   window.CajasReact.render({
     cajas: cajas.map(c => ({
+      id: c.id,
       nombre: c.nombre,
       moneda: c.moneda,
       saldoReal: calcularSaldoCaja(c.nombre),
@@ -1785,6 +1826,8 @@ function renderCajas() {
     // Sin confirmación por red todavía (recién abierta, caché vacía, o la
     // carga falló) → no invitar a "crear una" cuando en realidad puede que
     // ya existan y solo no hayan cargado, para no sugerir que se perdieron.
+    ocultas: cajasOcultas,
+    onCambiarOcultas: _guardarCajasOcultas,
     verificadaEnRed: _cajasVerificadasEnRed,
     formatMonto,
     onAbrirDetalle: tapCaja,
@@ -1801,6 +1844,9 @@ function _reordenarCajas(nombres) {
   const nuevoOrdenIds = nombres
     .map(nombre => cajas.find(c => c.nombre === nombre)?.id)
     .filter(Boolean);
+  // Las ocultas no estaban en pantalla: conservan su lugar relativo al final
+  // en vez de perder el orden que ya tenían.
+  ordenCajas.filter(id => !nuevoOrdenIds.includes(id)).forEach(id => nuevoOrdenIds.push(id));
   _guardarOrdenCajas(nuevoOrdenIds);
   // El arrastre ya reordenó el DOM en pantalla, pero "cajas" (la fuente de
   // la que se arma la vista) todavía no -- sin esto, el render de abajo la

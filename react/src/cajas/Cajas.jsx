@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 // Props que arma app.js (ver renderCajas):
-//   cajas[]            { nombre, moneda, saldoReal, colorFondo, icono }
+//   cajas[]            { id, nombre, moneda, saldoReal, colorFondo, icono } (TODAS)
+//   ocultas[]          ids que el usuario no quiere ver en Inicio
+//   onCambiarOcultas(ids[])  guarda la elección (app.js la persiste)
 //   verificadaEnRed    false -> aviso de "no se pudieron cargar"
 //   formatMonto(n, m)  formateador de la app
 //   onAbrirDetalle(n)  doble toque (tapCaja) sobre una tarjeta
@@ -11,9 +13,13 @@ import { createPortal } from "react-dom";
 //   renderId           cambia en cada render() de app.js
 // Las clases/ids son los de siempre (style.css + tests E2E no cambian).
 
-export function Cajas({ cajas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, renderId }) {
+export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificadaEnRed, formatMonto, onAbrirDetalle, onAjustar, onReordenar, renderId }) {
   const [modoSuma, setModoSuma] = useState(false);
   const [seleccion, setSeleccion] = useState(() => new Set());
+  const [eligiendo, setEligiendo] = useState(false);
+  // Inicio solo muestra las que el usuario eligió ver; las demás siguen
+  // existiendo en el resto de la app.
+  const cajas = todas.filter(c => !ocultas.includes(c.id));
 
   // Cambiar de pestaña oculta #tab-cajas: el modo se apaga solo (antes lo
   // hacía navegarATab). Se detecta mirando la clase "hidden" de la sección.
@@ -37,16 +43,24 @@ export function Cajas({ cajas, verificadaEnRed, formatMonto, onAbrirDetalle, onA
   return (
     <>
       <div className="cajas-header">
+        <button type="button" className="btn-sutil" id="btn-elegir-cajas"
+          onClick={() => setEligiendo(true)}>Cajas</button>
         <button type="button" className={"btn-sumar-cajas" + (modoSuma ? " active" : "")}
           id="btn-sumar-cajas" onClick={alternarModo}>
           {modoSuma ? "Listo" : "Sumar"}
         </button>
       </div>
       {cajas.length === 0
-        ? <div id="cajas-grid" className="cajas-grid"><EstadoVacio verificadaEnRed={verificadaEnRed} /></div>
+        ? <div id="cajas-grid" className="cajas-grid">
+            <EstadoVacio verificadaEnRed={verificadaEnRed} hayOcultas={todas.length > 0} />
+          </div>
         : <Grilla key={`${renderId}-${modoSuma}`} cajas={cajas} modoSuma={modoSuma} seleccion={seleccion}
             alternarCaja={alternarCaja} formatMonto={formatMonto}
             onAbrirDetalle={onAbrirDetalle} onAjustar={onAjustar} onReordenar={onReordenar} />}
+      {eligiendo && createPortal(
+        <ElegirCajas todas={todas} ocultas={ocultas} onCambiar={onCambiarOcultas}
+          onCerrar={() => setEligiendo(false)} />,
+        document.body)}
       {createPortal(
         <BarraSuma activa={modoSuma} cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />,
         document.body)}
@@ -54,7 +68,37 @@ export function Cajas({ cajas, verificadaEnRed, formatMonto, onAbrirDetalle, onA
   );
 }
 
-function EstadoVacio({ verificadaEnRed }) {
+// Panel "¿Qué cajas quieres ver?". Cada casilla guarda al instante.
+function ElegirCajas({ todas, ocultas, onCambiar, onCerrar }) {
+  const alternar = (id) => onCambiar(
+    ocultas.includes(id) ? ocultas.filter(x => x !== id) : [...ocultas, id]);
+  return (
+    <div id="modal-elegir-cajas" className="modal" onClick={e => { if (e.target === e.currentTarget) onCerrar(); }}>
+      <div className="modal-card">
+        <h3 className="modal-title">¿Qué cajas quieres ver?</h3>
+        <p className="modal-subtitle">Solo cambia lo que ves en Inicio. Las demás siguen disponibles en el resto de la app.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, margin: "8px 0" }}>
+          {todas.map(c => (
+            <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", cursor: "pointer" }}>
+              <input type="checkbox" checked={!ocultas.includes(c.id)} onChange={() => alternar(c.id)} />
+              <span>{c.nombre}</span>
+            </label>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-primary" id="btn-cerrar-elegir-cajas" onClick={onCerrar}>Listo</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EstadoVacio({ verificadaEnRed, hayOcultas }) {
+  if (hayOcultas) {
+    return <div className="empty-state" style={{ gridColumn: "1/-1" }}>
+      <div className="empty-state-icon">🙈</div>
+      <div className="empty-state-text">No tienes cajas visibles — toca "Cajas" para elegir cuáles ver.</div></div>;
+  }
   return verificadaEnRed
     ? <div className="empty-state" style={{ gridColumn: "1/-1" }}>
         <div className="empty-state-icon">🏦</div>

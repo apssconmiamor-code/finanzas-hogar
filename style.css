@@ -800,7 +800,7 @@ input, select, textarea, table {
 /* Nació acá (fila arriba de la cuadrícula para el botón "Sumar"), pero
    Mercado la reusa igual arriba de su cuadrícula de categorías para
    "Enviar lista por WhatsApp" -- pedido explícito: misma ubicación. */
-.cajas-header { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.cajas-header { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
 
 .cajas-grid {
   display: grid;
