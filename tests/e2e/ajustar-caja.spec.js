@@ -100,6 +100,7 @@ test.describe('Ajustar caja', () => {
     await expect(tarjetaEfectivo).toBeVisible();
     await expect(tarjetaNequi).toBeVisible();
 
+    await page.locator("#btn-menu-cajas").click();
     await page.locator("#btn-elegir-cajas").click();
     const panel = page.locator("#modal-elegir-cajas");
     await expect(panel).toBeVisible();
@@ -113,6 +114,7 @@ test.describe('Ajustar caja', () => {
     await expect(tarjetaNequi).toHaveCount(0);
     await expect(tarjetaEfectivo).toBeVisible();
 
+    await page.locator("#btn-menu-cajas").click();
     await page.locator("#btn-elegir-cajas").click();
     await page.locator("#modal-elegir-cajas").getByLabel("Nequi").check();
     await expect(tarjetaNequi).toBeVisible();
@@ -120,6 +122,7 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator("#modal-elegir-cajas")).toHaveCount(0);
 
     // Con todas ocultas, Inicio explica cómo recuperarlas.
+    await page.locator("#btn-menu-cajas").click();
     await page.locator("#btn-elegir-cajas").click();
     await page.locator("#modal-elegir-cajas").getByLabel("Efectivo").uncheck();
     await page.locator("#modal-elegir-cajas").getByLabel("Nequi").uncheck();
@@ -151,8 +154,9 @@ test.describe('Ajustar caja', () => {
     const tarjetaNequi = page.locator('.caja-card', { hasText: 'Nequi' });
 
     await expect(barra).toBeHidden();
+    await page.locator('#btn-menu-cajas').click();
     await page.locator('#btn-sumar-cajas').click();
-    await expect(page.locator('#btn-sumar-cajas')).toHaveText('Listo');
+    await expect(page.locator('#btn-sumar-cajas-listo')).toHaveText('Listo');
     await expect(barra).toBeVisible();
     await expect(barra).toContainText('Tocá las cajas');
 
@@ -172,8 +176,8 @@ test.describe('Ajustar caja', () => {
     await expect(barra).not.toContainText('150.000');
 
     // "Listo" apaga el modo, esconde la barra y limpia la selección.
-    await page.locator('#btn-sumar-cajas').click();
-    await expect(page.locator('#btn-sumar-cajas')).toHaveText('Sumar');
+    await page.locator('#btn-sumar-cajas-listo').click();
+    await expect(page.locator('#btn-menu-cajas')).toBeVisible();
     await expect(barra).toBeHidden();
     await expect(tarjetaNequi).not.toHaveClass(/caja-card-seleccionada/);
 
@@ -198,6 +202,7 @@ test.describe('Ajustar caja', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
+    await page.locator('#btn-menu-cajas').click();
     await page.locator('#btn-sumar-cajas').click();
     await page.locator('.caja-card', { hasText: 'Efectivo' }).click();
     await page.locator('.caja-card', { hasText: 'Dólares' }).click();
@@ -214,6 +219,7 @@ test.describe('Ajustar caja', () => {
     await page.goto('/');
     await esperarAppLista(page);
 
+    await page.locator('#btn-menu-cajas').click();
     await page.locator('#btn-sumar-cajas').click();
     await page.locator('.caja-card', { hasText: 'Efectivo' }).click();
     await expect(page.locator('#sumar-cajas-barra')).toBeVisible();
@@ -222,7 +228,7 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator('#sumar-cajas-barra')).toBeHidden();
 
     await page.locator('.nav-item[data-tab="cajas"]:visible').first().click();
-    await expect(page.locator('#btn-sumar-cajas')).toHaveText('Sumar');
+    await expect(page.locator('#btn-menu-cajas')).toBeVisible();
     await expect(page.locator('.caja-card', { hasText: 'Efectivo' })).not.toHaveClass(/caja-card-seleccionada/);
   });
 

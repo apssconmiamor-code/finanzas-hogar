@@ -43,12 +43,10 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
   return (
     <>
       <div className="cajas-header">
-        <button type="button" className="btn-sutil" id="btn-elegir-cajas"
-          onClick={() => setEligiendo(true)}>Cajas</button>
-        <button type="button" className={"btn-sumar-cajas" + (modoSuma ? " active" : "")}
-          id="btn-sumar-cajas" onClick={alternarModo}>
-          {modoSuma ? "Listo" : "Sumar"}
-        </button>
+        {modoSuma
+          ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-cajas-listo"
+              onClick={alternarModo}>Listo</button>
+          : <MenuCajas onSumar={alternarModo} onElegir={() => setEligiendo(true)} />}
       </div>
       {cajas.length === 0
         ? <div id="cajas-grid" className="cajas-grid">
@@ -65,6 +63,44 @@ export function Cajas({ cajas: todas, ocultas = [], onCambiarOcultas, verificada
         <BarraSuma activa={modoSuma} cajas={cajas} seleccion={seleccion} formatMonto={formatMonto} />,
         document.body)}
     </>
+  );
+}
+
+// Submenú de Cajas: un solo botón ⋯ que despliega las acciones. Se cierra al
+// elegir una, al tocar fuera o con Escape. Mismo estilo que el menú de la
+// barra superior (.dropdown-menu / .dropdown-item).
+function MenuCajas({ onSumar, onElegir }) {
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e) => { if (ref.current && !ref.current.contains(e.target)) setAbierto(false); };
+    const tecla = (e) => { if (e.key === "Escape") setAbierto(false); };
+    document.addEventListener("pointerdown", fuera);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("pointerdown", fuera);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [abierto]);
+
+  const elegir = (accion) => { setAbierto(false); accion(); };
+
+  return (
+    <div className="cajas-menu" ref={ref}>
+      <button type="button" className={"btn-sutil cajas-menu-btn" + (abierto ? " active" : "")}
+        id="btn-menu-cajas" aria-haspopup="menu" aria-expanded={abierto} aria-label="Opciones de cajas"
+        onClick={() => setAbierto(a => !a)}>⋯</button>
+      {abierto && (
+        <div className="dropdown-menu cajas-menu-panel" role="menu">
+          <button type="button" role="menuitem" className="dropdown-item" id="btn-sumar-cajas"
+            onClick={() => elegir(onSumar)}><span className="dd-icon">➕</span>Sumar cajas</button>
+          <button type="button" role="menuitem" className="dropdown-item" id="btn-elegir-cajas"
+            onClick={() => elegir(onElegir)}><span className="dd-icon">👁</span>Elegir cajas</button>
+        </div>
+      )}
+    </div>
   );
 }
 
