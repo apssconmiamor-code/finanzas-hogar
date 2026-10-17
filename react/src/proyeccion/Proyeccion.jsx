@@ -11,15 +11,15 @@ import { MenuOpciones } from "../shared/MenuOpciones.jsx";
 //   formatMonto(n)      formateador de la app
 //   onToggleSuma()      entra/sale del modo "Sumar movimientos"
 //   onAgregarMes()      "Agregar mes a proyectar"
-//   onUnificar()        "Unificar conceptos" (dos nombres para el mismo gasto)
+//   onArchivar()        "Archivar conceptos" (esconder un concepto duplicado)
 //   (Crear/agregar concepto ya no están acá: viven en el formulario Configurar mes)
 export function ProyeccionBarra({
   modoSuma, seleccionados, totales, formatMonto,
-  onToggleSuma, onAgregarMes, onUnificar,
+  onToggleSuma, onAgregarMes, onArchivar,
 }) {
   const items = [
     { id: "btn-agregar-mes", icono: "mes", texto: "Agregar mes a proyectar", accion: onAgregarMes },
-    { id: "btn-unificar-conceptos", icono: "fusionar", texto: "Unificar conceptos", accion: onUnificar },
+    { id: "btn-archivar-conceptos", icono: "archivar", texto: "Archivar conceptos", accion: onArchivar },
     { id: "btn-sumar-proy", icono: "sumar", texto: "Sumar movimientos", accion: onToggleSuma },
   ];
   return (

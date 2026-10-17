@@ -419,24 +419,21 @@
         </div>
 
         <!-- Modal nuevo concepto de presupuesto -->
-        <!-- Unificar conceptos: dos nombres para el mismo gasto ("Internet" e "Internet hogar") -->
-        <div id="modal-unificar" class="modal hidden">
+        <!-- Archivar conceptos: un concepto duplicado ("Internet hogar" teniendo "Internet")
+             deja de mostrarse en todas partes; se puede restaurar. -->
+        <div id="modal-archivar" class="modal hidden">
           <div class="modal-card">
-            <h3 class="modal-title">Unificar conceptos</h3>
-            <p class="modal-subtitle">Si dos conceptos son el mismo gasto, elige cuál se retira y con cuál se queda. Lo ya registrado pasa a contar en el que se queda.</p>
+            <h3 class="modal-title">Archivar conceptos</h3>
+            <p class="modal-subtitle">Si tienes un concepto repetido, archívalo: deja de mostrarse en todas partes y solo te queda uno. Tus movimientos anteriores no se tocan.</p>
             <div class="form-group">
-              <label>Este concepto se retira</label>
-              <select id="unificar-alias" class="input"></select>
+              <label>Concepto a archivar</label>
+              <select id="archivar-concepto" class="input"></select>
             </div>
-            <div class="form-group">
-              <label>Es el mismo que (este se queda)</label>
-              <select id="unificar-canonico" class="input"></select>
-            </div>
-            <div id="unificar-resumen" class="card-section-sub"></div>
-            <div id="unificar-existentes"></div>
+            <div id="archivar-resumen" class="card-section-sub"></div>
+            <div id="archivar-existentes"></div>
             <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cerrar-unificar">Cerrar</button>
-              <button class="btn-primary" id="btn-confirmar-unificar" disabled>Unificar</button>
+              <button class="btn-secondary" id="btn-cerrar-archivar">Cerrar</button>
+              <button class="btn-primary" id="btn-confirmar-archivar" disabled>Archivar</button>
             </div>
           </div>
         </div>

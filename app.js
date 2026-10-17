@@ -1545,7 +1545,7 @@ function poblarSelectGastosFijos() {
         if (editId && m.id === editId) return false;
         return true;
       })
-      .map(m => conceptoCanonico(m.concepto))
+      .map(m => m.concepto)
   );
 
   const conceptosPrestamos = prestamos
@@ -2160,7 +2160,7 @@ function renderMovimientos() {
 
   let filtrados = movimientos.filter(m => {
     if (filtroK && m.categoria !== filtroK) return false;
-    if (filtroS && conceptoCanonico(m.concepto) !== filtroS) return false;
+    if (filtroS && m.concepto !== filtroS) return false;
     if (filtroM && !m.fecha.startsWith(filtroM)) return false;
     return true;
   });
@@ -2601,7 +2601,7 @@ async function guardarMovimiento() {
     const fecha       = document.getElementById("mov-fecha").value;
     const categoria   = document.getElementById("mov-categoria").value;
     const descripcion = document.getElementById("mov-descripcion").value.trim();
-    const concepto    = conceptoCanonico(getConceptoActivo());
+    const concepto    = getConceptoActivo();
     const caja        = document.getElementById("mov-caja").value;
     const monto       = evaluarMonto(document.getElementById("mov-monto").value);
 
@@ -2713,7 +2713,7 @@ btn.textContent = "Guardando..."; btn.disabled = true;
 
     else {
 
-let concepto = conceptoCanonico(getConceptoActivo());
+let concepto = getConceptoActivo();
 const caja   = document.getElementById("mov-caja").value;
 const monto  = evaluarMonto(document.getElementById("mov-monto").value);
 if (!concepto || !caja || !monto) {
@@ -2794,7 +2794,7 @@ function abrirEditarMovimiento(id) {
   });
   document.getElementById("mov-descripcion").value = m.descripcion;
   actualizarCampoConcepto();
-  setConceptoActivo(conceptoCanonico(m.concepto));
+  setConceptoActivo(m.concepto);
 
   if (m.categoria !== "Transferencia") {
     document.getElementById("mov-caja").value  = m.caja;
@@ -3231,7 +3231,7 @@ function getIngresosMes(mes) {
   try {
     const raw = localStorage.getItem("ingresos_por_mes");
     const data = raw ? JSON.parse(raw) : {};
-    return data[mes] || {};
+    return _sinArchivados(data[mes]) || {};
   } catch { return {}; }
 }
 
@@ -3260,7 +3260,7 @@ function getGastosMes(mes) {
   try {
     const raw = localStorage.getItem("gastos_por_mes");
     const data = raw ? JSON.parse(raw) : {};
-    return data[mes] || null; // null = usar presupuesto global
+    return _sinArchivados(data[mes]) || null; // null = usar presupuesto global
   } catch { return null; }
 }
 
@@ -3293,7 +3293,7 @@ function getGastosMesParaEditor(mes) {
   if (anterior) return anterior;
   // Fallback: presupuesto global
   const result = {};
-  presupuesto.filter(p => p.montoEstimado > 0).forEach(p => { result[p.concepto] = p.montoEstimado; });
+  presupuesto.filter(p => p.montoEstimado > 0 && !p.archivado).forEach(p => { result[p.concepto] = p.montoEstimado; });
   return result;
 }
 
@@ -3456,9 +3456,15 @@ let proyMesActivo = new Date().toISOString().slice(0, 7);
 function sincronizarListasConceptos() {
   presupuesto.forEach(p => {
     if (!p.concepto) return;
-    // Un alias ("Internet hogar" unificado con "Internet") no se ofrece en ninguna
-    // lista: lo ya registrado con ese nombre cuenta en el concepto que se quedó.
-    if (p.aliasDe) return;
+    // Un concepto archivado no se ofrece en ninguna lista. Se quita también de las
+    // listas de fábrica (Internet, Gas...), que se reconstruyen en cada carga.
+    if (p.archivado) {
+      for (const lista of [GASTOS_FIJOS, GASTOS_VARIABLES, FUENTES_INGRESO]) {
+        const i = lista.indexOf(p.concepto);
+        if (i !== -1) lista.splice(i, 1);
+      }
+      return;
+    }
     if (p.categoria === "Gasto fijo" && !GASTOS_FIJOS.includes(p.concepto)) {
       GASTOS_FIJOS.push(p.concepto);
     } else if (p.categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(p.concepto)) {
@@ -3470,21 +3476,31 @@ function sincronizarListasConceptos() {
   });
 }
 
-// ---- ALIAS DE CONCEPTOS ("Internet hogar" es el mismo gasto que "Internet") ----
-// Un concepto con aliasDe se retira de las listas (no se puede elegir al
-// registrar) pero su historial NO se reescribe en Sheets: los movimientos
-// guardados con su nombre se agrupan bajo el concepto que se quedó, vía
-// conceptoCanonico(), en la tabla de Proyección, el resumen y las alertas.
-let _aliasMapa = null;
-let _aliasMapaDe = null;
-function conceptoCanonico(nombre) {
-  if (_aliasMapaDe !== presupuesto) {
-    _aliasMapaDe = presupuesto;
-    _aliasMapa = new Map(presupuesto.filter(p => p.aliasDe).map(p => [p.concepto, p.aliasDe]));
+// ---- CONCEPTOS ARCHIVADOS ----
+// Archivar un concepto duplicado ("Internet hogar" teniendo "Internet") lo saca de
+// TODO: listas para registrar, Configurar mes, tabla de Proyección y totales. Su
+// historial de movimientos no se toca, y se puede restaurar. Se guarda en la hoja
+// Presupuesto (columna F), así que vale en todos los dispositivos.
+let _archivadosSet = null;
+let _archivadosDe = null;
+function _conceptosArchivados() {
+  if (_archivadosDe !== presupuesto) {
+    _archivadosDe = presupuesto;
+    _archivadosSet = new Set(presupuesto.filter(p => p.archivado).map(p => p.concepto));
   }
-  let actual = nombre, saltos = 0;
-  while (_aliasMapa.has(actual) && saltos++ < 5) actual = _aliasMapa.get(actual);
-  return actual;
+  return _archivadosSet;
+}
+function conceptoArchivado(nombre) {
+  return _conceptosArchivados().has((nombre || "").trim());
+}
+// Quita de un mapa {concepto: monto} los conceptos archivados (sin tocar el guardado).
+function _sinArchivados(mapa) {
+  if (!mapa) return mapa;
+  const arch = _conceptosArchivados();
+  if (arch.size === 0) return mapa;
+  const limpio = {};
+  Object.keys(mapa).forEach(k => { if (!arch.has(k)) limpio[k] = mapa[k]; });
+  return limpio;
 }
 
 function _normalizarNombreConcepto(n) {
@@ -3625,7 +3641,7 @@ function render4MesesResumen() {
 
   window.MesesProyeccionReact.render({
     meses: meses.map(mes => {
-      const ingresos = totalIngresosMes(mes) || presupuesto.filter(p => p.ingresoEstimado > 0).reduce((s, p) => s + p.ingresoEstimado, 0);
+      const ingresos = totalIngresosMes(mes) || presupuesto.filter(p => p.ingresoEstimado > 0 && !p.archivado).reduce((s, p) => s + p.ingresoEstimado, 0);
       const gastos = totalGastosMes(mes);
       const mesCorto = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "short" }).replace(".", "");
       return {
@@ -3804,8 +3820,7 @@ function renderTablaComparacion(movsDelMes) {
     .filter(m => m.categoria !== "Transferencia")
     .forEach(m => {
       const signo = m.categoria === "Ingreso" ? 1 : -1;
-      const canonico = conceptoCanonico(m.concepto);
-      realesPorConcepto[canonico] = (realesPorConcepto[canonico] || 0) + signo * Math.abs(m.monto);
+      realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + signo * Math.abs(m.monto);
     });
 
   // Mes propio → mes anterior como referencia → presupuesto global. Misma
@@ -3997,7 +4012,7 @@ function renderProyBarra() {
     formatMonto,
     onToggleSuma: toggleModoSumaProy,
     onAgregarMes: agregarMesProyeccion,
-    onUnificar: abrirModalUnificar,
+    onArchivar: abrirModalArchivar,
   });
 }
 
@@ -4061,7 +4076,7 @@ const tapConcepto = crearManejadorDobleToque(
 // estimado propio configurado). "concepto" se ignora en ese caso.
 function _movimientosRealesDeConcepto(mes, concepto, esOtros) {
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes) && m.categoria !== "Transferencia");
-  if (!esOtros) return movsDelMes.filter(m => conceptoCanonico(m.concepto) === concepto);
+  if (!esOtros) return movsDelMes.filter(m => m.concepto === concepto);
 
   const gastosMes = getGastosMesParaEditor(mes);
   const conocidos = new Set([
@@ -4070,7 +4085,7 @@ function _movimientosRealesDeConcepto(mes, concepto, esOtros) {
     "Ajuste" // fila propia siempre presente (ver renderTablaComparacion) -- no cae en "Otros"
   ]);
   conocidos.delete("Otros");
-  return movsDelMes.filter(m => !conocidos.has(conceptoCanonico(m.concepto)));
+  return movsDelMes.filter(m => !conocidos.has(m.concepto));
 }
 
 // Arma el HTML de una lista de movimientos reales (.detalle-real-item)
@@ -4155,11 +4170,11 @@ function renderDashboardDonuts() {
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes));
 
   const fijoEst = presupuesto
-    .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
+    .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0 && !p.archivado)
     .reduce((s, p) => s + p.montoEstimado, 0);
 
   const variableEst = presupuesto
-    .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
+    .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0 && !p.archivado)
     .reduce((s, p) => s + p.montoEstimado, 0);
 
   const fijoReal = movsDelMes
@@ -4399,11 +4414,11 @@ function calcularMetricasCronologia(mesStr) {
     .reduce((s, m) => s + Math.abs(m.monto), 0);
 
   const fijoEst = presupuesto
-    .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0)
+    .filter(p => p.categoria === "Gasto fijo" && p.montoEstimado > 0 && !p.archivado)
     .reduce((s, p) => s + p.montoEstimado, 0);
 
   const varEst = presupuesto
-    .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0)
+    .filter(p => p.categoria === "Gasto variable" && p.montoEstimado > 0 && !p.archivado)
     .reduce((s, p) => s + p.montoEstimado, 0);
 
   const fijoAser = fijoEst > 0 ? Math.round(((fijoReal - fijoEst) / fijoEst) * 100) : 0;
@@ -4431,11 +4446,10 @@ function calcularMetricasCronologia(mesStr) {
   const realesPorConcepto = {};
   movsDelMes.forEach(m => {
     if (m.categoria === "Ingreso") return;
-    const canonico = conceptoCanonico(m.concepto);
-    realesPorConcepto[canonico] = (realesPorConcepto[canonico] || 0) + Math.abs(m.monto);
+    realesPorConcepto[m.concepto] = (realesPorConcepto[m.concepto] || 0) + Math.abs(m.monto);
   });
   const desvios = presupuesto
-    .filter(p => p.montoEstimado > 0)
+    .filter(p => p.montoEstimado > 0 && !p.archivado)
     .map(p => ({ concepto: p.concepto, desviacion: (realesPorConcepto[p.concepto] || 0) - p.montoEstimado }))
     .filter(d => d.desviacion > 0)
     .sort((a, b) => b.desviacion - a.desviacion);
@@ -4725,8 +4739,13 @@ function cerrarModalNuevoConcepto() {
 
 function validarNombreNuevoConcepto() {
   const nombre = document.getElementById("nuevo-concepto-nombre").value;
-  const existe = conceptoYaExiste(nombre);
-  document.getElementById("nuevo-concepto-duplicado").classList.toggle("hidden", !existe);
+  const archivado = conceptoArchivado(nombre);
+  const existe = conceptoYaExiste(nombre) || archivado;
+  const aviso = document.getElementById("nuevo-concepto-duplicado");
+  aviso.textContent = archivado
+    ? "📦 Ese concepto está archivado — restáuralo en Archivar conceptos"
+    : "⚠️ Ese concepto ya existe";
+  aviso.classList.toggle("hidden", !existe);
 
   // Aviso de parecidos (no bloquea): evita crear "Internet hogar" teniendo "Internet".
   const caja = document.getElementById("nuevo-concepto-parecido");
@@ -4789,138 +4808,95 @@ async function guardarNuevoConcepto() {
   }
 }
 
-// ---- UNIFICAR CONCEPTOS ----
-// Marca un concepto como alias de otro ("Internet hogar" es el mismo que
-// "Internet"): se retira de las listas, sus estimados por mes pasan al que se
-// queda, y lo ya registrado con su nombre cuenta ahí. No se reescribe ni se
-// borra ningún movimiento en Sheets, y "Separar" lo devuelve a la lista.
-function _tipoConcepto(nombre) {
-  return FUENTES_INGRESO.includes(nombre) ? "ingreso" : "gasto";
+// ---- ARCHIVAR CONCEPTOS ----
+function _categoriaDeConcepto(n) {
+  return FUENTES_INGRESO.includes(n) ? "Ingreso" : GASTOS_FIJOS.includes(n) ? "Gasto fijo" : "Gasto variable";
 }
 
-function _llenarSelectsUnificar() {
+function _llenarSelectArchivar() {
   const grupos = [["Ingresos", FUENTES_INGRESO], ["Gastos fijos", GASTOS_FIJOS], ["Gastos variables", GASTOS_VARIABLES]];
-  const opciones = "<option value=\"\">Elige un concepto…</option>" + grupos.map(([titulo, lista]) =>
-    `<optgroup label="${titulo}">${lista.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</optgroup>`).join("");
-  document.getElementById("unificar-alias").innerHTML = opciones;
-  document.getElementById("unificar-canonico").innerHTML = opciones;
+  document.getElementById("archivar-concepto").innerHTML =
+    "<option value=\"\">Elige un concepto…</option>" + grupos.map(([titulo, lista]) =>
+      `<optgroup label="${titulo}">${lista.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</optgroup>`).join("");
 }
 
-function _renderUnificar() {
-  const alias = document.getElementById("unificar-alias").value;
-  const canonico = document.getElementById("unificar-canonico").value;
-  const resumen = document.getElementById("unificar-resumen");
-  const btn = document.getElementById("btn-confirmar-unificar");
+function _renderArchivar() {
+  const nombre = document.getElementById("archivar-concepto").value;
+  const n = nombre ? movimientos.filter(m => m.concepto === nombre).length : 0;
+  document.getElementById("archivar-resumen").textContent = nombre
+    ? `«${nombre}» dejará de mostrarse en Proyección, en Configurar mes y al registrar movimientos. ${n === 0 ? "No tiene movimientos registrados." : `Sus ${n} movimiento${n === 1 ? "" : "s"} ya registrado${n === 1 ? "" : "s"} no se tocan.`}`
+    : "";
+  document.getElementById("btn-confirmar-archivar").disabled = !nombre;
 
-  let mensaje = "", valido = false;
-  if (alias && canonico) {
-    if (alias === canonico) mensaje = "Elige dos conceptos distintos.";
-    else if (_tipoConcepto(alias) !== _tipoConcepto(canonico)) mensaje = "Los dos deben ser del mismo tipo (ingreso o gasto).";
-    else {
-      const n = movimientos.filter(m => m.concepto === alias || conceptoCanonico(m.concepto) === alias).length;
-      mensaje = `${n} movimiento${n === 1 ? "" : "s"} de «${alias}» pasarán a contarse como «${canonico}». No se borra ni se cambia nada en tus registros.`;
-      valido = true;
-    }
-  }
-  resumen.textContent = mensaje;
-  btn.disabled = !valido;
-
-  const yaUnificados = presupuesto.filter(p => p.aliasDe);
-  document.getElementById("unificar-existentes").innerHTML = yaUnificados.length === 0 ? "" : `
-    <div class="pres-seccion-title" style="margin-top:6px">Ya unificados</div>
-    ${yaUnificados.map(p => `
+  const archivados = presupuesto.filter(p => p.archivado);
+  document.getElementById("archivar-existentes").innerHTML = archivados.length === 0 ? "" : `
+    <div class="pres-seccion-title" style="margin-top:6px">Archivados</div>
+    ${archivados.map(p => `
       <div class="pres-fila">
-        <span class="pres-concepto">«${escapeHtml(p.concepto)}» → «${escapeHtml(p.aliasDe)}»</span>
-        <button type="button" class="btn-sutil" data-separar-concepto="${escapeHtml(p.concepto)}">Separar</button>
+        <span class="pres-concepto">${escapeHtml(p.concepto)}</span>
+        <button type="button" class="btn-sutil" data-restaurar-concepto="${escapeHtml(p.concepto)}">Restaurar</button>
       </div>`).join("")}`;
 }
 
-function abrirModalUnificar() {
-  const modal = document.getElementById("modal-unificar");
+function abrirModalArchivar() {
+  const modal = document.getElementById("modal-archivar");
   if (!modal) return;
-  _llenarSelectsUnificar();
-  _renderUnificar();
+  _llenarSelectArchivar();
+  _renderArchivar();
   modal.classList.remove("hidden");
 }
 
-function cerrarModalUnificar() {
-  document.getElementById("modal-unificar")?.classList.add("hidden");
+function cerrarModalArchivar() {
+  document.getElementById("modal-archivar")?.classList.add("hidden");
 }
 
-// Suma lo del alias al concepto que se queda en los estimados de cada mes
-// (si el que se queda ya tiene valor en ese mes, se conserva el suyo).
-function _fusionarAliasEnMeses(alias, canonico) {
-  for (const clave of ["gastos_por_mes", "ingresos_por_mes"]) {
-    let data;
-    try { data = JSON.parse(localStorage.getItem(clave) || "{}"); } catch { continue; }
-    let cambio = false;
-    Object.values(data).forEach(mes => {
-      if (mes && alias in mes) {
-        if (!(mes[canonico] > 0)) mes[canonico] = mes[alias];
-        delete mes[alias];
-        cambio = true;
-      }
-    });
-    if (cambio) localStorage.setItem(clave, JSON.stringify(data));
+async function archivarConcepto(nombre) {
+  if (!nombre) return;
+  // Los conceptos "de fábrica" (Internet, Gas...) viven en las listas de la app pero no
+  // tienen fila en la hoja Presupuesto hasta que alguien los guarda: si falta, se crea.
+  let base = presupuesto;
+  if (!base.some(p => p.concepto === nombre)) {
+    base = [...base, { categoria: _categoriaDeConcepto(nombre), concepto: nombre, montoEstimado: 0, ingresoEstimado: 0, icono: "", archivado: false }];
   }
-  guardarTodaProyeccion();
-}
-
-async function unificarConceptos(alias, canonico) {
-  const pa = presupuesto.find(p => p.concepto === alias);
-  const pc = presupuesto.find(p => p.concepto === canonico);
-  if (!pa || !pc || alias === canonico) return;
-
   const original = presupuesto;
-  const nueva = presupuesto.map(p => {
-    if (p.concepto === alias) return { ...p, aliasDe: canonico, montoEstimado: 0, ingresoEstimado: 0 };
-    if (p.aliasDe === alias) return { ...p, aliasDe: canonico };   // los que apuntaban al alias, ahora al que se queda
-    if (p.concepto === canonico) {
-      return { ...p, montoEstimado: p.montoEstimado || pa.montoEstimado, ingresoEstimado: p.ingresoEstimado || pa.ingresoEstimado };
-    }
-    return p;
-  });
+  const nueva = base.map(p => p.concepto === nombre ? { ...p, archivado: true } : p);
 
-  const btn = document.getElementById("btn-confirmar-unificar");
-  btn.disabled = true; btn.textContent = "Unificando…";
+  const btn = document.getElementById("btn-confirmar-archivar");
+  btn.disabled = true; btn.textContent = "Archivando…";
   try {
     await Sheets.guardarPresupuesto(nueva);
   } catch (err) {
     presupuesto = original;
-    alert("No se pudo unificar: " + err.message);
-    btn.textContent = "Unificar";
-    _renderUnificar();
+    alert("No se pudo archivar: " + err.message);
+    btn.textContent = "Archivar";
+    _renderArchivar();
     return;
   }
   presupuesto = nueva;
-  for (const lista of [GASTOS_FIJOS, GASTOS_VARIABLES, FUENTES_INGRESO]) {
-    const i = lista.indexOf(alias);
-    if (i !== -1) lista.splice(i, 1);
-  }
-  _fusionarAliasEnMeses(alias, canonico);
-  btn.textContent = "Unificar";
-  cerrarModalUnificar();
+  sincronizarListasConceptos();   // lo saca de las listas
+  btn.textContent = "Archivar";
+  cerrarModalArchivar();
   renderProyeccion();
   if (typeof renderMovimientos === "function") renderMovimientos();
-  SyncManager.mostrarToast(`✅ «${alias}» ahora cuenta como «${canonico}»`);
+  SyncManager.mostrarToast(`📦 «${nombre}» archivado`);
 }
 
-async function separarConcepto(alias) {
+async function restaurarConcepto(nombre) {
   const original = presupuesto;
-  const nueva = presupuesto.map(p => p.concepto === alias ? { ...p, aliasDe: "" } : p);
+  const nueva = presupuesto.map(p => p.concepto === nombre ? { ...p, archivado: false } : p);
   try {
     await Sheets.guardarPresupuesto(nueva);
   } catch (err) {
     presupuesto = original;
-    alert("No se pudo separar: " + err.message);
+    alert("No se pudo restaurar: " + err.message);
     return;
   }
   presupuesto = nueva;
   sincronizarListasConceptos();   // vuelve a las listas
-  _llenarSelectsUnificar();
-  _renderUnificar();
+  _llenarSelectArchivar();
+  _renderArchivar();
   renderProyeccion();
-  SyncManager.mostrarToast(`↩️ «${alias}» volvió a ser un concepto aparte`);
+  SyncManager.mostrarToast(`↩️ «${nombre}» restaurado`);
 }
 
 // Saca un gasto SOLO del mes activo: el concepto sigue existiendo y se puede
@@ -4958,14 +4934,11 @@ async function eliminarConceptoPresupuesto(concepto, categoria) {
   if (!confirm(`¿Eliminar "${concepto}" del presupuesto?\n\nLos movimientos ya registrados con este concepto no se borran.`)) return;
 
   const listaOriginal = presupuesto;
-  // Los alias que apuntaban a este concepto vuelven a ser conceptos normales.
-  const nuevaLista = presupuesto.filter(p => p.concepto !== concepto)
-    .map(p => p.aliasDe === concepto ? { ...p, aliasDe: "" } : p);
+  const nuevaLista = presupuesto.filter(p => p.concepto !== concepto);
 
   try {
     await Sheets.guardarPresupuesto(nuevaLista);
     presupuesto = nuevaLista;
-    sincronizarListasConceptos();
     if (categoria === "Gasto fijo") {
       const i = GASTOS_FIJOS.indexOf(concepto);
       if (i !== -1) GASTOS_FIJOS.splice(i, 1);
@@ -4996,14 +4969,13 @@ function setupProyeccionListeners() {
     if (e.target === document.getElementById("modal-presupuesto")) cerrarModalPresupuesto();
   });
 
-  document.getElementById("unificar-alias")?.addEventListener("change", _renderUnificar);
-  document.getElementById("unificar-canonico")?.addEventListener("change", _renderUnificar);
-  document.getElementById("btn-cerrar-unificar")?.addEventListener("click", cerrarModalUnificar);
-  document.getElementById("btn-confirmar-unificar")?.addEventListener("click", () =>
-    unificarConceptos(document.getElementById("unificar-alias").value, document.getElementById("unificar-canonico").value));
-  document.getElementById("unificar-existentes")?.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-separar-concepto]");
-    if (b) separarConcepto(b.dataset.separarConcepto);
+  document.getElementById("archivar-concepto")?.addEventListener("change", _renderArchivar);
+  document.getElementById("btn-cerrar-archivar")?.addEventListener("click", cerrarModalArchivar);
+  document.getElementById("btn-confirmar-archivar")?.addEventListener("click", () =>
+    archivarConcepto(document.getElementById("archivar-concepto").value));
+  document.getElementById("archivar-existentes")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-restaurar-concepto]");
+    if (b) restaurarConcepto(b.dataset.restaurarConcepto);
   });
   document.getElementById("btn-cancelar-nuevo-concepto")
     ?.addEventListener("click", cerrarModalNuevoConcepto);
@@ -5237,7 +5209,7 @@ function renderResumen() {
     const alertas = [];
 
     const pagadosEsteMes = new Set(
-      movsDelMes.filter(m => m.categoria === "Gasto fijo").map(m => conceptoCanonico(m.concepto))
+      movsDelMes.filter(m => m.categoria === "Gasto fijo").map(m => m.concepto)
     );
     const fijosFaltantes = GASTOS_FIJOS.filter(f => !pagadosEsteMes.has(f));
     if (fijosFaltantes.length > 0) {
