@@ -1247,6 +1247,12 @@ function _terminarArrastreVolver(confirmar) {
   });
 }
 
+// Botón de flecha de la franja inferior: lo mismo que el gesto de volver (primero cierra lo que
+// esté abierto, un nivel hacia atrás; si no hay nada, vuelve a Inicio con la transición).
+window.volverAtras = function () {
+  if (!cerrarPantallaActual()) volverAInicio();
+};
+
 // Camino sin dedo (tests, o un barrido sin movimientos intermedios): el
 // mismo movimiento, pero animado de principio a fin.
 function volverAInicio() {

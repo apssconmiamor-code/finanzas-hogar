@@ -137,3 +137,46 @@ test('Sumar movimientos: la franja muestra "Listo" y el total, y ya no hay barra
   await barra.locator('#btn-movimientos-listo').click();
   await expect(barra.locator('#btn-menu-movimientos')).toBeVisible();
 });
+
+// ---- Flecha de volver (a la izquierda de la franja) ----
+
+test("todas las vistas, menos Inicio, tienen la flecha de volver a la izquierda del menú ⋯", async ({ page }) => {
+  for (const vista of VISTAS) {
+    await irATab(page, vista);
+    const flecha = page.locator(`.barra-inferior[data-barra="${vista}"] #btn-volver-franja`);
+    if (vista === "cajas") {
+      await expect(flecha).toHaveCount(0);     // Inicio es a donde se vuelve
+      continue;
+    }
+    await expect(flecha).toBeVisible();
+    const f = await flecha.boundingBox();
+    const m = await page.locator(`#btn-menu-${vista}`).boundingBox();
+    expect(f.x + f.width).toBeLessThan(m.x);    // a la izquierda del ⋯
+    expect(Math.abs(f.width - f.height)).toBeLessThan(1);   // redonda
+  }
+});
+
+test("la flecha lleva a Inicio, como el gesto de volver", async ({ page }) => {
+  for (const vista of ["movimientos", "proyeccion", "mercado", "resumen"]) {
+    await irATab(page, vista);
+    await page.locator(".barra-inferior #btn-volver-franja").click();
+    await expect(page.locator("#tab-cajas")).toBeVisible();
+    await expect(page.locator(".barra-inferior[data-barra=\"cajas\"]")).toBeVisible();
+    await expect(page.locator(`#tab-${vista}`)).toBeHidden();
+  }
+});
+
+test("la flecha vuelve un nivel a la vez, igual que el gesto: primero cierra el detalle y luego va a Inicio", async ({ page }) => {
+  await irATab(page, "notificaciones");
+  await page.locator(".alerta-bloque-card", { hasText: "Activos" }).click();
+  expect(await page.evaluate(() => !!bloqueAlertaAbierto)).toBe(true);
+
+  // Primer toque: cierra el detalle y se queda en Alertas.
+  await page.locator(".barra-inferior #btn-volver-franja").click();
+  await expect.poll(() => page.evaluate(() => !!bloqueAlertaAbierto)).toBe(false);
+  await expect(page.locator("#tab-notificaciones")).toBeVisible();
+
+  // Segundo toque: ya no hay nada abierto, va a Inicio.
+  await page.locator(".barra-inferior #btn-volver-franja").click();
+  await expect(page.locator("#tab-cajas")).toBeVisible();
+});

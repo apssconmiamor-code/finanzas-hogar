@@ -1,5 +1,6 @@
 import { BarraInferior } from "../shared/BarraInferior.jsx";
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
+import { BotonVolver } from "../shared/BotonVolver.jsx";
 
 // Franja inferior (menú ⋯) de las vistas que todavía son JS plano: Movimientos,
 // Compromisos, Alertas, Mercado, Planes y Análisis. Inicio y Proyección tienen la suya
@@ -39,7 +40,7 @@ function Franja({ vista, acciones, estado, hayBoton, pulsar, etiquetaDe, irAInic
 
   return (
     <BarraInferior tab={vista}>
-      <div className="barra-lado barra-lado-izq" />
+      <div className="barra-lado barra-lado-izq"><BotonVolver /></div>
       <div className="barra-centro">
         {suma?.activo
           ? <button type="button" className="btn-sumar-cajas active" id={"btn-" + vista + "-listo"}

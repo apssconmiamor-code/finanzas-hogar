@@ -848,6 +848,15 @@ input, select, textarea, table {
 .barra-lado { min-width: 0; display: flex; align-items: center; }
 .barra-lado-der { justify-content: flex-end; text-align: right; }
 .barra-centro { display: flex; align-items: center; justify-content: center; }
+/* Flecha de volver, a la izquierda de la franja: círculo discreto, más liviano que el ⋯ central. */
+.btn-volver-franja {
+  width: 44px; height: 44px; padding: 0; border-radius: 50%; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-3);
+  -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, transform .15s;
+}
+.btn-volver-franja:hover { color: var(--brand); border-color: var(--brand); }
+.btn-volver-franja:active { transform: scale(0.94); background: var(--brand-soft); }
 /* El botón ⋯ de la franja es un círculo. */
 .barra-inferior .cajas-menu-btn {
   width: 48px; height: 48px; padding: 0; border-radius: 50%;

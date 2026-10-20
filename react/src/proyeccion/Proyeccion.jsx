@@ -1,5 +1,6 @@
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
 import { BarraInferior } from "../shared/BarraInferior.jsx";
+import { BotonVolver } from "../shared/BotonVolver.jsx";
 
 // Franja inferior de Proyección. Lo demás (tarjetas de meses, tabla de detalle)
 // sigue siendo JS plano en app.js; esto solo reemplaza los botones sueltos por
@@ -25,7 +26,7 @@ export function ProyeccionBarra({
   ];
   return (
     <BarraInferior tab="proyeccion">
-      <div className="barra-lado barra-lado-izq" />
+      <div className="barra-lado barra-lado-izq"><BotonVolver /></div>
       <div className="barra-centro">
         {modoSuma
           ? <button type="button" className="btn-sumar-cajas active" id="btn-sumar-proy-listo"
