@@ -20,6 +20,7 @@ const TRAZOS = {
   salir: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>,
   cerrar: <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>,
   nota: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /><path d="M8 13h8" /><path d="M8 17h5" /></>,
+  intercambiar: <><path d="m17 3 4 4-4 4" /><path d="M21 7H8" /><path d="m7 21-4-4 4-4" /><path d="M3 17h13" /></>,
   flecha: <><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></>,
   ingreso: <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>,
   gasto: <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>,

@@ -20,13 +20,18 @@ async function elegirCajaAccion(page, nombre) {
   await page.locator('#config-accion-cajas .accion-caja-chip', { hasText: nombre }).click();
 }
 
-// Transferencia: origen y destino son chips (se puede elegir más de uno de cada lado).
-async function elegirOrigen(page, nombre) {
-  await page.locator('#config-accion-origenes .accion-caja-chip', { hasText: nombre }).click();
+// Transferencia: una sola lista de cajas; la primera que se toca sale, la segunda llega.
+async function elegirCajaTransferencia(page, nombre) {
+  await page.locator('#config-accion-transf-cajas .accion-caja-chip', { hasText: nombre }).click();
 }
-async function elegirDestino(page, nombre) {
-  await page.locator('#config-accion-destinos .accion-caja-chip', { hasText: nombre }).click();
-}
+
+// Acción con varias cajas por lado: ya no se puede crear desde la pantalla, pero las guardadas
+// así (formato anterior) siguen funcionando.
+const accionVarias = [{
+  nombre: 'Ahorrar', icono: '🔁', categoria: 'Transferencia',
+  cajasOrigen: ['Efectivo', 'Nequi'], cajasDestino: ['Ahorros', 'Emergencia'],
+  cajaOrigen: 'Efectivo', cajaDestino: 'Ahorros',
+}];
 
 test.describe('Acciones rápidas (botón flotante)', () => {
   test.beforeEach(async ({ page }) => {
@@ -100,8 +105,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#config-accion-concepto-wrap')).toBeHidden();
     await expect(page.locator('#config-accion-cajas-wrap')).toBeHidden();
     await expect(page.locator('#config-accion-transferencia-wrap')).toBeVisible();
-    await elegirOrigen(page, 'Efectivo');
-    await elegirDestino(page, 'Ahorros');
+    await elegirCajaTransferencia(page, 'Efectivo');
+    await elegirCajaTransferencia(page, 'Ahorros');
     await page.locator('#btn-guardar-config-accion').click();
 
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
@@ -113,8 +118,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-usar-accion')).toBeVisible();
     await expect(page.locator('#usar-accion-caja-wrap')).toBeHidden();
     await expect(page.locator('#usar-accion-transferencia-info')).toBeVisible();
-    await expect(page.locator('#usar-accion-transferencia-origen')).toHaveText('Efectivo');
-    await expect(page.locator('#usar-accion-transferencia-destino')).toHaveText('Ahorros');
+    await expect(page.locator('#usar-accion-transferencia-origen-elegido')).toHaveText('Efectivo');
+    await expect(page.locator('#usar-accion-transferencia-destino-elegido')).toHaveText('Ahorros');
     await expect(page.locator('#usar-accion-tipo-cambio-wrap')).toBeHidden();
     await page.locator('#usar-accion-monto').fill('50000');
     await page.locator('#btn-guardar-usar-accion').click();
@@ -144,8 +149,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Cambio de dólares');
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
-    await elegirOrigen(page, 'Cuenta USD');
-    await elegirDestino(page, 'Efectivo COP');
+    await elegirCajaTransferencia(page, 'Cuenta USD');
+    await elegirCajaTransferencia(page, 'Efectivo COP');
     await page.locator('#btn-guardar-config-accion').click();
 
     await page.locator('.accion-rapida-card[data-slot="0"]').click();
@@ -342,7 +347,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     expect(textos.some(t => t.includes('Nequi de otra persona'))).toBe(false);
   });
 
-  test('Transferencia rápida: origen/destino muestran TODAS las cajas, incluidas las restringidas a otra persona', async ({ page }) => {
+  test('Transferencia rápida: la lista de cajas muestra TODAS las cajas, incluidas las restringidas a otra persona', async ({ page }) => {
     await mockGoogleApis(page, {
       Cajas: [
         ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
@@ -361,10 +366,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
 
-    const opcionesOrigen = await page.locator('#config-accion-origenes .accion-caja-chip').allTextContents();
-    const opcionesDestino = await page.locator('#config-accion-destinos .accion-caja-chip').allTextContents();
-    expect(opcionesOrigen.some(t => t.includes('Nequi de otra persona'))).toBe(true);
-    expect(opcionesDestino.some(t => t.includes('Nequi de otra persona'))).toBe(true);
+    const opciones = await page.locator('#config-accion-transf-cajas .accion-caja-chip').allTextContents();
+    expect(opciones.some(t => t.includes('Nequi de otra persona'))).toBe(true);
   });
 
   test('una caja nueva llamada "Luni ..." o "Choco ..." se completa sola con quién puede manejarla', async ({ page }) => {
@@ -521,31 +524,13 @@ test.describe('Acciones rápidas (botón flotante)', () => {
         ['C3', 'prueba@example.com', 'Ahorros', 'COP'],
         ['C4', 'prueba@example.com', 'Emergencia', 'COP'],
       ],
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'acciones_rapidas', JSON.stringify(accionVarias)]],
     });
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
 
     await page.locator('#fab-recordatorio').click();
-    await page.locator('#btn-agregar-accion').click();
-    await page.locator('#config-accion-nombre').fill('Ahorrar');
-    await page.locator('#config-accion-categoria').selectOption('Transferencia');
-    // Dos orígenes y dos destinos.
-    await elegirOrigen(page, 'Efectivo');
-    await elegirOrigen(page, 'Nequi');
-    await elegirDestino(page, 'Ahorros');
-    await elegirDestino(page, 'Emergencia');
-    await expect(page.locator('#config-accion-origenes .accion-caja-chip.active')).toHaveCount(2);
-    await expect(page.locator('#config-accion-destinos .accion-caja-chip.active')).toHaveCount(2);
-    await page.locator('#btn-guardar-config-accion').click();
-
-    // Quedó guardada con las listas (y la primera de cada una, para versiones anteriores).
-    const guardada = await page.evaluate(() => obtenerAccionesRapidas()[0]);
-    expect(guardada.cajasOrigen).toEqual(['Efectivo', 'Nequi']);
-    expect(guardada.cajasDestino).toEqual(['Ahorros', 'Emergencia']);
-    expect(guardada.cajaOrigen).toBe('Efectivo');
-    expect(guardada.cajaDestino).toBe('Ahorros');
-
     // Al usarla se elige de cuál sale y a cuál llega.
     await page.locator('.accion-rapida-card[data-slot="0"]').click();
     await expect(page.locator('#usar-accion-origen-opciones .accion-caja-chip')).toHaveCount(2);
@@ -585,22 +570,13 @@ test.describe('Acciones rápidas (botón flotante)', () => {
         ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
         ['C2', 'prueba@example.com', 'Nequi', 'COP'],
       ],
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'acciones_rapidas', JSON.stringify([{ nombre: 'Entre cuentas', icono: '🔁', categoria: 'Transferencia', cajasOrigen: ['Efectivo', 'Nequi'], cajasDestino: ['Efectivo', 'Nequi'], cajaOrigen: 'Efectivo', cajaDestino: 'Efectivo' }])]],
     });
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
     await esperarAppLista(page);
 
     await page.locator('#fab-recordatorio').click();
-    await page.locator('#btn-agregar-accion').click();
-    await page.locator('#config-accion-nombre').fill('Entre cuentas');
-    await page.locator('#config-accion-categoria').selectOption('Transferencia');
-    // Las dos cajas valen tanto de origen como de destino.
-    await elegirOrigen(page, 'Efectivo');
-    await elegirOrigen(page, 'Nequi');
-    await elegirDestino(page, 'Efectivo');
-    await elegirDestino(page, 'Nequi');
-    await page.locator('#btn-guardar-config-accion').click();
-
     await page.locator('.accion-rapida-card[data-slot="0"]').click();
     await page.locator('#usar-accion-monto').fill('1000');
     await page.locator('#usar-accion-origen-opciones .accion-caja-chip', { hasText: 'Efectivo' }).click();
@@ -612,7 +588,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-usar-accion')).toBeVisible();
   });
 
-  test('al configurar una transferencia hay que elegir al menos una caja de origen y una de destino', async ({ page }) => {
+  test('al configurar una transferencia hay que elegir las dos cajas', async ({ page }) => {
     await mockGoogleApis(page, {
       Cajas: [
         ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
@@ -627,11 +603,11 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Incompleta');
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
-    await elegirOrigen(page, 'Efectivo');            // falta el destino
+    await elegirCajaTransferencia(page, 'Efectivo');            // falta la segunda
     let aviso = null;
     page.once('dialog', d => { aviso = d.message(); d.accept(); });
     await page.locator('#btn-guardar-config-accion').click();
-    await expect.poll(() => aviso).toContain('al menos una caja de origen y una de destino');
+    await expect.poll(() => aviso).toContain('elige las dos cajas');
     await expect(page.locator('#modal-config-accion')).toBeVisible();
   });
 
@@ -653,8 +629,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     // Una sola de cada lado: no se pregunta nada, solo se muestran de referencia.
     await expect(page.locator('#usar-accion-origen-opciones')).toHaveCount(0);
     await expect(page.locator('#usar-accion-destino-opciones')).toHaveCount(0);
-    await expect(page.locator('#usar-accion-transferencia-origen')).toHaveText('Efectivo');
-    await expect(page.locator('#usar-accion-transferencia-destino')).toHaveText('Ahorros');
+    await expect(page.locator('#usar-accion-transferencia-origen-elegido')).toHaveText('Efectivo');
+    await expect(page.locator('#usar-accion-transferencia-destino-elegido')).toHaveText('Ahorros');
     await page.locator('#usar-accion-monto').fill('2000');
     await page.locator('#btn-guardar-usar-accion').click();
     await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
@@ -670,8 +646,60 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.waitForTimeout(650);
     await page.mouse.up();
     await expect(page.locator('#modal-config-accion')).toBeVisible();
-    await expect(page.locator('#config-accion-origenes .accion-caja-chip.active')).toHaveText('Efectivo');
-    await expect(page.locator('#config-accion-destinos .accion-caja-chip.active')).toHaveText('Ahorros');
+    await expect(page.locator('#config-accion-origen-elegido')).toHaveText('Efectivo');
+    await expect(page.locator('#config-accion-destino-elegido')).toHaveText('Ahorros');
+  });
+
+  test('transferencia: se eligen dos cajas de una sola lista y un botón intercambia cuál sale y cuál llega', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [
+        ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+        ['C2', 'prueba@example.com', 'Nequi', 'COP'],
+        ['C3', 'prueba@example.com', 'Ahorros', 'COP'],
+      ],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+
+    await page.locator('#fab-recordatorio').click();
+    await page.locator('#btn-agregar-accion').click();
+    await page.locator('#config-accion-nombre').fill('Ahorrar');
+    await page.locator('#config-accion-categoria').selectOption('Transferencia');
+    // Una sola lista de cajas (no dos columnas).
+    await expect(page.locator('#config-accion-origenes')).toHaveCount(0);
+    await expect(page.locator('#config-accion-transf-cajas .accion-caja-chip')).toHaveCount(3);
+
+    await expect(page.locator('#config-accion-intercambiar')).toBeDisabled();
+    await elegirCajaTransferencia(page, 'Efectivo');
+    await elegirCajaTransferencia(page, 'Ahorros');
+    await expect(page.locator('#config-accion-origen-elegido')).toHaveText('Efectivo');
+    await expect(page.locator('#config-accion-destino-elegido')).toHaveText('Ahorros');
+
+    // Quedaron al revés: se intercambian.
+    await page.locator('#config-accion-intercambiar').click();
+    await expect(page.locator('#config-accion-origen-elegido')).toHaveText('Ahorros');
+    await expect(page.locator('#config-accion-destino-elegido')).toHaveText('Efectivo');
+
+    await page.locator('#btn-guardar-config-accion').click();
+    const guardada = await page.evaluate(() => obtenerAccionesRapidas()[0]);
+    expect(guardada.cajasOrigen).toEqual(['Ahorros']);
+    expect(guardada.cajasDestino).toEqual(['Efectivo']);
+    expect(guardada.cajaOrigen).toBe('Ahorros');
+    expect(guardada.cajaDestino).toBe('Efectivo');
+
+    // Al usarla también se puede intercambiar, y el movimiento sale de la caja correcta.
+    await page.locator('.accion-rapida-card[data-slot="0"]').click();
+    await expect(page.locator('#usar-accion-transferencia-origen-elegido')).toHaveText('Ahorros');
+    await page.locator('#usar-accion-transferencia-intercambiar').click();
+    await expect(page.locator('#usar-accion-transferencia-origen-elegido')).toHaveText('Efectivo');
+    await page.locator('#usar-accion-monto').fill('5000');
+    await page.locator('#btn-guardar-usar-accion').click();
+    await expect(page.locator('#modal-usar-accion')).toBeHidden({ timeout: 10000 });
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    const salida = movs.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo');
+    expect(salida).toBeDefined();
+    expect(salida.concepto).toBe('Transferencia → Ahorros');   // salió de Efectivo y llegó a Ahorros
   });
 
   test('el gesto de volver cierra las ventanas de acciones rápidas', async ({ page }) => {
