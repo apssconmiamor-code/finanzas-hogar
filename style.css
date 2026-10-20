@@ -828,6 +828,100 @@ input, select, textarea, table {
 #btn-nueva-categoria-mercado, #btn-whatsapp-mercado, #btn-nuevo-producto-mercado-categoria, #btn-compra-realizada-mercado,
 #btn-nueva-categoria-plan, #btn-nuevo-plan-bloque { display: none !important; }
 
+/* ═══════════════ HOJAS (ventanas de agregar/editar) ═══════════════
+   Diseño común de las ventanas nuevas (ver react/src/shared/Hoja.jsx): hoja inferior con
+   esquinas muy redondeadas, asa, encabezado con ícono + título + cerrar, campos redondeados
+   DOS por fila y botones tipo píldora. */
+.modal-hoja { align-items: flex-end; }
+.hoja {
+  position: relative; width: 100%; max-width: 560px; box-sizing: border-box;
+  max-height: 92vh; max-height: 92dvh; overflow-y: auto; overflow-x: hidden;
+  background: var(--surface); border-radius: 28px 28px 0 0;
+  padding: 10px 20px max(24px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 -10px 40px rgba(2,32,48,.18);
+  animation: hojaSube .26s cubic-bezier(.32,.72,0,1);
+}
+.hoja-alta { min-height: 62vh; min-height: 62dvh; }
+@keyframes hojaSube { from { transform: translateY(70px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.hoja-asa { width: 40px; height: 5px; border-radius: 3px; background: var(--border-mid); margin: 0 auto 2px; flex-shrink: 0; }
+.hoja-encabezado { display: flex; align-items: center; gap: 12px; }
+.hoja-icono {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-soft); color: var(--brand); font-size: 22px; line-height: 1;
+}
+.hoja-titulos { flex: 1; min-width: 0; }
+.hoja-titulo { margin: 0; font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
+.hoja-subtitulo { margin: 2px 0 0; font-size: 12.5px; line-height: 1.35; color: var(--text-3); }
+.hoja-cerrar {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-3); -webkit-tap-highlight-color: transparent;
+}
+.hoja-cerrar:active { background: var(--bg-hover); }
+.hoja-cuerpo { display: flex; flex-direction: column; gap: 14px; }
+.hoja-pie { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
+
+/* Campos: dos por fila; .campo-completo ocupa las dos columnas */
+.hoja-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.campo-completo { grid-column: 1 / -1; }
+.campo-etiqueta { font-size: 12px; font-weight: 700; letter-spacing: .2px; color: var(--text-3); }
+.hoja .input {
+  background: var(--bg); border: 1.5px solid transparent; border-radius: 14px;
+  padding: 13px 14px; font-size: 15px; min-width: 0;
+}
+.hoja .input:focus { border-color: var(--brand); background: var(--surface); box-shadow: 0 0 0 4px rgba(var(--brand-rgb), .12); }
+.hoja select.input { appearance: none; -webkit-appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%); background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+
+/* Botones de la hoja: píldoras */
+.hoja .btn-primary, .hoja .btn-secondary {
+  height: 48px; border-radius: 999px; padding: 0 18px; font-size: 15px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
+.hoja .btn-primary { box-shadow: 0 6px 16px rgba(var(--brand-rgb), .30); }
+.hoja .btn-primary:disabled { opacity: .6; box-shadow: none; }
+.hoja .btn-secondary { background: var(--bg); border: none; color: var(--text-2); }
+.hoja .btn-secondary:hover { background: var(--bg-hover); }
+.hoja .btn-peligro { color: var(--red); background: var(--red-soft); }
+
+/* Chips de cajas dentro de una hoja: píldoras */
+.hoja .accion-caja-chip { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-2); border-radius: 999px; padding: 9px 15px; border: 1.5px solid var(--border-mid); background: var(--surface); }
+.hoja .accion-caja-chip.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+
+.hoja-ayuda { font-size: 12px; color: var(--text-3); }
+
+/* Interruptor (checkbox estilo iOS: sigue siendo un <input type="checkbox">) */
+.interruptor {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer;
+  background: var(--bg); border-radius: 14px; padding: 11px 14px; min-width: 0;
+}
+.interruptor-texto { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.25; }
+.interruptor-control {
+  -webkit-appearance: none; appearance: none; flex-shrink: 0; position: relative; margin: 0; cursor: pointer;
+  width: 44px; height: 26px; border-radius: 999px; background: var(--border-mid); transition: background .18s;
+}
+.interruptor-control::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .18s;
+}
+.interruptor-control:checked { background: var(--brand); }
+.interruptor-control:checked::after { transform: translateX(18px); }
+
+/* Acciones rápidas dentro de una hoja: tarjetas redondeadas, dos por fila */
+.hoja .acciones-rapidas-grid { max-width: none; min-height: 0; align-content: start; gap: 12px; }
+.hoja .accion-rapida-card {
+  aspect-ratio: auto; min-height: 118px; border-radius: 22px; padding: 14px 10px;
+  border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.hoja .accion-rapida-card:active { transform: scale(.97); opacity: 1; }
+.hoja .accion-rapida-icono { font-size: 34px; filter: none; display: inline-flex; }
+.hoja .accion-rapida-nombre { text-align: center; line-height: 1.2; }
+.hoja .accion-rapida-vacia { border: 1.5px dashed var(--brand-light); background: var(--brand-soft); color: var(--brand); }
+.hoja .accion-rapida-vacia .accion-rapida-nombre { color: var(--brand); }
+.hoja .accion-rapida-icono-svg { color: var(--brand); }
+
 /* ═══════════════ FRANJA INFERIOR DE CADA VISTA ═══════════════
    Aloja el menú ⋯ de la vista (y, en Inicio, la versión). Vive dentro de
    .main-content como último hijo: sticky al fondo del área que se desplaza, así

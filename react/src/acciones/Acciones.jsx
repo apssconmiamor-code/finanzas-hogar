@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "../shared/Modal.jsx";
+import { Hoja, Cuadricula, Campo, Interruptor } from "../shared/Hoja.jsx";
+import { Icono } from "../shared/Iconos.jsx";
 import { cajasDeAccion, origenesDeAccion, destinosDeAccion } from "./modelo.js";
 
-// Acciones rápidas (antes en recordatorios.js, a mano sobre el DOM): movimientos
-// preconfigurados que solo piden el monto al usarse. Tres ventanas -- el menú
-// (cuadrícula de acciones), usar una acción y configurarla -- con los mismos ids y
-// clases de siempre (style.css y los tests E2E no cambian).
+// Acciones rápidas: movimientos preconfigurados que solo piden el monto al usarse. Tres hojas
+// -- el menú (cuadrícula de acciones), usar una acción y configurarla -- con el diseño común de
+// hojas (ver shared/Hoja.jsx) y los mismos ids de siempre (los tests E2E no cambian).
 //
-// app.js / recordatorios.js siguen siendo dueños de los datos y de hablar con
-// Sheets; acá solo se dibuja y se maneja el estado de las ventanas.
+// app.js / recordatorios.js siguen siendo dueños de los datos y de hablar con Sheets; acá solo
+// se dibuja y se maneja el estado de las ventanas.
 //
 // Props (ver renderAccionesReact en recordatorios.js):
 //   acciones[]              lista guardada del usuario
@@ -76,7 +76,10 @@ function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, a
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Modal id="modal-menu-acciones" claseTarjeta="modal-card-fullscreen" onCerrar={alCerrar}>
+    <Hoja id="modal-menu-acciones" alta titulo="Nuevo movimiento"
+      icono={<Icono nombre="rayo" size={22} />}
+      subtitulo="Toca una acción para usarla · mantenla presionada para editarla o moverla"
+      onCerrar={alCerrar}>
       <div id="acciones-rapidas-grid" className="acciones-rapidas-grid" ref={gridRef}>
         {acciones.map((accion, i) => {
           // Logo de la entidad de la caja (Nequi/Bancolombia/...) junto al ícono elegido,
@@ -95,17 +98,17 @@ function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, a
           );
         })}
         <button className="accion-rapida-card" id="accion-recordatorio" onClick={alRecordatorio}>
-          <span className="accion-rapida-icono">📝</span>
+          <span className="accion-rapida-icono accion-rapida-icono-svg"><Icono nombre="nota" size={32} /></span>
           <span className="accion-rapida-nombre">Recordatorio</span>
         </button>
         {/* "Agregar" siempre al final: de nada sirve como referencia fija si las
             acciones ya configuradas lo van corriendo (pedido explícito). */}
         <button className="accion-rapida-card accion-rapida-vacia" id="btn-agregar-accion" onClick={() => alConfigurar(-1)}>
-          <span className="accion-rapida-icono">➕</span>
+          <span className="accion-rapida-icono accion-rapida-icono-svg"><Icono nombre="sumar" size={32} /></span>
           <span className="accion-rapida-nombre">Agregar</span>
         </button>
       </div>
-    </Modal>
+    </Hoja>
   );
 }
 
@@ -209,80 +212,75 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
   }
 
   return (
-    <Modal id="modal-config-accion" estiloTarjeta={{ maxWidth: 420 }} onCerrar={alVolver}>
-      <h3 className="modal-title">Configurar acción rápida</h3>
-      <div className="form-group">
-        <input id="config-accion-nombre" type="text" placeholder="Nombre (ej: Mercado)" className="input"
-          value={nombre} onChange={e => setNombre(e.target.value)} />
-      </div>
-      <div className="form-group">
-        <input id="config-accion-icono" type="text" placeholder="Ícono (ej: 🛒)" className="input" maxLength={4}
-          value={icono} onChange={e => setIcono(e.target.value)} />
-      </div>
-      <div className="form-group">
-        <select id="config-accion-categoria" className="input" value={categoria}
-          onChange={e => { setCategoria(e.target.value); setConceptoElegido(""); }}>
-          <option value="Gasto fijo">📌 Gasto fijo</option>
-          <option value="Gasto variable">🔀 Gasto variable</option>
-          <option value="Ingreso">💰 Ingreso</option>
-          <option value="Transferencia">🔁 Transferencia</option>
-        </select>
-      </div>
-
-      {!esTransferencia && (
+    <Hoja id="modal-config-accion" icono={<Icono nombre="rayo" size={22} />}
+      titulo={slot >= 0 ? "Editar acción rápida" : "Nueva acción rápida"}
+      subtitulo="Un movimiento ya armado: al usarla solo se pide el monto"
+      onCerrar={alVolver}
+      pie={
         <>
-          <div className="form-group" id="config-accion-concepto-wrap">
+          {slot >= 0 && <button className="btn-secondary btn-peligro" id="btn-borrar-accion" onClick={borrar}>Borrar</button>}
+          <button className="btn-secondary" id="btn-cancelar-config-accion" onClick={alVolver}>Cancelar</button>
+          <button className="btn-primary" id="btn-guardar-config-accion" onClick={guardar} disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar"}
+          </button>
+        </>
+      }>
+      <Cuadricula>
+        <Campo etiqueta="Nombre">
+          <input id="config-accion-nombre" type="text" placeholder="Ej: Mercado" className="input"
+            value={nombre} onChange={e => setNombre(e.target.value)} />
+        </Campo>
+        <Campo etiqueta="Ícono">
+          <input id="config-accion-icono" type="text" placeholder="Ej: 🛒" className="input" maxLength={4}
+            value={icono} onChange={e => setIcono(e.target.value)} />
+        </Campo>
+
+        <Campo etiqueta="Categoría" completo={esTransferencia}>
+          <select id="config-accion-categoria" className="input" value={categoria}
+            onChange={e => { setCategoria(e.target.value); setConceptoElegido(""); }}>
+            <option value="Gasto fijo">📌 Gasto fijo</option>
+            <option value="Gasto variable">🔀 Gasto variable</option>
+            <option value="Ingreso">💰 Ingreso</option>
+            <option value="Transferencia">🔁 Transferencia</option>
+          </select>
+        </Campo>
+        {!esTransferencia && (
+          <Campo etiqueta="Concepto" id="config-accion-concepto-wrap">
             <select id="config-accion-concepto" className="input" value={concepto}
               onChange={e => setConceptoElegido(e.target.value)}>
               {conceptos.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-          </div>
-          <div className="form-group" id="config-accion-cajas-wrap">
-            <label>Caja(s) -- si eliges más de una, se elige entre esas al usar la acción</label>
+          </Campo>
+        )}
+
+        {!esTransferencia && (
+          <Campo etiqueta="Caja(s) — si eliges más de una, se elige entre ellas al usar la acción" completo id="config-accion-cajas-wrap">
             <Chips id="config-accion-cajas" nombres={nombresVisibles} activos={cajasSel}
               alAlternar={n => setCajasSel(s => alternarEnSet(s, n))} />
-          </div>
-        </>
-      )}
+          </Campo>
+        )}
 
-      {esTransferencia && (
-        <div className="form-group" id="config-accion-transferencia-wrap">
-          <label>Cajas -- puedes elegir más de una de origen y de destino; al usar la acción se elige entre ellas (con una sola de cada lado ya no se pregunta nada, solo el monto)</label>
-          <div className="form-group">
-            <label>Origen <span className="label-origen">(resta)</span></label>
-            <Chips id="config-accion-origenes" nombres={nombresTodas} activos={origenes}
-              alAlternar={n => setOrigenes(s => alternarEnSet(s, n))} />
-          </div>
-          <div className="form-group">
-            <label>Destino <span className="label-destino">(suma)</span></label>
-            <Chips id="config-accion-destinos" nombres={nombresTodas} activos={destinos}
-              alAlternar={n => setDestinos(s => alternarEnSet(s, n))} />
-          </div>
-        </div>
-      )}
+        {esTransferencia && (
+          <Campo etiqueta="Cajas — puedes elegir varias de cada lado; con una sola por lado solo se pide el monto" completo id="config-accion-transferencia-wrap">
+            <Cuadricula>
+              <Campo etiqueta="Origen (resta)">
+                <Chips id="config-accion-origenes" nombres={nombresTodas} activos={origenes}
+                  alAlternar={n => setOrigenes(s => alternarEnSet(s, n))} />
+              </Campo>
+              <Campo etiqueta="Destino (suma)">
+                <Chips id="config-accion-destinos" nombres={nombresTodas} activos={destinos}
+                  alAlternar={n => setDestinos(s => alternarEnSet(s, n))} />
+              </Campo>
+            </Cuadricula>
+          </Campo>
+        )}
 
-      <div className="form-group">
-        <label className="config-accion-camara-label" htmlFor="config-accion-descripcion">
-          <input type="checkbox" id="config-accion-descripcion" checked={pedirDescripcion}
-            onChange={e => setPedirDescripcion(e.target.checked)} />
-          <span>Pedir descripción al usar esta acción</span>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="config-accion-camara-label" htmlFor="config-accion-camara">
-          <input type="checkbox" id="config-accion-camara" checked={camara}
-            onChange={e => setCamara(e.target.checked)} />
-          <span>Pedir foto con cámara al usar esta acción</span>
-        </label>
-      </div>
-      <div className="modal-actions">
-        {slot >= 0 && <button className="btn-secondary" id="btn-borrar-accion" onClick={borrar}>Borrar</button>}
-        <button className="btn-secondary" id="btn-cancelar-config-accion" onClick={alVolver}>Cancelar</button>
-        <button className="btn-primary" id="btn-guardar-config-accion" onClick={guardar} disabled={guardando}>
-          {guardando ? "Guardando..." : "Guardar"}
-        </button>
-      </div>
-    </Modal>
+        <Interruptor id="config-accion-descripcion" texto="Pedir descripción al usarla"
+          checked={pedirDescripcion} onChange={setPedirDescripcion} />
+        <Interruptor id="config-accion-camara" texto="Pedir foto con cámara al usarla"
+          checked={camara} onChange={setCamara} />
+      </Cuadricula>
+    </Hoja>
   );
 }
 
@@ -370,82 +368,85 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
   }
 
   const elegirUno = (setter) => (n) => setter(n);
+  const subtitulo = esTransferencia ? "Transferencia" : [accion.categoria, accion.concepto].filter(Boolean).join(" · ");
 
   return (
-    <Modal id="modal-usar-accion" estiloTarjeta={{ maxWidth: 400 }} onCerrar={alCerrar}>
-      <h3 className="modal-title" id="usar-accion-titulo">{`${accion.icono || "⚡"} ${accion.nombre}`}</h3>
+    <Hoja id="modal-usar-accion" idTitulo="usar-accion-titulo" titulo={accion.nombre}
+      icono={accion.icono || "⚡"} subtitulo={subtitulo} onCerrar={alCerrar}
+      pie={
+        <>
+          <button className="btn-secondary" id="btn-cancelar-usar-accion" onClick={alCerrar}>Cancelar</button>
+          <button className="btn-primary" id="btn-guardar-usar-accion" onClick={guardar} disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar"}
+          </button>
+        </>
+      }>
+      <Cuadricula>
+        {!esTransferencia && cajasAccion.length > 1 && (
+          <Campo etiqueta="¿Con qué caja?" completo id="usar-accion-caja-wrap">
+            <Chips id="usar-accion-caja-opciones" nombres={cajasAccion} activos={new Set(caja ? [caja] : [])}
+              alAlternar={elegirUno(setCaja)} />
+          </Campo>
+        )}
 
-      {!esTransferencia && cajasAccion.length > 1 && (
-        <div className="form-group" id="usar-accion-caja-wrap">
-          <label>¿Con qué caja?</label>
-          <Chips id="usar-accion-caja-opciones" nombres={cajasAccion} activos={new Set(caja ? [caja] : [])}
-            alAlternar={elegirUno(setCaja)} />
-        </div>
-      )}
+        {esTransferencia && (
+          <Campo completo id="usar-accion-transferencia-info">
+            <Cuadricula>
+              <Campo etiqueta="Sale de">
+                {origenes.length > 1
+                  ? <Chips id="usar-accion-origen-opciones" nombres={origenes} activos={new Set(origen ? [origen] : [])}
+                      alAlternar={elegirUno(setOrigen)} />
+                  : <span id="usar-accion-transferencia-origen" className="accion-transferencia-caja">{origenes[0]}</span>}
+              </Campo>
+              <Campo etiqueta="Llega a">
+                {destinos.length > 1
+                  ? <Chips id="usar-accion-destino-opciones" nombres={destinos} activos={new Set(destino ? [destino] : [])}
+                      alAlternar={elegirUno(setDestino)} />
+                  : <span id="usar-accion-transferencia-destino" className="accion-transferencia-caja">{destinos[0]}</span>}
+              </Campo>
+            </Cuadricula>
+          </Campo>
+        )}
 
-      {esTransferencia && (
-        <div className="form-group" id="usar-accion-transferencia-info">
-          <div className="transferencia-card">
-            <div className="transferencia-row">
-              {origenes.length > 1
-                ? <Chips id="usar-accion-origen-opciones" nombres={origenes} activos={new Set(origen ? [origen] : [])}
-                    alAlternar={elegirUno(setOrigen)} />
-                : <span id="usar-accion-transferencia-origen" className="accion-transferencia-caja">{origenes[0]}</span>}
-              <div className="transferencia-arrow">→</div>
-              {destinos.length > 1
-                ? <Chips id="usar-accion-destino-opciones" nombres={destinos} activos={new Set(destino ? [destino] : [])}
-                    alAlternar={elegirUno(setDestino)} />
-                : <span id="usar-accion-transferencia-destino" className="accion-transferencia-caja">{destinos[0]}</span>}
+        <Campo etiqueta="Monto" completo={!monedasDiferentes}>
+          <input id="usar-accion-monto" ref={montoRef} type="text" inputMode="decimal" placeholder="0 ó 4000+5000"
+            className="input" style={{ fontSize: 22, fontWeight: 700 }}
+            value={monto} onChange={e => setMonto(e.target.value)} />
+        </Campo>
+
+        {monedasDiferentes && (
+          <Campo etiqueta="Tipo de cambio" id="usar-accion-tipo-cambio-wrap">
+            <input id="usar-accion-tipo-cambio" type="number" inputMode="decimal" placeholder="Ej: 4200" className="input"
+              style={{ fontSize: 22, fontWeight: 700 }} value={tipoCambio} onChange={e => setTipoCambio(e.target.value)} />
+            <span className="hoja-ayuda">1 <span id="usar-accion-tc-moneda-origen">{monedaDe(origen)}</span> = ? <span id="usar-accion-tc-moneda-destino">{monedaDe(destino)}</span></span>
+          </Campo>
+        )}
+
+        {accion.pedirDescripcion && (
+          <Campo etiqueta="Descripción" completo id="usar-accion-descripcion-wrap">
+            <textarea id="usar-accion-descripcion" rows={2} placeholder="Detalle, notas…" className="input"
+              style={{ resize: "none", minHeight: 64, lineHeight: 1.4 }}
+              value={descripcion} onChange={e => setDescripcion(e.target.value)} />
+          </Campo>
+        )}
+
+        {accion.camara && (
+          <Campo etiqueta="Foto" completo id="usar-accion-camara-wrap">
+            <input id="usar-accion-camara-file" ref={archivoRef} type="file" accept="image/*" capture="environment"
+              style={{ display: "none" }} onChange={e => cargarFoto(e.target.files[0])} />
+            <button type="button" className="fotos-btn" id="btn-usar-accion-camara"
+              onClick={() => archivoRef.current?.click()}>📷 Cámara</button>
+            <div id="usar-accion-foto-preview" className="fotos-preview">
+              {foto && (
+                <div className="foto-thumb">
+                  <img src={foto.data} alt="foto adjunta" className="foto-thumb-img" />
+                  <button className="foto-thumb-remove" type="button" onClick={() => setFoto(null)}>×</button>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="form-group">
-        <input id="usar-accion-monto" ref={montoRef} type="text" inputMode="decimal" placeholder="Monto"
-          className="input" style={{ fontSize: 22, textAlign: "center" }}
-          value={monto} onChange={e => setMonto(e.target.value)} />
-      </div>
-
-      {monedasDiferentes && (
-        <div className="form-group" id="usar-accion-tipo-cambio-wrap">
-          <label>Tipo de cambio (1 <span id="usar-accion-tc-moneda-origen">{monedaDe(origen)}</span> = ? <span id="usar-accion-tc-moneda-destino">{monedaDe(destino)}</span>)</label>
-          <input id="usar-accion-tipo-cambio" type="number" inputMode="decimal" placeholder="Ej: 4200" className="input"
-            value={tipoCambio} onChange={e => setTipoCambio(e.target.value)} />
-        </div>
-      )}
-
-      {accion.pedirDescripcion && (
-        <div className="form-group" id="usar-accion-descripcion-wrap">
-          <textarea id="usar-accion-descripcion" rows={2} placeholder="Detalle, notas…" className="input"
-            style={{ resize: "none", minHeight: 60, fontSize: 15, lineHeight: 1.4 }}
-            value={descripcion} onChange={e => setDescripcion(e.target.value)} />
-        </div>
-      )}
-
-      {accion.camara && (
-        <div className="form-group" id="usar-accion-camara-wrap">
-          <input id="usar-accion-camara-file" ref={archivoRef} type="file" accept="image/*" capture="environment"
-            style={{ display: "none" }} onChange={e => cargarFoto(e.target.files[0])} />
-          <button type="button" className="fotos-btn" id="btn-usar-accion-camara"
-            onClick={() => archivoRef.current?.click()}>📷 Cámara</button>
-          <div id="usar-accion-foto-preview" className="fotos-preview">
-            {foto && (
-              <div className="foto-thumb">
-                <img src={foto.data} alt="foto adjunta" className="foto-thumb-img" />
-                <button className="foto-thumb-remove" type="button" onClick={() => setFoto(null)}>×</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="modal-actions">
-        <button className="btn-secondary" id="btn-cancelar-usar-accion" onClick={alCerrar}>Cancelar</button>
-        <button className="btn-primary" id="btn-guardar-usar-accion" onClick={guardar} disabled={guardando}>
-          {guardando ? "Guardando..." : "Guardar"}
-        </button>
-      </div>
-    </Modal>
+          </Campo>
+        )}
+      </Cuadricula>
+    </Hoja>
   );
 }

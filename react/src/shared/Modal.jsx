@@ -5,7 +5,8 @@ import { useEffect, useRef } from "react";
 //   - con el gesto de volver de la app: app.js (cerrarModal) le manda el evento
 //     "finanzas:cerrar" a cualquier .modal marcado con data-react="1".
 // Quien la usa decide qué significa cerrar (onCerrar).
-export function Modal({ id, claseTarjeta = "", estiloTarjeta, onCerrar, children }) {
+// variante="hoja": el diseño nuevo de hoja inferior redondeada (ver Hoja.jsx).
+export function Modal({ id, variante, claseTarjeta = "", estiloTarjeta, onCerrar, children }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -17,9 +18,9 @@ export function Modal({ id, claseTarjeta = "", estiloTarjeta, onCerrar, children
   }, [onCerrar]);
 
   return (
-    <div id={id} ref={ref} className="modal" data-react="1"
+    <div id={id} ref={ref} className={"modal" + (variante === "hoja" ? " modal-hoja" : "")} data-react="1"
       onClick={e => { if (e.target === e.currentTarget) onCerrar(); }}>
-      <div className={("modal-card " + claseTarjeta).trim()} style={estiloTarjeta}>{children}</div>
+      <div className={((variante === "hoja" ? "hoja " : "modal-card ") + claseTarjeta).trim()} style={estiloTarjeta}>{children}</div>
     </div>
   );
 }

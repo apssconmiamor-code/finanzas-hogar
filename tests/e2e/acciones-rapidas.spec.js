@@ -288,6 +288,8 @@ test.describe('Acciones rápidas (botón flotante)', () => {
 
     // Mantener presionado (pointerdown + esperar + pointerup) abre configurar,
     // no el formulario de "usar".
+    // La hoja sube con una animación corta: se mide la tarjeta cuando ya quedó quieta.
+    await page.waitForTimeout(450);
     const slot0 = page.locator('.accion-rapida-card[data-slot="0"]');
     const box = await slot0.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
