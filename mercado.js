@@ -603,67 +603,26 @@ function _conectarLargoPresionMercado(cont) {
   });
 }
 
-// ---- Select de categoría del formulario de producto -- categorías ya
-// creadas de antemano (ver modal-mercado-categoria), no texto libre --
-// evita categorías duplicadas por una letra de diferencia. ----
-function poblarSelectMercadoCategoria(seleccionActual) {
-  const sel = document.getElementById("mercado-categoria");
-  if (!sel) return;
-  sel.innerHTML = `<option value="">Sin categoría</option>` +
-    mercadoCategorias.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.icono)} ${escapeHtml(c.nombre)}</option>`).join("");
-  const valores = ["", ...mercadoCategorias.map(c => c.nombre)];
-  sel.value = valores.includes(seleccionActual) ? seleccionActual : "";
-}
-
-// ---- MODAL NUEVO/EDITAR PRODUCTO (mismo modal para las dos cosas, ver
-// dataset.editId -- mismo patrón que modal-movimiento). "categoriaInicial"
-// pre-selecciona la categoría desde la que se abrió "+ Nuevo producto",
-// pero se puede cambiar antes de guardar. ----
+// ---- NUEVO/EDITAR PRODUCTO: la ventana es React (react/src/mercado/Mercado.jsx). "categoriaInicial"
+// pre-selecciona la categoría desde la que se abrió "+ Nuevo producto", pero se puede cambiar. ----
 function abrirNuevoProductoMercado(categoriaInicial) {
-  document.getElementById("mercado-producto-titulo").textContent = "Nuevo producto";
-  document.getElementById("modal-mercado-producto").dataset.editId = "";
-  limpiarFormMercado();
-  poblarSelectMercadoCategoria(categoriaInicial || "");
-  document.getElementById("btn-guardar-mercado-producto").textContent = "Agregar";
-  document.getElementById("modal-mercado-producto").classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("mercado:abrir", { detail: { t: "producto", categoria: categoriaInicial || "" } }));
 }
 
 function abrirEditarProductoMercado(id) {
-  const p = productosMercado.find(x => x.id === id);
-  if (!p) return;
-  document.getElementById("mercado-producto-titulo").textContent = "Editar producto";
-  document.getElementById("modal-mercado-producto").dataset.editId = id;
-  document.getElementById("mercado-nombre").value = p.nombre;
-  poblarSelectMercadoCategoria(p.categoria);
-  document.getElementById("btn-guardar-mercado-producto").textContent = "Guardar";
-  document.getElementById("modal-mercado-producto").classList.remove("hidden");
+  if (!productosMercado.find(x => x.id === id)) return;
+  document.dispatchEvent(new CustomEvent("mercado:abrir", { detail: { t: "producto", editId: id } }));
 }
 
-async function guardarProductoMercado() {
-  const nombre    = document.getElementById("mercado-nombre").value.trim();
-  const categoria = document.getElementById("mercado-categoria").value;
-  const editId    = document.getElementById("modal-mercado-producto").dataset.editId;
-
-  if (!nombre) { alert("Escribe el nombre del producto"); return; }
-
-  const btn = document.getElementById("btn-guardar-mercado-producto");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    if (editId) {
-      await Sheets.editarProductoMercado(editId, { nombre, categoria });
-    } else {
-      await Sheets.agregarProductoMercado(currentUser?.email || "", nombre, categoria);
-    }
-    document.getElementById("modal-mercado-producto").classList.add("hidden");
-    limpiarFormMercado();
-    await cargarMercado();
-    SyncManager.mostrarToast(`✅ "${nombre}" ${editId ? "actualizado" : "agregado"}`);
-  } catch (err) {
-    alert("Error guardando el producto: " + err.message);
-  } finally {
-    btn.textContent = editId ? "Guardar" : "Agregar"; btn.disabled = false;
+// Guarda un producto nuevo o editado; si algo falla, lanza (la ventana avisa y se queda abierta).
+async function guardarProductoMercadoDatos({ nombre, categoria }, editId) {
+  if (editId) {
+    await Sheets.editarProductoMercado(editId, { nombre, categoria });
+  } else {
+    await Sheets.agregarProductoMercado(currentUser?.email || "", nombre, categoria);
   }
+  await cargarMercado();
+  SyncManager.mostrarToast(`✅ "${nombre}" ${editId ? "actualizado" : "agregado"}`);
 }
 
 async function borrarProductoMercado(id) {
@@ -680,67 +639,35 @@ async function borrarProductoMercado(id) {
   }
 }
 
-function limpiarFormMercado() {
-  document.getElementById("mercado-nombre").value = "";
-}
-
-// ---- MODAL NUEVA/EDITAR CATEGORÍA ----
+// ---- NUEVA/EDITAR CATEGORÍA (ventana React, ver Mercado.jsx) ----
 function abrirNuevaCategoriaMercado() {
-  document.getElementById("mercado-categoria-titulo").textContent = "Nueva categoría";
-  document.getElementById("modal-mercado-categoria").dataset.editId = "";
-  document.getElementById("mercado-categoria-nombre").value = "";
-  document.getElementById("mercado-categoria-icono").value = "";
-  document.getElementById("btn-guardar-mercado-categoria").textContent = "Guardar";
-  document.getElementById("modal-mercado-categoria").classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("mercado:abrir", { detail: { t: "categoria" } }));
 }
 
 function abrirEditarCategoriaMercado(id) {
-  const c = mercadoCategorias.find(x => x.id === id);
-  if (!c) return;
-  document.getElementById("mercado-categoria-titulo").textContent = "Editar categoría";
-  document.getElementById("modal-mercado-categoria").dataset.editId = id;
-  document.getElementById("mercado-categoria-nombre").value = c.nombre;
-  document.getElementById("mercado-categoria-icono").value = c.icono;
-  document.getElementById("btn-guardar-mercado-categoria").textContent = "Guardar";
-  document.getElementById("modal-mercado-categoria").classList.remove("hidden");
+  if (!mercadoCategorias.find(x => x.id === id)) return;
+  document.dispatchEvent(new CustomEvent("mercado:abrir", { detail: { t: "categoria", editId: id } }));
 }
 
-async function guardarCategoriaMercado() {
-  const nombre = document.getElementById("mercado-categoria-nombre").value.trim();
-  const icono  = document.getElementById("mercado-categoria-icono").value.trim() || "🗂️";
-  const editId = document.getElementById("modal-mercado-categoria").dataset.editId;
-
-  if (!nombre) { alert("Escribe el nombre de la categoría"); return; }
-  const yaExiste = mercadoCategorias.some(c => c.nombre === nombre && c.id !== editId);
-  if (yaExiste) { alert("Ya existe una categoría con ese nombre"); return; }
-
-  const btn = document.getElementById("btn-guardar-mercado-categoria");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    if (editId) {
-      const actual = mercadoCategorias.find(c => c.id === editId);
-      // La categoría de un producto se guarda por NOMBRE, no por id (mismo
-      // criterio que "categoria" en Notificaciones/Compras) -- si el
-      // nombre cambia, hay que migrar los productos que ya apuntaban al
-      // nombre viejo para que no queden huérfanos en "Sin categoría".
-      if (actual && actual.nombre !== nombre) {
-        const afectados = productosMercado.filter(p => p.categoria === actual.nombre);
-        for (const p of afectados) await Sheets.editarProductoMercado(p.id, { categoria: nombre });
-      }
-      await Sheets.editarMercadoCategoria(editId, { nombre, icono });
-      if (categoriaMercadoAbierta === actual?.nombre) categoriaMercadoAbierta = nombre;
-    } else {
-      await Sheets.agregarMercadoCategoria(currentUser?.email || "", nombre, icono);
+async function guardarCategoriaMercadoDatos({ nombre, icono }, editId) {
+  icono = icono || "🗂️";
+  if (editId) {
+    const actual = mercadoCategorias.find(c => c.id === editId);
+    // La categoría de un producto se guarda por NOMBRE, no por id (mismo
+    // criterio que "categoria" en Notificaciones/Compras) -- si el
+    // nombre cambia, hay que migrar los productos que ya apuntaban al
+    // nombre viejo para que no queden huérfanos en "Sin categoría".
+    if (actual && actual.nombre !== nombre) {
+      const afectados = productosMercado.filter(p => p.categoria === actual.nombre);
+      for (const p of afectados) await Sheets.editarProductoMercado(p.id, { categoria: nombre });
     }
-    document.getElementById("modal-mercado-categoria").classList.add("hidden");
-    await cargarMercado();
-    SyncManager.mostrarToast(`✅ Categoría "${nombre}" ${editId ? "actualizada" : "creada"}`);
-  } catch (err) {
-    alert("Error guardando la categoría: " + err.message);
-  } finally {
-    btn.textContent = "Guardar"; btn.disabled = false;
+    await Sheets.editarMercadoCategoria(editId, { nombre, icono });
+    if (categoriaMercadoAbierta === actual?.nombre) categoriaMercadoAbierta = nombre;
+  } else {
+    await Sheets.agregarMercadoCategoria(currentUser?.email || "", nombre, icono);
   }
+  await cargarMercado();
+  SyncManager.mostrarToast(`✅ Categoría "${nombre}" ${editId ? "actualizada" : "creada"}`);
 }
 
 async function confirmarBorrarCategoriaMercado(cat) {
@@ -757,27 +684,20 @@ async function confirmarBorrarCategoriaMercado(cat) {
   await cargarMercado();
 }
 
-// ---- SETUP LISTENERS ----
+// ---- SETUP ----
+function renderMercadoReact() {
+  if (!window.MercadoReact) return;
+  window.MercadoReact.render({
+    getCategorias: () => mercadoCategorias,
+    getProducto: id => productosMercado.find(x => x.id === id) || null,
+    getCategoria: id => mercadoCategorias.find(x => x.id === id) || null,
+    onGuardarProducto: guardarProductoMercadoDatos,
+    onGuardarCategoria: guardarCategoriaMercadoDatos,
+  });
+}
+
 function setupMercadoListeners() {
-  document.getElementById("btn-cancelar-mercado-producto")
-    ?.addEventListener("click", () => {
-      document.getElementById("modal-mercado-producto").classList.add("hidden");
-      limpiarFormMercado();
-    });
-
-  document.getElementById("btn-guardar-mercado-producto")
-    ?.addEventListener("click", guardarProductoMercado);
-
-  document.getElementById("btn-cancelar-mercado-categoria")
-    ?.addEventListener("click", () => {
-      document.getElementById("modal-mercado-categoria").classList.add("hidden");
-    });
-
-  document.getElementById("btn-guardar-mercado-categoria")
-    ?.addEventListener("click", guardarCategoriaMercado);
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
-  // (ver cerrarModal).
+  renderMercadoReact();
 }
 
 if (document.readyState === "loading") {

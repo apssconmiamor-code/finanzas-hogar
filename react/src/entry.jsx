@@ -5,6 +5,8 @@
 //   MesesProyeccionReact.render(props) -> tarjetas de meses (#proy-4meses-grid)
 //   AccionesReact.render(props)   -> ventanas de acciones rápidas (#acciones-root)
 //   AlertasReact.render(props)    -> ventanas de nueva alerta y nuevo bloque (#alertas-root)
+//   MercadoReact.render(props)    -> ventanas de producto y categoría de Mercado (#mercado-root)
+//   PlanesReact.render(props)     -> ventanas de plan y categoría de Planes (#planes-root)
 //   FranjasReact.render(props)    -> franja inferior de las vistas aún en JS plano (#franjas-root)
 // app.js sigue dueño de los datos; React solo dibuja y maneja el estado de UI
 // propio de cada isla (selección de "Sumar" en Cajas, etc.).
@@ -16,6 +18,8 @@ import { MesesProyeccion } from "./proyeccion/MesesProyeccion.jsx";
 import { Acciones } from "./acciones/Acciones.jsx";
 import { FranjasVistas } from "./franjas/FranjasVistas.jsx";
 import { Alertas } from "./alertas/Alertas.jsx";
+import { Mercado } from "./mercado/Mercado.jsx";
+import { Planes } from "./planes/Planes.jsx";
 
 function crearIsla(idContenedor, Componente, conRenderId) {
   let root = null;
@@ -37,3 +41,5 @@ window.MesesProyeccionReact = crearIsla("proy-4meses-grid", MesesProyeccion, tru
 window.AccionesReact = crearIsla("acciones-root", Acciones, true);
 window.FranjasReact = crearIsla("franjas-root", FranjasVistas, false);
 window.AlertasReact = crearIsla("alertas-root", Alertas, false);
+window.MercadoReact = crearIsla("mercado-root", Mercado, false);
+window.PlanesReact = crearIsla("planes-root", Planes, false);

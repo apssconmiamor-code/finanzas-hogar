@@ -577,42 +577,8 @@
       </div>
     </div>
 
-    <!-- Modal nuevo/editar producto de Mercado -->
-    <div id="modal-mercado-producto" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title" id="mercado-producto-titulo">Nuevo producto</h3>
-        <div class="form-group">
-          <label>Producto</label>
-          <input class="input" id="mercado-nombre" type="text" placeholder="Ej: Leche"/>
-        </div>
-        <div class="form-group">
-          <label>Categoría</label>
-          <select class="input" id="mercado-categoria"></select>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-mercado-producto">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-mercado-producto">Agregar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal: nueva/editar categoría de Mercado (mismo patrón que
-         modal-bloque-alerta de Alertas -- nombre + ícono libre) -->
-    <div id="modal-mercado-categoria" class="modal hidden">
-      <div class="modal-card" style="max-width:380px">
-        <h3 class="modal-title" id="mercado-categoria-titulo">Nueva categoría</h3>
-        <div class="form-group">
-          <input id="mercado-categoria-nombre" type="text" placeholder="Ej: Alimentos, Aseo…" class="input" maxlength="30"/>
-        </div>
-        <div class="form-group">
-          <input id="mercado-categoria-icono" type="text" placeholder="Ícono (ej: )" class="input" maxlength="4"/>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-mercado-categoria">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-mercado-categoria">Guardar</button>
-        </div>
-      </div>
-    </div>
+    <!-- Nuevo/editar producto y categoría de Mercado: son React (react/src/mercado/Mercado.jsx). -->
+    <div id="mercado-root"></div>
 
     <!-- Modal agregar mes (con detección de huecos) -->
     <div id="modal-agregar-mes" class="modal hidden">
@@ -697,78 +663,8 @@
 
     <!-- ═══════════ PLANES ═══════════ -->
 
-    <!-- Modal: nueva categoría de Planes -->
-    <div id="modal-bloque-plan" class="modal hidden">
-      <div class="modal-card" style="max-width:380px">
-        <h3 class="modal-title">Nueva categoría</h3>
-        <p class="modal-subtitle">Agrupa tus planes como quieras — solo lo ves vos en este dispositivo.</p>
-        <div class="form-group">
-          <input id="bloque-plan-nombre" type="text" placeholder="Ej: Restaurantes, Viajes…" class="input" maxlength="30"/>
-        </div>
-        <div class="form-group">
-          <input id="bloque-plan-icono" type="text" placeholder="Ícono (ej: )" class="input" maxlength="4"/>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-bloque-plan">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-bloque-plan">Guardar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal: nuevo/editar plan -->
-    <div id="modal-plan" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Nuevo plan</h3>
-        <div class="form-group">
-          <label>Nombre</label>
-          <input id="plan-nombre" type="text" placeholder="Ej: Cena en La Provincia" class="input"/>
-        </div>
-        <div class="form-group">
-          <label>Ubicación <span class="label-opcional">(opcional)</span></label>
-          <input id="plan-ubicacion" type="text" placeholder="Ej: Cali, Centro" class="input"/>
-        </div>
-        <div class="form-group">
-          <label>URL <span class="label-opcional">(opcional)</span></label>
-          <input id="plan-url" type="url" placeholder="https://…" class="input"/>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Fecha inicio <span class="label-opcional">(opcional)</span></label>
-            <input id="plan-fecha-inicio" type="date" class="input"/>
-          </div>
-          <div class="form-group">
-            <label>Fecha fin <span class="label-opcional">(opcional)</span></label>
-            <input id="plan-fecha-fin" type="date" class="input"/>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <div class="accion-caja-chips">
-            <button type="button" class="accion-caja-chip active" id="plan-tipo-gratis"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4z"/><circle cx="7.5" cy="7.5" r=".6" fill="currentColor"/></svg></span> Gratis</button>
-            <button type="button" class="accion-caja-chip" id="plan-tipo-pago"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.2 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/><path d="M12 5.5V7"/><path d="M12 17v1.5"/></svg></span> Pago</button>
-          </div>
-        </div>
-        <div class="form-group hidden" id="plan-inversion-row">
-          <label>Inversión</label>
-          <input id="plan-inversion" type="text" inputmode="decimal" placeholder="Monto" class="input"/>
-        </div>
-        <div class="form-group">
-          <label>Reserva</label>
-          <div class="accion-caja-chips">
-            <button type="button" class="accion-caja-chip active" id="plan-reserva-no">Sin reserva</button>
-            <button type="button" class="accion-caja-chip" id="plan-reserva-si"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></span> Con reserva</button>
-          </div>
-        </div>
-        <div class="form-group hidden" id="plan-bloque-row">
-          <label>Categoría</label>
-          <select id="plan-bloque" class="input"></select>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-plan">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-plan">Guardar</button>
-        </div>
-      </div>
-    </div>
+    <!-- Nuevo/editar plan y nueva categoría de Planes: son React (react/src/planes/Planes.jsx). -->
+    <div id="planes-root"></div>
 
     <!-- Modal: resumen de un plan (doble toque sobre su tarjeta) -- solo
          lectura. Editar/Eliminar viven en el menú de mantener presionado

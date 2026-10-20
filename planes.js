@@ -359,9 +359,7 @@ function renderBloquesPlanGrid(lista, grupos) {
   });
 
   document.getElementById("btn-nueva-categoria-plan")?.addEventListener("click", () => {
-    document.getElementById("bloque-plan-nombre").value = "";
-    document.getElementById("bloque-plan-icono").value = "";
-    document.getElementById("modal-bloque-plan")?.classList.remove("hidden");
+    document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "bloque" } }));
   });
 }
 
@@ -520,122 +518,56 @@ function abrirResumenPlan(id) {
 // categoría queda oculto al crear y solo se muestra al editar.
 // =============================================
 
-let planIdActual = null; // id en edición, o null = creando uno nuevo
-
-function actualizarTipoPlanForm(tipo) {
-  document.getElementById("plan-tipo-gratis")?.classList.toggle("active", tipo !== "pago");
-  document.getElementById("plan-tipo-pago")?.classList.toggle("active", tipo === "pago");
-  document.getElementById("plan-inversion-row")?.classList.toggle("hidden", tipo !== "pago");
-}
-
-function actualizarReservaPlanForm(reserva) {
-  document.getElementById("plan-reserva-no")?.classList.toggle("active", reserva !== "si");
-  document.getElementById("plan-reserva-si")?.classList.toggle("active", reserva === "si");
-}
-
-function poblarSelectBloquePlan() {
-  const sel = document.getElementById("plan-bloque");
-  if (!sel) return;
-  const valorActual = sel.value;
-  const bloques = obtenerBloquesPlanes();
-  sel.innerHTML = `<option value="">Otros</option>` +
-    bloques.map(b => `<option value="${escapeAttr(b.nombre)}">${escapeHtml(b.icono)} ${escapeHtml(b.nombre)}</option>`).join("");
-  sel.value = ["", ...bloques.map(b => b.nombre)].includes(valorActual) ? valorActual : "";
-}
-
-function limpiarFormPlan() {
-  document.getElementById("plan-nombre").value = "";
-  document.getElementById("plan-ubicacion").value = "";
-  document.getElementById("plan-url").value = "";
-  document.getElementById("plan-fecha-inicio").value = "";
-  document.getElementById("plan-fecha-fin").value = "";
-  document.getElementById("plan-inversion").value = "";
-  actualizarTipoPlanForm("gratis");
-  actualizarReservaPlanForm("no");
-
-  const modal = document.getElementById("modal-plan");
-  planIdActual = null;
-  modal.dataset.categoria = "";
-  modal.querySelector(".modal-title").textContent = "Nuevo plan";
-  document.getElementById("btn-guardar-plan").textContent = "Guardar";
-  document.getElementById("plan-bloque-row")?.classList.add("hidden");
-}
-
-// valorBloque: categoría del bloque desde el que se crea -- ya viene
-// decidida, no tiene sentido mostrar el selector (mismo criterio que
-// abrirNuevaNotificacionEnBloque en notificaciones.js).
+// valorBloque: categoría del bloque desde el que se crea -- ya viene decidida, no tiene sentido
+// mostrar el selector (mismo criterio que abrirNuevaNotificacionEnBloque en notificaciones.js).
+// La ventana es React (react/src/planes/Planes.jsx).
 function abrirNuevoPlanEnBloque(valorBloque) {
-  limpiarFormPlan();
-  document.getElementById("modal-plan").dataset.categoria = valorBloque || "";
-  document.getElementById("modal-plan")?.classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "plan", categoria: valorBloque || "" } }));
 }
 
-// ---- Editar (reusa el modal de "Nuevo plan") -- acá sí se ve y se puede
+// ---- Editar (reusa la ventana de "Nuevo plan") -- acá sí se ve y se puede
 // cambiar la categoría, a diferencia de crear uno nuevo. ----
 function abrirEditarPlan(id) {
-  const p = planes.find(x => x.id === id);
-  if (!p) return;
-
-  document.getElementById("plan-nombre").value = p.nombre;
-  document.getElementById("plan-ubicacion").value = p.ubicacion || "";
-  document.getElementById("plan-url").value = p.url || "";
-  document.getElementById("plan-fecha-inicio").value = p.fechaInicio || "";
-  document.getElementById("plan-fecha-fin").value = p.fechaFin || "";
-  document.getElementById("plan-inversion").value = p.inversion || "";
-  actualizarTipoPlanForm(p.tipo);
-  actualizarReservaPlanForm(p.reserva);
-
-  poblarSelectBloquePlan();
-  document.getElementById("plan-bloque").value = p.categoria || "";
-  document.getElementById("plan-bloque-row")?.classList.remove("hidden");
-
-  const modal = document.getElementById("modal-plan");
-  planIdActual = id;
-  modal.querySelector(".modal-title").textContent = "Editar plan";
-  document.getElementById("btn-guardar-plan").textContent = "Guardar cambios";
-  modal.classList.remove("hidden");
+  if (!planes.find(x => x.id === id)) return;
+  document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "plan", editId: id } }));
 }
 
-async function guardarPlan() {
-  const nombre = document.getElementById("plan-nombre").value.trim();
-  const ubicacion = document.getElementById("plan-ubicacion").value.trim();
-  const url = document.getElementById("plan-url")?.value.trim() || "";
-  const fechaInicio = document.getElementById("plan-fecha-inicio").value;
-  const fechaFin = document.getElementById("plan-fecha-fin").value;
-  const tipo = document.getElementById("plan-tipo-pago")?.classList.contains("active") ? "pago" : "gratis";
-  const inversion = tipo === "pago" ? (evaluarMonto(document.getElementById("plan-inversion").value) || "") : "";
-  const reserva = document.getElementById("plan-reserva-si")?.classList.contains("active") ? "si" : "no";
+// Los datos de un plan guardado, con la forma del formulario de React.
+function formularioDePlan(id) {
+  const p = planes.find(x => x.id === id);
+  if (!p) return null;
+  return {
+    nombre: p.nombre, ubicacion: p.ubicacion || "", url: p.url || "",
+    fechaInicio: p.fechaInicio || "", fechaFin: p.fechaFin || "",
+    tipo: p.tipo === "pago" ? "pago" : "gratis", inversion: p.inversion ? String(p.inversion) : "",
+    reserva: p.reserva === "si" ? "si" : "no", categoria: p.categoria || "",
+  };
+}
 
-  if (!nombre) { alert("Ponle un nombre al plan"); return; }
-  if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
-    alert("La fecha fin no puede ser anterior a la fecha inicio");
-    return;
+// Guarda un plan nuevo o editado; si algo falla, lanza (la ventana avisa y se queda abierta).
+async function guardarPlanDatos(d, editId) {
+  if (editId) {
+    await Sheets.editarPlan(editId, { nombre: d.nombre, ubicacion: d.ubicacion, fechaInicio: d.fechaInicio, fechaFin: d.fechaFin, tipo: d.tipo, inversion: d.inversion, categoria: d.categoria, url: d.url, reserva: d.reserva });
+  } else {
+    await Sheets.agregarPlan(d.nombre, d.ubicacion, d.fechaInicio, d.fechaFin, d.tipo, d.inversion, d.categoria, currentUser?.email || "", d.url, d.reserva);
   }
+  await cargarPlanes();
+  SyncManager.mostrarToast(`✅ "${d.nombre}" ${editId ? "actualizado" : "guardado"}`);
+}
 
-  const modal = document.getElementById("modal-plan");
-  const categoria = planIdActual
-    ? (document.getElementById("plan-bloque")?.value || "")
-    : (modal.dataset.categoria || "");
-
-  const btn = document.getElementById("btn-guardar-plan");
-  const textoOriginal = btn.textContent;
-  btn.disabled = true; btn.textContent = "Guardando...";
-
-  try {
-    if (planIdActual) {
-      await Sheets.editarPlan(planIdActual, { nombre, ubicacion, fechaInicio, fechaFin, tipo, inversion, categoria, url, reserva });
-    } else {
-      await Sheets.agregarPlan(nombre, ubicacion, fechaInicio, fechaFin, tipo, inversion, categoria, currentUser?.email || "", url, reserva);
-    }
-    modal.classList.add("hidden");
-    limpiarFormPlan();
-    await cargarPlanes();
-    SyncManager.mostrarToast(`✅ "${nombre}" ${planIdActual ? "actualizado" : "guardado"}`);
-  } catch (err) {
-    alert("Error guardando el plan: " + err.message);
-  } finally {
-    btn.disabled = false; btn.textContent = textoOriginal;
-  }
+function renderPlanesReact() {
+  if (!window.PlanesReact) return;
+  window.PlanesReact.render({
+    getBloques: () => obtenerBloquesPlanes(),
+    formularioDe: formularioDePlan,
+    evaluarMonto: texto => (typeof evaluarMonto === "function" ? evaluarMonto(texto) : parseFloat(texto)),
+    onGuardar: guardarPlanDatos,
+    onGuardarBloque: async (nombre, icono) => {
+      const ok = await agregarBloquePlan(nombre, icono);
+      if (ok) renderPlanes();
+      return ok;
+    },
+  });
 }
 
 async function borrarPlan(id) {
@@ -655,44 +587,12 @@ async function borrarPlan(id) {
 // =============================================
 
 function setupPlanesListeners() {
-  document.getElementById("plan-tipo-gratis")?.addEventListener("click", () => actualizarTipoPlanForm("gratis"));
-  document.getElementById("plan-tipo-pago")?.addEventListener("click", () => actualizarTipoPlanForm("pago"));
-  document.getElementById("plan-reserva-no")?.addEventListener("click", () => actualizarReservaPlanForm("no"));
-  document.getElementById("plan-reserva-si")?.addEventListener("click", () => actualizarReservaPlanForm("si"));
-
-  document.getElementById("btn-cancelar-plan")?.addEventListener("click", () => {
-    document.getElementById("modal-plan")?.classList.add("hidden");
-    limpiarFormPlan();
-  });
-
-  document.getElementById("btn-guardar-plan")?.addEventListener("click", guardarPlan);
+  renderPlanesReact();
 
   document.getElementById("btn-cerrar-resumen-plan")?.addEventListener("click", () => {
     document.getElementById("modal-resumen-plan")?.classList.add("hidden");
   });
 
-  document.getElementById("btn-guardar-bloque-plan")?.addEventListener("click", async () => {
-    const nombre = document.getElementById("bloque-plan-nombre").value.trim();
-    const icono  = document.getElementById("bloque-plan-icono").value.trim();
-    if (!nombre) { alert("Ponle un nombre a la categoría"); return; }
-    const btn = document.getElementById("btn-guardar-bloque-plan");
-    const textoOriginal = btn.textContent;
-    btn.disabled = true; btn.textContent = "Guardando...";
-    try {
-      const ok = await agregarBloquePlan(nombre, icono);
-      if (!ok) { alert("Ya existe una categoría con ese nombre"); return; }
-      document.getElementById("modal-bloque-plan")?.classList.add("hidden");
-      renderPlanes();
-    } catch (err) {
-      alert("Error guardando la categoría: " + err.message);
-    } finally {
-      btn.disabled = false; btn.textContent = textoOriginal;
-    }
-  });
-
-  document.getElementById("btn-cancelar-bloque-plan")?.addEventListener("click", () => {
-    document.getElementById("modal-bloque-plan")?.classList.add("hidden");
-  });
 }
 
 if (document.readyState === "loading") {
