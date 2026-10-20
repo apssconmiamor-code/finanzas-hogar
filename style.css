@@ -1257,6 +1257,12 @@ input, select, textarea, table {
 #tab-movimientos #resumen-bar {
   margin-bottom: 0; border-radius: var(--r-md) var(--r-md) 0 0; box-shadow: var(--shadow-sm);
 }
+/* Franja gris entre el resumen y las filas: indica de qué mes son los movimientos. */
+#tab-movimientos .movimientos-franja {
+  background: var(--slate-soft); color: var(--text-3); font-size: 12.5px; font-weight: 600;
+  padding: 9px 14px; border: 1px solid var(--border); border-top: none; border-bottom: none;
+  box-shadow: var(--shadow-sm);
+}
 #tab-movimientos .movimientos-list:has(.mov-card) {
   border-top: none; border-radius: 0 0 var(--r-md) var(--r-md);
 }
@@ -1378,6 +1384,10 @@ input, select, textarea, table {
 }
 .label-origen { color: var(--red); font-size: 11px; }
 .label-destino { color: var(--green-dark); font-size: 11px; }
+
+/* Ventanas de solo lectura (resúmenes, detalle de caja) dentro de una hoja */
+.hoja-detalle { display: flex; flex-direction: column; gap: 12px; }
+.hoja-detalle .detalle-caja-scroll { max-height: 45vh; overflow-y: auto; }
 
 /* Configurar mes (hoja): secciones con sus conceptos de a dos por fila */
 .config-mes-cuerpo { display: flex; flex-direction: column; gap: 6px; }

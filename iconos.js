@@ -112,6 +112,34 @@
     telefono: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
     nube: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
     tienda: '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-.8 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>',
+    bano: '<path d="M9 6 6.5 3.5a1.5 1.5 0 0 0-1-.5C4.683 3 4 3.683 4 4.5V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="m10 5-2 2"/><path d="M2 12h20"/><path d="M7 19v2"/><path d="M17 19v2"/>',
+    ducha: '<path d="m4 4 2.5 2.5"/><path d="M13.5 6.5a4.95 4.95 0 0 0-7 7"/><path d="M15 5 5 15"/><path d="M14 17v.01"/><path d="M10 16v.01"/><path d="M13 13v.01"/><path d="M16 10v.01"/><path d="M11 20v.01"/><path d="M17 14v.01"/><path d="M20 11v.01"/>',
+    inodoro: '<path d="M7 3h10v7H7z"/><path d="M5 10h14v2a7 7 0 0 1-4 6.3V21H9v-2.7A7 7 0 0 1 5 12z"/>',
+    vestier: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M12 2v20"/><path d="M9 11v2"/><path d="M15 11v2"/>',
+    puerta: '<path d="M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14"/><path d="M2 20h20"/><path d="M14 12v.01"/>',
+    cama: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
+    sofa: '<path d="M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0z"/><path d="M4 18v2"/><path d="M20 18v2"/>',
+    olla: '<path d="M3 11h18v7a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M5 11V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/><path d="M8 7V5"/><path d="M12 7V4"/><path d="M16 7V5"/>',
+    nevera: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 10h14"/><path d="M9 6v1"/><path d="M9 14v3"/>',
+    lavadora: '<rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><path d="M7 6h.01"/><path d="M11 6h.01"/>',
+    planta: '<path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/>',
+    escoba: '<path d="m19 3-6 6"/><path d="M14 8c-3 .5-6 3-7 7-.5 2-1 4-3 5 4 1 8 0 10-3 1.5-2 1.5-5 0-9z"/>',
+    bebe: '<path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/>',
+    mochila: '<path d="M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M8 21v-5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5"/><path d="M8 10h8"/>',
+    labial: '<path d="M8 22v-6h8v6z"/><path d="M9 16V9h6v7"/><path d="m10 9 .5-5L14 2l1 7"/>',
+    arbol: '<path d="M12 22v-7"/><path d="M12 15c-4 0-7-3-7-7a7 7 0 0 1 14 0c0 4-3 7-7 7z"/>',
+    sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m17.7 17.7 1.4 1.4"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.3 17.7-1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/>',
+    montana: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
+    hamburguesa: '<path d="M4 11a8 8 0 0 1 16 0z"/><path d="M3 15h18"/><path d="M4 19h16a1 1 0 0 0 1-1v-1H3v1a1 1 0 0 0 1 1z"/>',
+    copa: '<path d="M8 22h8"/><path d="M12 11v11"/><path d="m19 3-7 8-7-8z"/>',
+    pastel: '<path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/>',
+    moto: '<circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M8 17h5l3-7h-4"/><path d="m12 10-2-4H7"/>',
+    tren: '<rect x="4" y="3" width="16" height="16" rx="2"/><path d="M4 11h16"/><path d="M12 3v8"/><path d="m8 19-2 3"/><path d="m18 22-2-3"/><path d="M8 15h.01"/><path d="M16 15h.01"/>',
+    paraguas: '<path d="M22 12a10 10 0 0 0-20 0z"/><path d="M12 12v8a2 2 0 0 0 4 0"/><path d="M12 2v1"/>',
+    martillo: '<path d="m15 12-8.5 8.5a2.12 2.12 0 0 1-3-3L12 9"/><path d="M17.64 15 22 10.64"/><path d="m20.91 11.7-1.25-1.25c-.6-.6-.93-1.4-.93-2.25v-.86L16.01 4.6a5.56 5.56 0 0 0-3.94-1.64H9l.92.82A6.18 6.18 0 0 1 12 8.4v1.56l2 2h2.47l2.26 1.91"/>',
+    enchufe: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+    periodico: '<path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>',
+    edificio: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>',
     alcancia: '<path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/><path d="M2 9v1c0 1.1.9 2 2 2h1"/><path d="M16 11h.01"/>',
     escudoMas: '<path d="M20 13c0 5-3.5 7.5-7.7 8.97a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 9v6"/><path d="M9 12h6"/>',
     estrella: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.3-6.2 3.3L8 14.2 3 9.3l6.9-1z"/>',
@@ -135,6 +163,11 @@
     "⚽": "balon", "🎮": "juego", "✈": "avion", "👕": "camiseta", "🔧": "llave", "🐶": "huella", "🍽": "cubiertos",
     "🥦": "hoja", "🏋": "pesa", "🎫": "ticket", "📎": "clip", "➡": "adelante", "↩": "deshacer", "⬇": "abajo",
     "➕": "sumar", "➖": "restar", "⏹": "alto", "💬": "comentario",
+    "🛁": "bano", "🚿": "ducha", "🚽": "inodoro", "👔": "vestier", "🚪": "puerta", "🛏": "cama", "🛋": "sofa",
+    "🍳": "olla", "🧊": "nevera", "🧺": "lavadora", "🪴": "planta", "🧹": "escoba", "🧼": "escoba", "👶": "bebe",
+    "🎒": "mochila", "💄": "labial", "🌳": "arbol", "☀": "sol", "🏖": "sol", "⛰": "montana", "🍔": "hamburguesa",
+    "🍕": "hamburguesa", "🍷": "copa", "🍺": "copa", "🎂": "pastel", "🏍": "moto", "🚆": "tren", "☂": "paraguas",
+    "🔨": "martillo", "🔌": "enchufe", "📰": "periodico", "🏢": "edificio",
     "💧": "gota", "📺": "tv", "☕": "cafe", "🎵": "musica", "🚲": "bici", "⛽": "gasolina", "💼": "maleta", "✂": "tijeras",
     "💊": "pastilla", "🍎": "manzana", "🔑": "llaveCasa", "☎": "telefono", "☁": "nube", "🏪": "tienda", "🐷": "alcancia",
     "🟢": ["punto", "ic-verde"], "🟡": ["punto", "ic-amarillo"], "🔴": ["punto", "ic-rojo"], "⚪": ["punto", "ic-gris"],
@@ -184,6 +217,12 @@
     padre.replaceChild(frag, nodo);
   }
 
+  // Para HTML armado por los módulos y mostrado dentro de las ventanas de React (donde el observador
+  // no llega): cambia cada emoji del texto por su ícono.
+  window.reemplazarEmojisHtml = function (html) {
+    return String(html).replace(RE_EMOJI, m => window.iconoHtml(m));
+  };
+
   function recorrer(raiz) {
     if (!raiz) return;
     if (raiz.nodeType === 3) { convertirTexto(raiz); return; }
@@ -217,6 +256,21 @@
   // clave (agua, arriendo, gasolina, mascota...). Devuelve el emoji representativo, o null.
   // ------------------------------------------------------------------
   const CLAVES = [
+    [/\bbano\b|\bbanos\b|sanitario|ducha|\bwc\b|aseo personal/, "🛁"], [/inodoro|tuberia|desague/, "🚽"],
+    [/vestier|closet|armario|ropero|guardarropa/, "👔"], [/puerta|cerradura|portero|porteria|citofono/, "🚪"],
+    [/\bcama\b|colchon|dormitorio|habitacion|alcoba|almohada|cobija|sabana/, "🛏️"],
+    [/sofa|\bsala\b|mueble|decoracion|comedor|cortina|tapete|alfombra/, "🛋️"],
+    [/cocina|utensilio|menaje|vajilla|olla|sarten|electrodomestico|licuadora|estufa/, "🍳"], [/nevera|refrigerador|congelador/, "🧊"],
+    [/lavadora|lavanderia|tintoreria|secadora|planchar/, "🧺"], [/jardin|planta|maceta|flores|abono|cesped/, "🪴"],
+    [/\baseo\b|limpieza|escoba|jabon|detergente|basura|desinfect|empleada|servicio domestico|aseadora/, "🧹"],
+    [/bebe|panal|pañal|biberon|coche de|cuna|guarderia/, "👶"], [/colegio|mochila|utiles|escolar|uniforme|pension escolar/, "🎒"],
+    [/maquillaje|cosmetico|perfume|crema|labial|skincare/, "💄"], [/parque|arbol|finca|campo|lote/, "🌳"],
+    [/playa|piscina|sol\b|bronceador/, "☀️"], [/montana|senderismo|camping|excursion/, "⛰️"],
+    [/hamburguesa|comida rapida|pizza|perro caliente|papas|asado/, "🍔"], [/licor|cerveza|vino|\bbar\b|bebida|trago|discoteca|rumba/, "🍷"],
+    [/cumple|torta|pastel|fiesta infantil/, "🎂"], [/\bmoto\b|motocicleta/, "🏍️"], [/tren|metro\b|transmilenio|sitp/, "🚆"],
+    [/paraguas|lluvia|impermeable/, "☂️"], [/construccion|obra|martillo|taladro|albanil|pintura de|reforma/, "🔨"],
+    [/electricidad|enchufe|instalacion electrica|bateria|cargador/, "🔌"], [/periodico|prensa|revista|noticias/, "📰"],
+    [/apartamento|edificio|conjunto|propiedad horizontal|cuota de admin/, "🏢"],
     [/agua|acueducto|alcantarillado/, "💧"], [/luz|energia|electric|emcali|enel|codensa/, "💡"], [/\bgas\b|gasodomestico|gases/, "🔥"],
     [/internet|wifi|fibra|banda ancha/, "📡"], [/celular|movil|datos|claro|tigo|movistar|wom/, "📱"], [/telefon|linea fija/, "☎️"],
     [/netflix|disney|hbo|prime|streaming|television|cable|\btv\b|youtube/, "📺"], [/spotify|musica|concierto/, "🎵"],
@@ -237,6 +291,7 @@
     [/suscripcion|susc\.|software|hosting|dominio|nube|licencia|app\b/, "☁️"], [/tecnologia|computador|portatil|tecnico|celular nuevo|electronic/, "💻"],
     [/reparacion|mantenimiento|arreglo|plomer|electricista|ferreter/, "🔧"], [/juego|play\b|xbox|nintendo|ocio|diversion|entretenimiento|salida/, "🎮"],
     [/cine|pelicula|teatro/, "🎬"], [/fiesta|evento|celebracion|rumba/, "🎉"],
+    [/banco|cuenta bancaria|bancolombia|davivienda|nequi|daviplata|cuenta de ahorro/, "🏦"],
     [/ajuste|nivelacion/, "⚖️"], [/pasatiempo|arte|pintura|hobby/, "🎨"],
   ];
   window.iconoPorNombre = function (nombre) {
@@ -255,6 +310,8 @@
     "🔧", "🏥", "💅", "⚽", "👕", "🐶", "🏋️", "💰", "💳", "🏦", "📈", "🎯", "🗂️", "🔖", "📌", "🧾",
     "🎤", "📦", "🤝", "🔔", "🗓️", "📋", "🎨", "🛍️",
     "💧", "📺", "☕", "🎵", "🚲", "⛽", "💼", "✂️", "💊", "🍎", "🔑", "☎️", "☁️", "🏪", "🐷",
+    "🛁", "🚿", "🚽", "👔", "🚪", "🛏️", "🛋️", "🍳", "🧊", "🧺", "🪴", "🧹", "👶", "🎒", "💄", "🌳",
+    "☀️", "⛰️", "🍔", "🍷", "🎂", "🏍️", "🚆", "☂️", "🔨", "🔌", "📰", "🏢",
   ];
   window.OPCIONES_ICONO = OPCIONES;
 

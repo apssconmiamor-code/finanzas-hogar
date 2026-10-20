@@ -489,10 +489,7 @@ function abrirResumenPlan(id) {
   ];
   if (p.tipo === "pago") filas.push(["Inversión", p.inversion ? `$${Number(p.inversion).toLocaleString("es-CO")}` : "—"]);
 
-  document.getElementById("resumen-plan-titulo").textContent = p.nombre;
-  const cuerpo = document.getElementById("resumen-plan-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = filas.map(([label, valor]) => `
+  const filasHtml = filas.map(([label, valor]) => `
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${escapeHtml(label)}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
@@ -506,10 +503,13 @@ function abrirResumenPlan(id) {
           <button type="button" class="btn-secondary notif-card-btn" id="btn-resumen-plan-copiar-url">📋 Copiar</button>
         </span>
       </div>` : "");
-    document.getElementById("btn-resumen-plan-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(p.url));
-  }
 
-  document.getElementById("modal-resumen-plan")?.classList.remove("hidden");
+  mostrarDetalle({
+    id: "modal-resumen-plan", idTitulo: "resumen-plan-titulo", idCerrar: "btn-cerrar-resumen-plan",
+    titulo: p.nombre, icono: "avion",
+    cuerpos: [{ id: "resumen-plan-cuerpo", clase: "detalle-notif-cuerpo", html: filasHtml }],
+    alMontar: () => document.getElementById("btn-resumen-plan-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(p.url)),
+  });
 }
 
 // =============================================
@@ -588,10 +588,6 @@ async function borrarPlan(id) {
 
 function setupPlanesListeners() {
   renderPlanesReact();
-
-  document.getElementById("btn-cerrar-resumen-plan")?.addEventListener("click", () => {
-    document.getElementById("modal-resumen-plan")?.classList.add("hidden");
-  });
 
 }
 

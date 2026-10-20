@@ -279,10 +279,9 @@ function abrirResumenPrestamo(id) {
   const pagado    = p.pagado ? p.monto : calcularPagadoPrestamo(p.nombre);
   const pendiente = Math.max(p.monto - pagado, 0);
 
-  document.getElementById("resumen-prestamo-titulo").textContent = p.nombre;
-  const cuerpo = document.getElementById("resumen-prestamo-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = [
+  mostrarDetalle({
+    id: "modal-resumen-prestamo", idTitulo: "resumen-prestamo-titulo", titulo: p.nombre, icono: "prestamo",
+    cuerpos: [{ id: "resumen-prestamo-cuerpo", clase: "detalle-notif-cuerpo", html: [
       ["Estado", p.pagado ? "✅ Pagado" : "En curso"],
       ["Total", formatMonto(p.monto)],
       ["Pagado", formatMonto(pagado)],
@@ -294,9 +293,8 @@ function abrirResumenPrestamo(id) {
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${label}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
-      </div>`).join("");
-  }
-  document.getElementById("modal-resumen-prestamo")?.classList.remove("hidden");
+      </div>`).join("") }],
+  });
 }
 
 function _conectarLargoPresionPrestamos(contenedor) {

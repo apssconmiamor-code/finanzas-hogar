@@ -340,7 +340,7 @@ test.describe('Proyección', () => {
 
     // El resumen ya no tiene botones de acción -- solo la ✕ de cerrar.
     await expect(page.locator('#modal-resumen-concepto button')).toHaveCount(1);
-    await page.locator('#modal-resumen-concepto .modal-close').click();
+    await page.locator('#modal-resumen-concepto .hoja-cerrar').click();
 
     // Mantener presionada la fila (pointerdown + esperar + pointerup)
     // abre Editar/Eliminar.
@@ -396,7 +396,7 @@ test.describe('Proyección', () => {
     const balanceAlquiler = page.locator('#resumen-concepto-cuerpo .detalle-notif-fila', { hasText: 'Balance' }).locator('.detalle-notif-valor');
     await expect(balanceAlquiler).toContainText('+'); // balance positivo...
     await expect(balanceAlquiler).toHaveCSS('color', 'rgb(255, 59, 48)'); // ...pero rojo (--red), no verde
-    await page.locator('#modal-resumen-concepto .modal-close').click();
+    await page.locator('#modal-resumen-concepto .hoja-cerrar').click();
 
     await page.locator('.proy-tabla-row', { hasText: 'SURA' }).dblclick();
     const balanceSura = page.locator('#resumen-concepto-cuerpo .detalle-notif-fila', { hasText: 'Balance' }).locator('.detalle-notif-valor');
@@ -450,7 +450,7 @@ test.describe('Proyección', () => {
 
     // Mantener presionada "Ajuste" no ofrece Editar/Eliminar -- no tiene
     // estimado que se pueda modificar ni una fila de presupuesto que borrar.
-    await page.locator('#modal-resumen-concepto .modal-close').click();
+    await page.locator('#modal-resumen-concepto .hoja-cerrar').click();
     const boxAjuste = await filaAjuste.boundingBox();
     await page.mouse.move(boxAjuste.x + boxAjuste.width / 2, boxAjuste.y + boxAjuste.height / 2);
     await page.mouse.down();

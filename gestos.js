@@ -97,6 +97,22 @@ function crearManejadorPresionSostenida(el, { onLargo, onCorto } = {}) {
   el.addEventListener("pointercancel", cancelar);
 }
 
+// Ventanas de solo lectura y menús (resúmenes, detalle de una caja, Editar/Eliminar): son React
+// (react/src/detalles/Detalles.jsx). El módulo arma el contenido y la abre con mostrarDetalle(descriptor);
+// el descriptor se explica en ese archivo.
+function mostrarDetalle(descriptor) {
+  document.dispatchEvent(new CustomEvent("detalle:abrir", { detail: descriptor }));
+}
+function cerrarDetalle() {
+  document.dispatchEvent(new CustomEvent("detalle:cerrar"));
+}
+// La isla de React se dibuja una vez, cuando ya cargaron todos los scripts.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => window.DetallesReact?.render({}));
+} else {
+  setTimeout(() => window.DetallesReact?.render({}), 0);
+}
+
 // Menú chico de Editar/Eliminar que dispara cualquier mantener-presionado
 // de la app -- un solo modal compartido en vez de uno por módulo. Si
 // falta onEditar u onBorrar (ej. "Otros" en Proyección no se puede
@@ -105,23 +121,13 @@ function crearManejadorPresionSostenida(el, { onLargo, onCorto } = {}) {
 // vez de "✏️ Editar" (mismo botón/slot, la acción no es literalmente
 // "editar" pero sigue siendo la única acción de mantener-presionado ahí).
 function abrirMenuEditarBorrar({ titulo, onEditar, onBorrar, labelEditar, labelBorrar }) {
-  const modal = document.getElementById("modal-editar-borrar");
-  if (!modal) return;
-  const tituloEl    = document.getElementById("editar-borrar-titulo");
-  const btnEditar   = document.getElementById("btn-editar-borrar-editar");
-  const btnEliminar = document.getElementById("btn-editar-borrar-eliminar");
-  if (tituloEl) tituloEl.textContent = titulo || "";
-  if (btnEditar) {
-    btnEditar.classList.toggle("hidden", !onEditar);
-    btnEditar.textContent = labelEditar || "✏️ Editar";
-    btnEditar.onclick = () => { modal.classList.add("hidden"); if (onEditar) onEditar(); };
-  }
-  if (btnEliminar) {
-    btnEliminar.classList.toggle("hidden", !onBorrar);
-    btnEliminar.textContent = labelBorrar || "🗑️ Eliminar";
-    btnEliminar.onclick = () => { modal.classList.add("hidden"); if (onBorrar) onBorrar(); };
-  }
-  modal.classList.remove("hidden");
+  mostrarDetalle({
+    id: "modal-editar-borrar", idTitulo: "editar-borrar-titulo", titulo: titulo || "", icono: "lapiz",
+    acciones: [
+      onBorrar && { id: "btn-editar-borrar-eliminar", texto: labelBorrar || "Eliminar", icono: "papelera", onClick: onBorrar },
+      onEditar && { id: "btn-editar-borrar-editar", texto: labelEditar || "Editar", icono: "lapiz", primaria: true, onClick: onEditar },
+    ].filter(Boolean),
+  });
 }
 
 // =============================================

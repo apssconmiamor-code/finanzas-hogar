@@ -742,10 +742,7 @@ function abrirResumenNotificacion(id) {
     ["Revisada hoy", _yaVistaHoy(n) ? _formatoFechaHoraLocal(n.vistoEn) : "Todavía no"]
   );
 
-  document.getElementById("resumen-notificacion-titulo").textContent = n.titulo;
-  const cuerpo = document.getElementById("resumen-notificacion-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = filas.map(([label, valor]) => `
+  const filasHtml = filas.map(([label, valor]) => `
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${escapeHtml(label)}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
@@ -759,16 +756,21 @@ function abrirResumenNotificacion(id) {
           <button type="button" class="btn-secondary notif-card-btn" id="btn-resumen-copiar-url">📋 Copiar</button>
         </span>
       </div>` : "");
-    document.getElementById("btn-resumen-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(n.url));
-  }
 
   // "Marcar como revisada" siempre visible -- se puede aprobar antes de
   // tiempo (pedido explícito: se maneja igual que si se aprueba a la hora
   // que es, ver marcarNotificacionRevisada más abajo, que ya no depende de
   // si la fecha pasó o no).
-  const modal = document.getElementById("modal-resumen-notificacion");
-  if (modal) modal.dataset.id = id;
-  modal?.classList.remove("hidden");
+  mostrarDetalle({
+    id: "modal-resumen-notificacion", idTitulo: "resumen-notificacion-titulo", idCerrar: "btn-cerrar-resumen-notificacion",
+    titulo: n.titulo, icono: "campana",
+    cuerpos: [{ id: "resumen-notificacion-cuerpo", clase: "detalle-notif-cuerpo", html: filasHtml }],
+    acciones: [
+      { id: "btn-resumen-vista", texto: "Marcar como revisada (la vi, no urge)", icono: "ojo", onClick: () => marcarNotificacionVista(id) },
+      { id: "btn-resumen-revisado", texto: "Marcar como realizada", icono: "hecho", primaria: true, onClick: () => marcarNotificacionRevisada(id) },
+    ],
+    alMontar: () => document.getElementById("btn-resumen-copiar-url")?.addEventListener("click", () => _copiarUrlAlAportapapeles(n.url)),
+  });
 }
 
 // clave del bloque cuya pantalla de detalle está abierta -- null = se ve
@@ -1167,25 +1169,6 @@ function setupNotificacionesListeners() {
 
   document.getElementById("btn-suscribir-calendario")
     ?.addEventListener("click", suscribirCalendario);
-
-  document.getElementById("btn-resumen-vista")
-    ?.addEventListener("click", () => {
-      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
-      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
-      if (id) marcarNotificacionVista(id);
-    });
-
-  document.getElementById("btn-resumen-revisado")
-    ?.addEventListener("click", () => {
-      const id = document.getElementById("modal-resumen-notificacion")?.dataset.id;
-      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
-      if (id) marcarNotificacionRevisada(id);
-    });
-
-  document.getElementById("btn-cerrar-resumen-notificacion")
-    ?.addEventListener("click", () => {
-      document.getElementById("modal-resumen-notificacion")?.classList.add("hidden");
-    });
 
 }
 

@@ -160,10 +160,9 @@ function abrirResumenCompra(id) {
   if (!c) return;
   const urg = URGENCIA_CONFIG[c.urgencia] || URGENCIA_CONFIG["Media"];
 
-  document.getElementById("resumen-compra-titulo").textContent = c.concepto;
-  const cuerpo = document.getElementById("resumen-compra-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = [
+  mostrarDetalle({
+    id: "modal-resumen-compra", idTitulo: "resumen-compra-titulo", titulo: c.concepto, icono: "bolsa",
+    cuerpos: [{ id: "resumen-compra-cuerpo", clase: "detalle-notif-cuerpo", html: [
       ["Urgencia", `${urg.icon} ${c.urgencia}`],
       ["Categoría", c.categoria || "—"],
       ["Monto destinado", c.montoDestinado > 0 ? formatMonto(c.montoDestinado) : "—"],
@@ -172,9 +171,8 @@ function abrirResumenCompra(id) {
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${label}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
-      </div>`).join("");
-  }
-  document.getElementById("modal-resumen-compra")?.classList.remove("hidden");
+      </div>`).join("") }],
+  });
 }
 
 function _conectarLargoPresionCompras(contenedor, lista) {

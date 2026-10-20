@@ -221,6 +221,7 @@
             <span id="total-balance" class="resumen-valor">$0</span>
           </div>
         </div>
+        <div id="movimientos-franja" class="movimientos-franja">Movimientos de <span id="movimientos-franja-mes"></span></div>
         <div class="cajas-header">
           <button type="button" class="btn-sutil" id="btn-sumar-mov" onclick="toggleModoSumaMov()">Sumar</button>
         </div>
@@ -440,125 +441,31 @@
 
     <!-- ══ MODALES GLOBALES ══ -->
 
-    <!-- Modal detalle cuenta -->
-    <div id="modal-detalle-caja" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
-      <div class="modal-card" style="max-width:560px;max-height:75vh;display:flex;flex-direction:column">
-        <div class="modal-header">
-          <span id="detalle-caja-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-detalle-caja').classList.add('hidden')">✕</button>
-        </div>
-        <div id="detalle-caja-resumen" class="detalle-caja-resumen"></div>
-        <div id="detalle-caja-body" style="flex:1;overflow:hidden"></div>
-      </div>
-    </div>
 
-    <!-- Modal resumen de un movimiento (doble clic en su tarjeta) -->
-    <div id="modal-resumen-movimiento" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')">
-      <div class="modal-card" style="max-width:480px;max-height:75vh">
-        <div class="modal-header">
-          <span id="resumen-mov-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-resumen-movimiento').classList.add('hidden')">✕</button>
-        </div>
-        <div id="resumen-mov-body" class="detalle-real-lista"></div>
-      </div>
-    </div>
 
     <!-- Nueva compra, nuevo préstamo y registrar pago: son React (react/src/compromisos/Compromisos.jsx). -->
     <div id="compromisos-root"></div>
 
-    <!-- Modal resumen de una compra (doble toque sobre su tarjeta) --
-         solo lectura; Eliminar vive en el menú de mantener presionado. -->
-    <div id="modal-resumen-compra" class="modal hidden">
-      <div class="modal-card" style="max-width:420px">
-        <div class="modal-header">
-          <span id="resumen-compra-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-resumen-compra').classList.add('hidden')">✕</button>
-        </div>
-        <div id="resumen-compra-cuerpo" class="detalle-notif-cuerpo"></div>
-      </div>
-    </div>
+    <!-- Resúmenes de solo lectura (movimiento, compra, préstamo, alerta, plan, concepto, detalle de una caja) y el
+         menú Editar/Eliminar: son React (react/src/detalles/Detalles.jsx). -->
+    <div id="detalles-root"></div>
+
 
     <!-- Nuevo/editar producto y categoría de Mercado: son React (react/src/mercado/Mercado.jsx). -->
     <div id="mercado-root"></div>
 
-    <!-- Modal resumen de un préstamo (doble toque sobre su tarjeta) --
-         solo lectura; Eliminar vive en el menú de mantener presionado. -->
-    <div id="modal-resumen-prestamo" class="modal hidden">
-      <div class="modal-card" style="max-width:420px">
-        <div class="modal-header">
-          <span id="resumen-prestamo-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-resumen-prestamo').classList.add('hidden')">✕</button>
-        </div>
-        <div id="resumen-prestamo-cuerpo" class="detalle-notif-cuerpo"></div>
-      </div>
-    </div>
 
     <!-- Nueva alerta y nuevo bloque de Alertas: son React (ver react/src/alertas/Alertas.jsx). -->
     <div id="alertas-root"></div>
 
-    <!-- Modal: resumen de una alerta (doble clic sobre su tarjeta) -- solo
-         lectura + "Marcar como revisada" (se puede aprobar en cualquier
-         momento, antes o después de la fecha; ver abrirResumenNotificacion
-         en notificaciones.js). Editar/Eliminar viven en el menú de
-         mantener presionado (gestos.js), no acá. -->
-    <div id="modal-resumen-notificacion" class="modal hidden">
-      <div class="modal-card" style="max-height:75vh">
-        <div class="modal-header">
-          <span class="modal-title" id="resumen-notificacion-titulo"></span>
-          <button class="modal-close" id="btn-cerrar-resumen-notificacion">✕</button>
-        </div>
-        <div id="resumen-notificacion-cuerpo" class="detalle-notif-cuerpo"></div>
-        <button type="button" class="btn-secondary notif-btn-ancho" id="btn-resumen-vista"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span> Marcar como revisada (la vi, no urge)</button>
-        <button type="button" class="btn-primary notif-btn-ancho" id="btn-resumen-revisado"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></span> Marcar como realizada</button>
-      </div>
-    </div>
 
     <!-- ═══════════ PLANES ═══════════ -->
 
     <!-- Nuevo/editar plan y nueva categoría de Planes: son React (react/src/planes/Planes.jsx). -->
     <div id="planes-root"></div>
 
-    <!-- Modal: resumen de un plan (doble toque sobre su tarjeta) -- solo
-         lectura. Editar/Eliminar viven en el menú de mantener presionado
-         (gestos.js), no acá -- mismo criterio que Alertas. -->
-    <div id="modal-resumen-plan" class="modal hidden">
-      <div class="modal-card" style="max-height:75vh">
-        <div class="modal-header">
-          <span class="modal-title" id="resumen-plan-titulo"></span>
-          <button class="modal-close" id="btn-cerrar-resumen-plan">✕</button>
-        </div>
-        <div id="resumen-plan-cuerpo" class="detalle-notif-cuerpo"></div>
-      </div>
-    </div>
 
-    <!-- Modal: resumen de un concepto (segundo toque sobre su fila en Proyección) -->
-    <div id="modal-resumen-concepto" class="modal hidden">
-      <div class="modal-card" style="max-height:75vh">
-        <div class="modal-header">
-          <span id="resumen-concepto-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-resumen-concepto').classList.add('hidden')">✕</button>
-        </div>
-        <div id="resumen-concepto-cuerpo" class="detalle-notif-cuerpo"></div>
-        <div class="resumen-concepto-movs-titulo">Movimientos reales</div>
-        <div id="resumen-concepto-movimientos" class="detalle-real-lista"></div>
-      </div>
-    </div>
 
-    <!-- Menú de Editar/Eliminar compartido -- lo abre mantener presionado
-         sobre cualquier ítem con esas acciones (ver abrirMenuEditarBorrar
-         en gestos.js). Un solo modal para toda la app, no uno por módulo. -->
-    <div id="modal-editar-borrar" class="modal hidden">
-      <div class="modal-card" style="max-width:360px">
-        <div class="modal-header">
-          <span id="editar-borrar-titulo" class="modal-title"></span>
-          <button class="modal-close" onclick="document.getElementById('modal-editar-borrar').classList.add('hidden')">✕</button>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-editar-borrar-eliminar"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span> Eliminar</button>
-          <button class="btn-primary" id="btn-editar-borrar-editar"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></span> Editar</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Acciones rápidas (menú, usar una acción y configurarla): ventanas en React
          (react/src/acciones). Se abren desde el rayo "Nuevo movimiento" de Inicio. -->

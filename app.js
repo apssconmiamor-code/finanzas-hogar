@@ -2076,15 +2076,17 @@ function abrirDetalleCaja(nombre) {
     ? `<button class="btn-ajustar" onclick="ajustarCaja('${nombreEscapado}')">Ajustar</button>`
     : "";
 
-  document.getElementById("detalle-caja-titulo").textContent = nombre;
-  document.getElementById("detalle-caja-resumen").innerHTML = `
-    <span style="color:var(--green)">▲ Entradas: ${formatMonto(totalEntradas, moneda)}</span>
-    <span style="color:var(--red)">▼ Salidas: ${formatMonto(totalSalidas, moneda)}</span>
-    <span style="font-weight:700">Saldo: ${formatMonto(totalEntradas - totalSalidas, moneda)}</span>
-    ${botonAjustar}
-  `;
-  document.getElementById("detalle-caja-body").innerHTML = cuerpo;
-  document.getElementById("modal-detalle-caja").classList.remove("hidden");
+  mostrarDetalle({
+    id: "modal-detalle-caja", idTitulo: "detalle-caja-titulo", titulo: nombre, icono: "banco",
+    cuerpos: [
+      { id: "detalle-caja-resumen", clase: "detalle-caja-resumen", html: `
+        <span style="color:var(--green)">▲ Entradas: ${formatMonto(totalEntradas, moneda)}</span>
+        <span style="color:var(--red)">▼ Salidas: ${formatMonto(totalSalidas, moneda)}</span>
+        <span style="font-weight:700">Saldo: ${formatMonto(totalEntradas - totalSalidas, moneda)}</span>
+        ${botonAjustar}` },
+      { id: "detalle-caja-body", clase: "", html: cuerpo },
+    ],
+  });
 }
 
 // Nivela una caja con saldo negativo: agrega UN movimiento de Ingreso por la
@@ -2112,7 +2114,7 @@ async function ajustarCaja(nombre) {
     await Sheets.agregarMovimientoIngreso(
       currentUser.email, fechaISO, "Ajuste", "Ingreso", nombre, diferencia, `Ajuste ${fechaFmt}`
     );
-    document.getElementById("modal-detalle-caja").classList.add("hidden");
+    cerrarDetalle();
     await cargarTodo();
   } catch (err) {
     alert("Error ajustando la caja: " + err.message);
@@ -2158,6 +2160,14 @@ function renderMovimientos() {
     const idB = parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
     return idB - idA;
   });
+
+  // Franja gris entre el resumen y la lista: de qué mes son los movimientos que se están viendo.
+  const franjaMes = document.getElementById("movimientos-franja-mes");
+  if (franjaMes) {
+    franjaMes.textContent = filtroM
+      ? new Date(filtroM + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" })
+      : "todos los meses";
+  }
 
   const subEl = document.getElementById("mov-section-sub");
   if (subEl) subEl.textContent = `${filtrados.length} movimiento${filtrados.length !== 1 ? "s" : ""}`;
@@ -2487,8 +2497,9 @@ function mostrarResumenMovimiento(id) {
     ? `<div class="resumen-mov-foto-wrap"><span class="foto-thumb" title="Cargando…"></span></div>`
     : "";
 
-  document.getElementById("resumen-mov-titulo").textContent = m.concepto || "Sin concepto";
-  document.getElementById("resumen-mov-body").innerHTML = `
+  mostrarDetalle({
+    id: "modal-resumen-movimiento", idTitulo: "resumen-mov-titulo", titulo: m.concepto || "Sin concepto", icono: "movimientos",
+    cuerpos: [{ id: "resumen-mov-body", clase: "detalle-real-lista", html: `
     <div class="detalle-real-item"><span class="detalle-real-item-caja">Caja</span><span>${escapeHtml(m.caja)}</span></div>
     <div class="detalle-real-item"><span class="detalle-real-item-caja">Fecha</span><span>${fechaFmt}</span></div>
     <div class="detalle-real-item"><span class="detalle-real-item-caja">Categoría</span><span>${escapeHtml(m.categoria)}</span></div>
@@ -2496,28 +2507,26 @@ function mostrarResumenMovimiento(id) {
       <span class="detalle-real-item-monto" style="color:${esEntrada ? "var(--green-dark)" : "var(--text)"}">${esEntrada ? "+" : "-"}${formatMonto(Math.abs(m.monto), moneda)}</span>
     </div>
     ${m.descripcion ? `<div class="detalle-real-item"><span class="detalle-real-item-caja">Descripción</span><span>${escapeHtml(m.descripcion)}</span></div>` : ""}
-    ${fotoHTML}
-  `;
-
-  document.getElementById("modal-resumen-movimiento").classList.remove("hidden");
-
-  if (primeraFoto) {
-    const slot = document.querySelector(".resumen-mov-foto-wrap .foto-thumb");
-    const fileId = Sheets.idDesdeUrlDrive(primeraFoto);
-    Promise.all([Sheets.obtenerBlobUrlDrive(fileId), _esArchivoDeAudioDrive(fileId)]).then(([blobUrl, esAudio]) => {
-      if (!slot) return;
-      if (esAudio) {
-        slot.outerHTML = `<div class="recordatorio-audio-preview"><audio controls src="${blobUrl}"></audio></div>`;
-      } else {
-        slot.outerHTML = `
-          <a class="foto-thumb resumen-mov-foto" href="${blobUrl}" target="_blank" rel="noopener" title="Ver foto completa">
-            <img class="foto-thumb-img" alt="foto del movimiento" src="${blobUrl}"/>
-          </a>`;
-      }
-    }).catch((err) => {
-      if (slot) { slot.title = "No se pudo cargar: " + err.message; slot.textContent = "⚠️"; }
-    });
-  }
+    ${fotoHTML}` }],
+    // La foto/audio adjunto se carga de Drive una vez que la ventana ya está en pantalla.
+    alMontar: primeraFoto ? () => {
+      const slot = document.querySelector(".resumen-mov-foto-wrap .foto-thumb");
+      const fileId = Sheets.idDesdeUrlDrive(primeraFoto);
+      Promise.all([Sheets.obtenerBlobUrlDrive(fileId), _esArchivoDeAudioDrive(fileId)]).then(([blobUrl, esAudio]) => {
+        if (!slot) return;
+        if (esAudio) {
+          slot.outerHTML = `<div class="recordatorio-audio-preview"><audio controls src="${blobUrl}"></audio></div>`;
+        } else {
+          slot.outerHTML = `
+            <a class="foto-thumb resumen-mov-foto" href="${blobUrl}" target="_blank" rel="noopener" title="Ver foto completa">
+              <img class="foto-thumb-img" alt="foto del movimiento" src="${blobUrl}"/>
+            </a>`;
+        }
+      }).catch((err) => {
+        if (slot) { slot.title = "No se pudo cargar: " + err.message; slot.innerHTML = window.iconoSvg("alerta"); }
+      });
+    } : null,
+  });
 }
 
 // ---- GUARDAR / ACTUALIZAR MOVIMIENTO ----
@@ -4060,9 +4069,6 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
     ? (getIngresosMesParaEditor(mes)[concepto] || 0)
     : (getGastosMesParaEditor(mes)[concepto] || 0);
 
-  document.getElementById("resumen-concepto-titulo").textContent =
-    `${iconoDeConcepto(concepto, categoria === "Ingreso")} ${concepto}`;
-
   // Balance = Real - Estimado. El COLOR no es simplemente "positivo=verde"
   // -- sigue el mismo criterio que ya usa "excedido" en la tabla: para un
   // Gasto, gastar de más es rojo (aunque el balance en sí dé positivo);
@@ -4077,27 +4083,27 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
   const balanceColor = balance === 0 ? "var(--text)" : (excedido ? "var(--red)" : "var(--green-dark)");
   const balanceTexto = balance === 0 ? "—" : `${balance > 0 ? "+" : "-"}${formatMonto(Math.abs(balance))}`;
 
-  const cuerpo = document.getElementById("resumen-concepto-cuerpo");
-  if (cuerpo) {
-    cuerpo.innerHTML = [
-      ["Estimado", estimado > 0 ? formatMonto(estimado) : "—", null],
-      ["Real", real !== 0 ? formatMonto(real) : "—", null],
-      ["Balance", balanceTexto, balanceColor]
-    ].map(([label, valor, color]) => `
+  const filasResumen = [
+    ["Estimado", estimado > 0 ? formatMonto(estimado) : "—", null],
+    ["Real", real !== 0 ? formatMonto(real) : "—", null],
+    ["Balance", balanceTexto, balanceColor]
+  ].map(([label, valor, color]) => `
       <div class="detalle-notif-fila">
         <span class="detalle-notif-label">${label}</span>
         <span class="detalle-notif-valor"${color ? ` style="color:${color}"` : ""}>${valor}</span>
       </div>`).join("");
-  }
 
-  const listaMovs = document.getElementById("resumen-concepto-movimientos");
-  if (listaMovs) {
-    listaMovs.innerHTML = lista.length === 0
-      ? `<div class="detalle-real-vacio">Sin movimientos reales este mes.</div>`
-      : _renderListaMovimientosReales(lista, esOtros);
-  }
-
-  document.getElementById("modal-resumen-concepto")?.classList.remove("hidden");
+  mostrarDetalle({
+    id: "modal-resumen-concepto", idTitulo: "resumen-concepto-titulo", idCerrar: "btn-cerrar-resumen-concepto",
+    titulo: `${iconoDeConcepto(concepto, categoria === "Ingreso")} ${concepto}`, icono: "barras",
+    cuerpos: [
+      { id: "resumen-concepto-cuerpo", clase: "detalle-notif-cuerpo", html: filasResumen },
+      { id: "", clase: "resumen-concepto-movs-titulo", html: "Movimientos reales" },
+      { id: "resumen-concepto-movimientos", clase: "detalle-real-lista", html: lista.length === 0
+        ? `<div class="detalle-real-vacio">Sin movimientos reales este mes.</div>`
+        : _renderListaMovimientosReales(lista, esOtros) },
+    ],
+  });
 }
 
 // ---- DASHBOARD DONUTS ----

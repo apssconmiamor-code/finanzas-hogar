@@ -12,7 +12,7 @@ import { Icono } from "./Iconos.jsx";
 //   <Interruptor>   casilla estilo interruptor (sigue siendo un <input type="checkbox">)
 //   <PieHoja>       fila de botones de abajo (Cancelar / Guardar...)
 
-export function Hoja({ id, titulo, idTitulo, icono, subtitulo, alta = false, onCerrar, children, pie }) {
+export function Hoja({ id, titulo, idTitulo, idCerrar, icono, subtitulo, alta = false, onCerrar, children, pie }) {
   return (
     <Modal id={id} variante="hoja" claseTarjeta={alta ? "hoja-alta" : ""} onCerrar={onCerrar}>
       <div className="hoja-asa" aria-hidden="true" />
@@ -22,7 +22,7 @@ export function Hoja({ id, titulo, idTitulo, icono, subtitulo, alta = false, onC
           <h3 className="hoja-titulo" id={idTitulo}>{titulo}</h3>
           {subtitulo && <p className="hoja-subtitulo">{subtitulo}</p>}
         </div>
-        <button type="button" className="hoja-cerrar" aria-label="Cerrar" onClick={onCerrar}>
+        <button type="button" id={idCerrar} className="hoja-cerrar" aria-label="Cerrar" onClick={onCerrar}>
           <Icono nombre="cerrar" size={18} />
         </button>
       </div>
