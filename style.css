@@ -849,7 +849,7 @@ input, select, textarea, table {
 .hoja-icono {
   width: 42px; height: 42px; flex-shrink: 0; border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--brand-soft); color: var(--brand); font-size: 22px; line-height: 1;
+  color: var(--brand); font-size: 22px; line-height: 1;
 }
 .hoja-titulos { flex: 1; min-width: 0; }
 .hoja-titulo { margin: 0; font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
@@ -857,9 +857,9 @@ input, select, textarea, table {
 .hoja-cerrar {
   width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg); color: var(--text-3); -webkit-tap-highlight-color: transparent;
+  background: none; color: var(--text-3); -webkit-tap-highlight-color: transparent;
 }
-.hoja-cerrar:active { background: var(--bg-hover); }
+.hoja-cerrar:active { color: var(--text); }
 .hoja-cuerpo { display: flex; flex-direction: column; gap: 14px; }
 .hoja-pie { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
 
@@ -897,11 +897,11 @@ input, select, textarea, table {
 .par-cajas .accion-transferencia-caja { border: none; background: none; padding: 0; margin: 0; text-align: inherit; font-size: 15px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .par-cajas-cambiar {
   width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--brand);
-  box-shadow: var(--shadow-sm); -webkit-tap-highlight-color: transparent; transition: transform .25s;
+  display: flex; align-items: center; justify-content: center; background: none; color: var(--brand);
+  -webkit-tap-highlight-color: transparent; transition: transform .25s;
 }
 .par-cajas-cambiar:active { transform: rotate(180deg) scale(.92); }
-.par-cajas-cambiar:disabled { opacity: .35; cursor: default; box-shadow: none; }
+.par-cajas-cambiar:disabled { opacity: .35; cursor: default; }
 .hoja-ayuda { font-size: 12px; color: var(--text-3); }
 
 /* Interruptor (checkbox estilo iOS: sigue siendo un <input type="checkbox">) */
@@ -1387,7 +1387,7 @@ input, select, textarea, table {
   -webkit-tap-highlight-color: transparent;
 }
 .selector-icono .ic { width: 1em; height: 1em; vertical-align: 0; }
-.selector-icono.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.selector-icono.active { border-color: var(--brand); color: var(--brand); }
 
 /* ═══════════════ LOADING / EMPTY ═══════════════ */
 .loading-state { text-align: center; padding: 40px 20px; color: var(--text-4); font-size: 14px; }
