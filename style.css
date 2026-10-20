@@ -1149,8 +1149,8 @@ input, select, textarea, table {
 /* Tarjeta elegida en modo "Sumar" de Movimientos -- gana también al hover
    (en táctil el hover queda "pegado" tras el toque y la pintaba gris). */
 .mov-card.mov-card-seleccionada, .mov-card.mov-card-seleccionada:hover {
-  border-color: var(--brand); background: rgba(var(--brand-rgb),.12);
-  box-shadow: 0 0 0 2px rgba(var(--brand-rgb),.25);
+  background: rgba(var(--brand-rgb),.12);
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 /* Fila elegida en modo "Sumar" de Proyección */
 .proy-tabla-row.proy-tabla-row-seleccionada td,
@@ -1245,20 +1245,25 @@ input, select, textarea, table {
 
 /* ═══════════════ MOVIMIENTOS ═══════════════ */
 .movimientos-list {
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 0;
+}
+/* Las filas van pegadas, como una sola lista con una línea entre cada una. */
+.movimientos-list:has(.mov-card) {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm); overflow: hidden;
 }
 
 /* Card de movimiento */
 .mov-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-md); padding: 12px 14px;
-  box-shadow: var(--shadow-sm); transition: box-shadow 0.12s;
+  background: var(--surface); border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0; padding: 12px 14px;
+  box-shadow: none;
   /* Mantener presionada abre Editar/Eliminar (ver abrirMenuEditarBorrar) --
      sin esto, iOS intenta mostrar su propio menú de selección de texto o
      callout nativo al sostener el dedo, en vez de dejar pasar el gesto. */
   user-select: none; -webkit-touch-callout: none;
 }
-.mov-card:hover { box-shadow: var(--shadow-md); }
+.mov-card:last-child { border-bottom: none; }
 
 .mov-card-row1 {
   display: flex; justify-content: space-between; align-items: center;
@@ -1280,8 +1285,8 @@ input, select, textarea, table {
 }
 /* Ícono del concepto: solo el trazo, sin color de fondo (igual que en Proyección). */
 .mov-card-icono {
-  width: 28px; height: 28px; flex-shrink: 0; color: var(--text-3);
-  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  flex-shrink: 0; color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
 }
 
 .mov-card-texto {
