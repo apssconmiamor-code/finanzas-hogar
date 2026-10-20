@@ -365,71 +365,8 @@
         <!-- Hidden input for compat -->
         <input id="proyeccion-mes" type="month" style="display:none"/>
         <!-- Modal presupuesto -->
-        <div id="modal-presupuesto" class="modal hidden">
-          <div class="modal-card modal-card-presupuesto">
-            <h3 class="modal-title">Presupuesto mensual</h3>
-            <p class="modal-subtitle">Gastos fijos y variables. Los ingresos se configuran por mes en Proyección.</p>
-            <div id="pres-form-body" class="pres-form-body"></div>
-            <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cancelar-presupuesto">Cancelar</button>
-              <button class="btn-primary" id="btn-guardar-presupuesto">Guardar</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Modal nuevo concepto de presupuesto -->
-        <!-- Archivar conceptos: un concepto duplicado ("Internet hogar" teniendo "Internet")
-             deja de mostrarse en todas partes; se puede restaurar. -->
-        <div id="modal-archivar" class="modal hidden">
-          <div class="modal-card">
-            <h3 class="modal-title">Archivar conceptos</h3>
-            <p class="modal-subtitle">Si tienes un concepto repetido, archívalo: deja de mostrarse en todas partes y solo te queda uno. Tus movimientos anteriores no se tocan.</p>
-            <div class="form-group">
-              <label>Concepto a archivar</label>
-              <select id="archivar-concepto" class="input"></select>
-            </div>
-            <div id="archivar-resumen" class="card-section-sub"></div>
-            <div id="archivar-existentes"></div>
-            <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cerrar-archivar">Cerrar</button>
-              <button class="btn-primary" id="btn-confirmar-archivar" disabled>Archivar</button>
-            </div>
-          </div>
-        </div>
-        <div id="modal-nuevo-concepto" class="modal hidden">
-          <div class="modal-card">
-            <h3 class="modal-title">Nuevo concepto</h3>
-            <div class="form-group">
-              <label>Concepto</label>
-              <input id="nuevo-concepto-nombre" type="text" list="lista-conceptos-existentes"
-                placeholder="Ej: Gimnasio, Parqueadero…" class="input" autocomplete="off"/>
-              <datalist id="lista-conceptos-existentes"></datalist>
-              <span id="nuevo-concepto-duplicado" class="nuevo-concepto-aviso hidden"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Ese concepto ya existe</span>
-              <div id="nuevo-concepto-parecido" class="nuevo-concepto-aviso nuevo-concepto-parecido hidden"></div>
-            </div>
-            <div class="form-group">
-              <label>Categoría</label>
-              <div class="cat-btn-group" id="nuevo-concepto-cat-group">
-                <button type="button" class="cat-btn" data-value="Ingreso"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.2 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/><path d="M12 5.5V7"/><path d="M12 17v1.5"/></svg></span> Ingreso</button>
-                <button type="button" class="cat-btn" data-value="Gasto fijo"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.8a2 2 0 0 0-1.1-1.8l-1.8-.9a2 2 0 0 1-1.1-1.8V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></span> Gasto fijo</button>
-                <button type="button" class="cat-btn" data-value="Gasto variable"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg></span> Gasto variable</button>
-              </div>
-              <input type="hidden" id="nuevo-concepto-categoria" value=""/>
-            </div>
-            <div class="form-group">
-              <label>Ícono <span class="label-opcional">(opcional)</span></label>
-              <input id="nuevo-concepto-icono" type="text" placeholder="Ej: " maxlength="4" class="input" style="max-width:110px" autocomplete="off"/>
-            </div>
-            <div class="form-group">
-              <label id="nuevo-concepto-monto-label">Monto estimado</label>
-              <input id="nuevo-concepto-monto" type="text" inputmode="decimal" placeholder="0" class="input pres-input"/>
-            </div>
-            <div class="modal-actions">
-              <button class="btn-secondary" id="btn-cancelar-nuevo-concepto">Cancelar</button>
-              <button class="btn-primary" id="btn-guardar-nuevo-concepto">Guardar</button>
-            </div>
-          </div>
-        </div>
+        <!-- Mes, concepto nuevo, modificar y archivar de Proyección: son React (react/src/conceptos/Conceptos.jsx). -->
+        <div id="conceptos-root"></div>
       </section>
 
       <!-- ══ TAB: COMPROMISOS (Préstamos + Lista de compras) ══ -->
@@ -544,18 +481,6 @@
     <!-- Nuevo/editar producto y categoría de Mercado: son React (react/src/mercado/Mercado.jsx). -->
     <div id="mercado-root"></div>
 
-    <!-- Modal agregar mes (con detección de huecos) -->
-    <div id="modal-agregar-mes" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">¿Qué mes agregar?</h3>
-        <p class="modal-subtitle" id="modal-agregar-mes-sub">Hay meses sin cubrir en tu proyección.</p>
-        <div id="modal-agregar-mes-opciones" style="display:flex;flex-direction:column;gap:8px;margin-top:4px"></div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-agregar-mes">Cancelar</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Modal resumen de un préstamo (doble toque sobre su tarjeta) --
          solo lectura; Eliminar vive en el menú de mantener presionado. -->
     <div id="modal-resumen-prestamo" class="modal hidden">
@@ -603,38 +528,6 @@
           <button class="modal-close" id="btn-cerrar-resumen-plan">✕</button>
         </div>
         <div id="resumen-plan-cuerpo" class="detalle-notif-cuerpo"></div>
-      </div>
-    </div>
-
-    <!-- Modal configurar mes proyección -->
-    <div id="modal-config-mes" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title" id="modal-config-mes-titulo">Configurar mes</h3>
-        <div class="modal-subtitle-fila">
-          <p class="modal-subtitle">Ingresos estimados para este mes</p>
-          <button type="button" class="btn-sutil" id="btn-config-nuevo-concepto">Agregar nuevo concepto</button>
-        </div>
-        <div id="modal-config-mes-body" class="pres-form-body"></div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-config-mes">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-config-mes">Guardar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal modificar un solo concepto de la proyección -->
-    <div id="modal-modificar-concepto" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Modificar concepto</h3>
-        <p class="modal-subtitle" id="modificar-concepto-nombre"></p>
-        <div class="form-group">
-          <label>Monto estimado</label>
-          <input id="modificar-concepto-monto" type="text" inputmode="decimal" placeholder="0" class="input pres-input"/>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-modificar-concepto">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-modificar-concepto">Guardar</button>
-        </div>
       </div>
     </div>
 

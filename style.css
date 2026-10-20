@@ -1243,19 +1243,19 @@ input, select, textarea, table {
 }
 .filtros-bar > .input-sm + .input-sm { border-left: 1px solid var(--border-mid); }
 
-/* Movimientos: filtros, resumen y filas forman UN solo bloque, pegados unos a otros. La primera fila
-   (la de filtros) lleva un embudo a la izquierda para que se note que es para filtrar. */
+/* Movimientos: la fila de filtros va aparte (lleva un embudo a la izquierda para que se note que es
+   para filtrar); el resumen (ingresos/gastos/balance) y las filas forman UN solo bloque, pegados. */
 .filtros-icono {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0 4px 0 14px;
   color: var(--text-4); font-size: 15px;
 }
 #tab-movimientos .filtros-bar {
-  margin-bottom: 0; border-color: var(--border); border-radius: var(--r-md) var(--r-md) 0 0;
+  margin-bottom: 14px; border-color: var(--border); border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
 }
 #tab-movimientos .filtros-bar > .input-sm + .input-sm { border-left-color: var(--border); }
 #tab-movimientos #resumen-bar {
-  margin-bottom: 0; border-radius: 0; border-top: none; box-shadow: none;
+  margin-bottom: 0; border-radius: var(--r-md) var(--r-md) 0 0; box-shadow: var(--shadow-sm);
 }
 #tab-movimientos .movimientos-list:has(.mov-card) {
   border-top: none; border-radius: 0 0 var(--r-md) var(--r-md);
@@ -1378,6 +1378,21 @@ input, select, textarea, table {
 }
 .label-origen { color: var(--red); font-size: 11px; }
 .label-destino { color: var(--green-dark); font-size: 11px; }
+
+/* Configurar mes (hoja): secciones con sus conceptos de a dos por fila */
+.config-mes-cuerpo { display: flex; flex-direction: column; gap: 6px; }
+.config-mes-cuerpo .pres-seccion-title { display: flex; align-items: center; gap: 6px; padding: 12px 0 8px; }
+.config-mes-cuerpo .campo-etiqueta { display: flex; align-items: center; gap: 5px; }
+.config-mes-cuerpo .pres-input { max-width: none; padding: 13px 14px; font-size: 15px; }
+.config-mes-referencia {
+  display: flex; align-items: center; gap: 6px; background: var(--blue-soft); color: var(--blue);
+  border-radius: 12px; padding: 9px 13px; font-size: 12px; margin-bottom: 4px;
+}
+.hoja .modal-subtitle-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hoja .modal-subtitle-fila .modal-subtitle { margin: 0; }
+/* Botones de categoría de la hoja (Nuevo concepto): como los chips de caja */
+.hoja .cat-btn { border-radius: 999px; padding: 9px 15px; border: 1.5px solid var(--border-mid); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--text-2); }
+.hoja .cat-btn.active { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 
 /* ═══════════════ ÍCONOS (sin emojis) ═══════════════
    .ic = ícono SVG en línea: mide 1em y toma el color del texto, así reemplaza a un emoji

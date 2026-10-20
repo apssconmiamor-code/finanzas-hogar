@@ -1064,7 +1064,6 @@ function cerrarModal(modalEl) {
     modalEl.dispatchEvent(new CustomEvent("finanzas:cerrar"));
     return;
   }
-  if (modalEl.id === "modal-nuevo-concepto") { cerrarModalNuevoConcepto(); return; }
   if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
   modalEl.classList.add("hidden");
 }
@@ -3437,42 +3436,18 @@ function agregarMesProyeccion() {
     return;
   }
 
-  // Hay huecos: mostrar modal de selección
-  const modal    = document.getElementById("modal-agregar-mes");
-  const opciones = document.getElementById("modal-agregar-mes-opciones");
-  if (!modal || !opciones) return;
+  // Hay huecos: se elige cuál agregar (ventana React, ver react/src/conceptos/Conceptos.jsx).
+  document.dispatchEvent(new CustomEvent("conceptos:abrir", { detail: { t: "agregarMes", faltantes, ultimo, siguiente: nextStr } }));
+}
 
-  const labelMes = (str) => new Date(str + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-
-  opciones.innerHTML = `
-    <p style="font-size:13px;color:var(--text-3);margin-bottom:4px">
-      Hay ${faltantes.length} mes${faltantes.length > 1 ? "es" : ""} sin cubrir antes de ${labelMes(ultimo)}:
-    </p>
-    ${faltantes.map(f => `
-      <button class="btn-secondary" style="justify-content:flex-start;gap:8px" data-mes-add="${f}">
-        📅 Agregar <strong>${labelMes(f)}</strong>
-      </button>`).join("")}
-    <div style="height:1px;background:var(--border);margin:4px 0"></div>
-    <button class="btn-primary" data-mes-add="${nextStr}">
-      ➡️ Continuar con ${labelMes(nextStr)}
-    </button>`;
-
-  modal.classList.remove("hidden");
-
-  opciones.querySelectorAll("[data-mes-add]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const mesAdd = btn.dataset.mesAdd;
-      if (!meses.includes(mesAdd)) {
-        mesesProyeccion = [...meses, mesAdd].sort();
-        saveMesesProyeccion();
-      }
-      modal.classList.add("hidden");
-      render4MesesResumen();
-    });
-  });
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico (ver cerrarModal).
-  document.getElementById("btn-cancelar-agregar-mes").onclick = () => modal.classList.add("hidden");
+// Agrega ese mes a la proyección (lo llama la ventana de "¿Qué mes agregar?").
+function elegirMesProyeccion(mesAdd) {
+  const meses = getMesesProyeccion();
+  if (!meses.includes(mesAdd)) {
+    mesesProyeccion = [...meses, mesAdd].sort();
+    saveMesesProyeccion();
+  }
+  render4MesesResumen();
 }
 
 function eliminarMesProyeccion(mes) {
@@ -3713,145 +3688,61 @@ function render4MesesResumen() {
   });
 }
 
-// ---- CONFIG DE MES (doble clic) ----
-// Lee lo escrito hasta ahora en el formulario (texto crudo de cada casilla), para
-// no perderlo al salir un momento a crear un concepto nuevo.
-function _leerBorradorConfigMes() {
-  const valores = {};
-  document.querySelectorAll("#modal-config-mes-body .pres-input").forEach(inp => {
-    const nombre = inp.dataset.tipo === "ingreso" ? inp.dataset.fuente : inp.dataset.concepto;
-    valores[inp.dataset.tipo + "|" + nombre] = inp.value;
-  });
-  return valores;
+// ---- CONFIG DE MES / MODIFICAR CONCEPTO ----
+// Las ventanas son React (react/src/conceptos/Conceptos.jsx); acá quedan los datos.
+
+// Configurar mes: lista TODOS los conceptos (ingresos, gastos fijos y gastos variables). Los que el
+// mes no tiene (ni el anterior de referencia) quedan en 0 y van al final de su grupo; al guardar solo
+// se conservan los que tengan un valor mayor que 0, que son los que muestra la tabla.
+function abrirConfigMes(mes) {
+  document.dispatchEvent(new CustomEvent("conceptos:abrir", { detail: { t: "config", mes } }));
 }
 
-// Configurar mes: lista TODOS los conceptos (ingresos, gastos fijos y gastos
-// variables). Los que el mes no tiene (ni el anterior de referencia) quedan en
-// 0 y van al final de su grupo; al guardar solo se conservan los que tengan un
-// valor mayor que 0, que son los que muestra la tabla. "borrador" (opcional)
-// devuelve el formulario a como estaba tras crear un concepto nuevo:
-//   { valores: {"tipo|nombre": texto}, nuevo: {tipo, concepto, monto} }
-function abrirConfigMes(mes, borrador) {
-  const modal  = document.getElementById("modal-config-mes");
-  const titulo = document.getElementById("modal-config-mes-titulo");
-  const body   = document.getElementById("modal-config-mes-body");
-  if (!modal) return;
-
-  const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-  const mesPrevLabel = new Date(getMesAnterior(mes) + "-15").toLocaleDateString("es-CO", { month: "long" });
-  titulo.textContent = `Proyección · ${mesLabel}`;
-
-  const fuentes   = getIngresosMesParaEditor(mes);
-  const gastosMes = getGastosMesParaEditor(mes);
-
+function datosConfigMes(mes) {
   const hayDatosMesAnterior = Object.keys(getGastosMes(getMesAnterior(mes)) || {}).length > 0
     || Object.keys(getIngresosMes(getMesAnterior(mes))).length > 0;
-  const esValorReferencial = !getGastosMes(mes) && !Object.keys(getIngresosMes(mes)).length;
-
-  // Texto de cada casilla: lo ya escrito (si se vuelve de crear un concepto) o
-  // lo guardado, y "0" por defecto.
-  const textoDe = (tipo, nombre, guardado) => {
-    if (borrador?.nuevo && borrador.nuevo.tipo === tipo && borrador.nuevo.concepto === nombre) {
-      return Number(borrador.nuevo.monto).toLocaleString("es-CO");
-    }
-    const clave = tipo + "|" + nombre;
-    if (borrador?.valores && clave in borrador.valores) return borrador.valores[clave];
-    return guardado ? Number(guardado).toLocaleString("es-CO") : "0";
+  return {
+    fuentes: getIngresosMesParaEditor(mes),
+    gastos: getGastosMesParaEditor(mes),
+    ingresos: FUENTES_INGRESO, fijos: GASTOS_FIJOS, variables: GASTOS_VARIABLES,
+    hayDatosMesAnterior,
+    esValorReferencial: !getGastosMes(mes) && !Object.keys(getIngresosMes(mes)).length,
+    mesPrevLabel: new Date(getMesAnterior(mes) + "-15").toLocaleDateString("es-CO", { month: "long" }),
   };
-  // Con valor primero, los 0 al final de cada grupo (el orden original se conserva).
-  const grupo = (lista, tipo, base, atributo, iconoPorDefecto) => lista
-    .map(nombre => {
-      const texto = textoDe(tipo, nombre, base[nombre]);
-      return { nombre, texto, conValor: evaluarMonto(texto) > 0 };
-    })
-    .sort((x, y) => Number(y.conValor) - Number(x.conValor))
-    .map(f => `
-      <div class="pres-fila">
-        <span class="pres-concepto">${ICONOS[f.nombre] || (window.iconoPorNombre && window.iconoPorNombre(f.nombre)) || iconoPorDefecto} ${f.nombre}</span>
-        <input class="input pres-input" type="text" inputmode="decimal" placeholder="0" onfocus="this.select()"
-          data-tipo="${tipo}" ${atributo}="${f.nombre}" value="${f.texto}"/>
-      </div>`).join("");
-
-  body.innerHTML = `
-    ${esValorReferencial && hayDatosMesAnterior ? `
-      <div style="background:var(--blue-soft);border-radius:10px;padding:9px 13px;font-size:12px;color:var(--blue);margin-bottom:4px">
-        📋 Valores cargados desde ${mesPrevLabel} como referencia
-      </div>` : ""}
-    <div class="pres-seccion-title">💰 Ingresos estimados</div>
-    ${grupo(FUENTES_INGRESO, "ingreso", fuentes, "data-fuente", "💰")}
-
-    <div class="pres-seccion-title" style="margin-top:16px">📌 Gastos fijos</div>
-    ${grupo(GASTOS_FIJOS, "gasto", gastosMes, "data-concepto", "📌")}
-
-    <div class="pres-seccion-title" style="margin-top:16px">🔀 Gastos variables</div>
-    ${grupo(GASTOS_VARIABLES, "gasto", gastosMes, "data-concepto", "🔀")}
-  `;
-
-  modal.classList.remove("hidden");
-
-  // "Agregar nuevo concepto" (en la fila del subtítulo): se sale un momento al
-  // formulario de concepto nuevo y se vuelve con lo escrito intacto.
-  document.getElementById("btn-config-nuevo-concepto").onclick = () => {
-    _contextoNuevoConcepto = { mes, valores: _leerBorradorConfigMes() };
-    modal.classList.add("hidden");
-    abrirModalNuevoConcepto();
-  };
-
-  document.getElementById("btn-guardar-config-mes").onclick = () => {
-    const nuevosIngresos = {};
-    const nuevosGastos   = {};
-    body.querySelectorAll(".pres-input").forEach(inp => {
-      const v = evaluarMonto(inp.value);
-      if (v > 0) {
-        if (inp.dataset.tipo === "ingreso") nuevosIngresos[inp.dataset.fuente] = v;
-        else nuevosGastos[inp.dataset.concepto] = v;
-      }
-    });
-    setIngresosMes(mes, nuevosIngresos);
-    setGastosMes(mes, Object.keys(nuevosGastos).length ? nuevosGastos : null);
-    modal.classList.add("hidden");
-    renderProyeccion();
-    SyncManager.mostrarToast("✅ Proyección de " + new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" }) + " guardada");
-  };
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico (ver cerrarModal).
-  document.getElementById("btn-cancelar-config-mes").onclick = () => modal.classList.add("hidden");
 }
 
-// Abre un modal chico para editar el estimado de un solo concepto (gasto o ingreso)
-function abrirModificarConcepto(concepto, categoria) {
-  const modal  = document.getElementById("modal-modificar-concepto");
-  const nombre = document.getElementById("modificar-concepto-nombre");
-  const input  = document.getElementById("modificar-concepto-monto");
-  if (!modal) return;
+function guardarConfigMesDatos(mes, nuevosIngresos, nuevosGastos) {
+  setIngresosMes(mes, nuevosIngresos);
+  setGastosMes(mes, Object.keys(nuevosGastos).length ? nuevosGastos : null);
+  renderProyeccion();
+  SyncManager.mostrarToast("✅ Proyección de " + new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" }) + " guardada");
+}
 
-  const mes     = proyMesActivo;
+// Editar el estimado de un solo concepto (gasto o ingreso) del mes activo.
+function abrirModificarConcepto(concepto, categoria) {
+  document.dispatchEvent(new CustomEvent("conceptos:abrir", { detail: { t: "modificar", concepto, categoria } }));
+}
+
+function valorEstimadoConcepto(concepto, categoria) {
+  const datos = categoria === "Ingreso" ? getIngresosMesParaEditor(proyMesActivo) : getGastosMesParaEditor(proyMesActivo);
+  return datos[concepto] || 0;
+}
+
+function guardarModificarConceptoDatos(concepto, categoria, nuevoValor) {
+  const mes = proyMesActivo;
   const esIngreso = categoria === "Ingreso";
   const datosActuales = esIngreso ? getIngresosMesParaEditor(mes) : getGastosMesParaEditor(mes);
-  const valorActual = datosActuales[concepto] || 0;
+  const nuevosDatos = { ...datosActuales };
+  if (nuevoValor > 0) nuevosDatos[concepto] = nuevoValor;
+  else delete nuevosDatos[concepto];
 
-  nombre.textContent = `${iconoDeConcepto(concepto, esIngreso)} ${concepto}`;
-  input.value = valorActual ? Number(valorActual).toLocaleString("es-CO") : "";
-  modal.classList.remove("hidden");
-  setTimeout(() => { input.focus(); input.select(); }, 60);
-
-  document.getElementById("btn-guardar-modificar-concepto").onclick = () => {
-    const nuevoValor = evaluarMonto(input.value);
-    const nuevosDatos = { ...datosActuales };
-    if (nuevoValor > 0) nuevosDatos[concepto] = nuevoValor;
-    else delete nuevosDatos[concepto];
-
-    if (esIngreso) {
-      setIngresosMes(mes, nuevosDatos);
-    } else {
-      setGastosMes(mes, Object.keys(nuevosDatos).length ? nuevosDatos : null);
-    }
-    modal.classList.add("hidden");
-    renderProyeccion();
-    SyncManager.mostrarToast(`✅ ${concepto} actualizado`);
-  };
-
-  document.getElementById("btn-cancelar-modificar-concepto").onclick = () => modal.classList.add("hidden");
+  if (esIngreso) {
+    setIngresosMes(mes, nuevosDatos);
+  } else {
+    setGastosMes(mes, Object.keys(nuevosDatos).length ? nuevosDatos : null);
+  }
+  renderProyeccion();
+  SyncManager.mostrarToast(`✅ ${concepto} actualizado`);
 }
 
 // ---- TABLA COMPARACIÓN ----
@@ -4335,86 +4226,6 @@ function renderDashboardDonuts() {
   }).join("");
 }
 
-// ---- MODAL PRESUPUESTO ----
-
-function abrirModalPresupuesto() {
-  document.getElementById("modal-presupuesto").classList.remove("hidden");
-  renderFormPresupuesto();
-}
-
-function cerrarModalPresupuesto() {
-  document.getElementById("modal-presupuesto").classList.add("hidden");
-}
-
-function renderFormPresupuesto() {
-  const container = document.getElementById("pres-form-body");
-
-  const todasCategorias = [
-    ...GASTOS_FIJOS.map(c => ({ categoria: "Gasto fijo", concepto: c })),
-    ...GASTOS_VARIABLES.map(c => ({ categoria: "Gasto variable", concepto: c })),
-  ];
-
-  const filas = todasCategorias.map(base => {
-    const guardado = presupuesto.find(p => p.concepto === base.concepto);
-    return { ...base, montoEstimado: guardado ? guardado.montoEstimado : 0 };
-  });
-
-  container.innerHTML = `
-    <p style="font-size:12px;color:var(--text-light);margin-bottom:12px">
-      💡 Los ingresos se configuran por mes en la vista de Proyección.
-    </p>
-    <div class="pres-seccion-title" style="margin-top:4px">📌 Gastos fijos</div>
-    ${filas.filter(f => f.categoria === "Gasto fijo").map(f => `
-      <div class="pres-fila">
-        <span class="pres-concepto">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
-        <input class="input pres-input" type="text" inputmode="decimal" placeholder="0"
-          data-tipo="gasto" data-concepto="${f.concepto}" data-categoria="Gasto fijo"
-          value="${f.montoEstimado ? Number(f.montoEstimado).toLocaleString("es-CO") : ""}"/>
-      </div>`).join("")}
-
-    <div class="pres-seccion-title" style="margin-top:20px">🔀 Gastos variables</div>
-    ${filas.filter(f => f.categoria === "Gasto variable").map(f => `
-      <div class="pres-fila">
-        <span class="pres-concepto">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
-        <input class="input pres-input" type="text" inputmode="decimal" placeholder="0"
-          data-tipo="gasto" data-concepto="${f.concepto}" data-categoria="Gasto variable"
-          value="${f.montoEstimado ? Number(f.montoEstimado).toLocaleString("es-CO") : ""}"/>
-      </div>`).join("")}
-  `;
-}
-
-async function guardarPresupuesto() {
-  const inputs = document.querySelectorAll(".pres-input");
-  const filas = [];
-
-  inputs.forEach(inp => {
-    const val = evaluarMonto(inp.value);
-    if (!val || val <= 0) return;
-    filas.push({
-      categoria:       inp.dataset.categoria,
-      concepto:        inp.dataset.concepto,
-      montoEstimado:   inp.dataset.tipo === "gasto"   ? val : 0,
-      ingresoEstimado: inp.dataset.tipo === "ingreso" ? val : 0,
-    });
-  });
-
-  const btn = document.getElementById("btn-guardar-presupuesto");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    await Sheets.guardarPresupuesto(filas);
-    presupuesto = filas;
-    cerrarModalPresupuesto();
-    renderProyeccion();
-  } catch (err) {
-    alert("Error guardando presupuesto: " + err.message);
-
-  } finally {
-    const btnFinal = document.getElementById("btn-guardar-presupuesto");
-    if (btnFinal) { btnFinal.textContent = "Guardar presupuesto"; btnFinal.disabled = false; }
-  }
-}
-
 // =============================================
 // CRONOLOGÍA MENSUAL
 // =============================================
@@ -4750,111 +4561,35 @@ function renderCronologia(datos) {
   `;
 }
 
-// ---- MODAL NUEVO CONCEPTO (agregar fila al presupuesto) ----
+// ---- NUEVO CONCEPTO (agregar fila al presupuesto) ----
+// La ventana es React (se abre desde Configurar mes, ver Conceptos.jsx); acá quedan los datos.
 
-function abrirModalNuevoConcepto() {
-  const modal = document.getElementById("modal-nuevo-concepto");
-  if (!modal) return;
-
-  document.getElementById("nuevo-concepto-nombre").value = "";
-  document.getElementById("nuevo-concepto-monto").value = "";
-  document.getElementById("nuevo-concepto-categoria").value = "";
-  document.getElementById("nuevo-concepto-icono").value = "";
-  document.getElementById("nuevo-concepto-duplicado").classList.add("hidden");
-  const parecido = document.getElementById("nuevo-concepto-parecido");
-  if (parecido) { parecido.classList.add("hidden"); parecido.innerHTML = ""; }
-  document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
-
-  document.getElementById("nuevo-concepto-monto-label").textContent = "Monto estimado";
-
-  const dl = document.getElementById("lista-conceptos-existentes");
-  dl.innerHTML = [...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO].map(c => `<option value="${c}"/>`).join("");
-
-  modal.classList.remove("hidden");
-  setTimeout(() => document.getElementById("nuevo-concepto-nombre").focus(), 60);
+function nombresDeConceptos() {
+  return [...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO];
 }
 
-// Si el concepto nuevo se abrió desde "Configurar mes", al cerrarlo (guardado o
-// cancelado) se vuelve a ese formulario con lo que ya estaba escrito, más el
-// concepto recién creado con el monto que se le puso (ver abrirConfigMes).
-let _contextoNuevoConcepto = null;
-
-function cerrarModalNuevoConcepto() {
-  document.getElementById("modal-nuevo-concepto")?.classList.add("hidden");
-  const ctx = _contextoNuevoConcepto;
-  _contextoNuevoConcepto = null;
-  if (ctx) abrirConfigMes(ctx.mes, { valores: ctx.valores, nuevo: ctx.nuevo });
-}
-
-function validarNombreNuevoConcepto() {
-  const nombre = document.getElementById("nuevo-concepto-nombre").value;
+// ¿Ya existe (o está archivado)? Y conceptos que se parecen, para avisar sin bloquear: evita crear
+// "Internet hogar" teniendo "Internet".
+function estadoNuevoConcepto(nombre) {
   const archivado = conceptoArchivado(nombre);
   const existe = conceptoYaExiste(nombre) || archivado;
-  const aviso = document.getElementById("nuevo-concepto-duplicado");
-  aviso.textContent = archivado
-    ? "📦 Ese concepto está archivado — restáuralo en Archivar conceptos"
-    : "⚠️ Ese concepto ya existe";
-  aviso.classList.toggle("hidden", !existe);
-
-  // Aviso de parecidos (no bloquea): evita crear "Internet hogar" teniendo "Internet".
-  const caja = document.getElementById("nuevo-concepto-parecido");
-  if (caja) {
-    const parecidos = existe ? [] : conceptosParecidos(nombre);
-    caja.classList.toggle("hidden", parecidos.length === 0);
-    caja.innerHTML = parecidos.length === 0 ? "" : `
-      <span>Se parece a lo que ya tienes — ¿es el mismo gasto?</span>
-      <span class="nuevo-concepto-parecidos">${parecidos.map(c =>
-        `<button type="button" class="btn-sutil" data-usar-concepto="${escapeHtml(c)}">Usar «${escapeHtml(c)}»</button>`).join("")}</span>`;
-  }
-  return existe;
+  return { existe: !!existe && !archivado, archivado: !!archivado, parecidos: existe ? [] : conceptosParecidos(nombre) };
 }
 
-// "Usar «Internet»": en vez de crear uno nuevo, se cierra este formulario y, si se
-// venía de Configurar mes, se deja el cursor en la casilla del concepto que ya existe.
-function usarConceptoExistente(nombre) {
-  cerrarModalNuevoConcepto();
-  const body = document.getElementById("modal-config-mes-body");
-  const inp = body && [...body.querySelectorAll(".pres-input")]
-    .find(i => (i.dataset.fuente || i.dataset.concepto) === nombre);
-  if (inp) { inp.scrollIntoView({ block: "center" }); inp.focus(); inp.select(); }
-}
-
-async function guardarNuevoConcepto() {
-  const nombre    = document.getElementById("nuevo-concepto-nombre").value.trim();
-  const categoria = document.getElementById("nuevo-concepto-categoria").value;
-  const icono     = document.getElementById("nuevo-concepto-icono").value.trim();
-  const monto     = evaluarMonto(document.getElementById("nuevo-concepto-monto").value);
-
-  if (!nombre) { alert("Escribe el nombre del concepto"); return; }
-  if (validarNombreNuevoConcepto()) return;
-  if (!categoria) { alert("Selecciona una categoría"); return; }
-  if (!monto || monto <= 0) { alert(categoria === "Ingreso" ? "Escribe el ingreso estimado" : "Escribe el monto estimado"); return; }
-
-  const btn = document.getElementById("btn-guardar-nuevo-concepto");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    const esIngreso = categoria === "Ingreso";
-    const nuevaLista = [...presupuesto, {
-      categoria, concepto: nombre, icono,
-      montoEstimado:   esIngreso ? 0 : monto,
-      ingresoEstimado: esIngreso ? monto : 0
-    }];
-    await Sheets.guardarPresupuesto(nuevaLista);
-    presupuesto = nuevaLista;
-    sincronizarListasConceptos();
-    const desdeConfigMes = !!_contextoNuevoConcepto;
-    if (desdeConfigMes) _contextoNuevoConcepto.nuevo = { tipo: esIngreso ? "ingreso" : "gasto", concepto: nombre, monto };
-    cerrarModalNuevoConcepto();
-    renderProyeccion();
-    // Desde Configurar mes se vuelve al formulario con el concepto ya puesto: el
-    // aviso sobraría y, en pantallas grandes, taparía el botón Guardar.
-    if (!desdeConfigMes) SyncManager.mostrarToast(`✅ "${nombre}" agregado al presupuesto`);
-  } catch (err) {
-    alert("Error guardando el concepto: " + err.message);
-  } finally {
-    btn.textContent = "Guardar"; btn.disabled = false;
-  }
+async function guardarNuevoConceptoDatos({ nombre, categoria, icono, monto }, desdeConfigMes) {
+  const esIngreso = categoria === "Ingreso";
+  const nuevaLista = [...presupuesto, {
+    categoria, concepto: nombre, icono,
+    montoEstimado:   esIngreso ? 0 : monto,
+    ingresoEstimado: esIngreso ? monto : 0
+  }];
+  await Sheets.guardarPresupuesto(nuevaLista);
+  presupuesto = nuevaLista;
+  sincronizarListasConceptos();
+  renderProyeccion();
+  // Desde Configurar mes se vuelve al formulario con el concepto ya puesto: el aviso sobraría y,
+  // en pantallas grandes, taparía el botón Guardar.
+  if (!desdeConfigMes) SyncManager.mostrarToast(`✅ "${nombre}" agregado al presupuesto`);
 }
 
 // ---- ARCHIVAR CONCEPTOS ----
@@ -4862,43 +4597,20 @@ function _categoriaDeConcepto(n) {
   return FUENTES_INGRESO.includes(n) ? "Ingreso" : GASTOS_FIJOS.includes(n) ? "Gasto fijo" : "Gasto variable";
 }
 
-function _llenarSelectArchivar() {
-  const grupos = [["Ingresos", FUENTES_INGRESO], ["Gastos fijos", GASTOS_FIJOS], ["Gastos variables", GASTOS_VARIABLES]];
-  document.getElementById("archivar-concepto").innerHTML =
-    "<option value=\"\">Elige un concepto…</option>" + grupos.map(([titulo, lista]) =>
-      `<optgroup label="${titulo}">${lista.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</optgroup>`).join("");
-}
-
-function _renderArchivar() {
-  const nombre = document.getElementById("archivar-concepto").value;
-  const n = nombre ? movimientos.filter(m => m.concepto === nombre).length : 0;
-  document.getElementById("archivar-resumen").textContent = nombre
-    ? `«${nombre}» dejará de mostrarse en Proyección, en Configurar mes y al registrar movimientos. ${n === 0 ? "No tiene movimientos registrados." : `Sus ${n} movimiento${n === 1 ? "" : "s"} ya registrado${n === 1 ? "" : "s"} no se tocan.`}`
-    : "";
-  document.getElementById("btn-confirmar-archivar").disabled = !nombre;
-
-  const archivados = presupuesto.filter(p => p.archivado);
-  document.getElementById("archivar-existentes").innerHTML = archivados.length === 0 ? "" : `
-    <div class="pres-seccion-title" style="margin-top:6px">Archivados</div>
-    ${archivados.map(p => `
-      <div class="pres-fila">
-        <span class="pres-concepto">${escapeHtml(p.concepto)}</span>
-        <button type="button" class="btn-sutil" data-restaurar-concepto="${escapeHtml(p.concepto)}">Restaurar</button>
-      </div>`).join("")}`;
-}
-
+// La ventana es React (ver Conceptos.jsx); acá quedan los datos.
 function abrirModalArchivar() {
-  const modal = document.getElementById("modal-archivar");
-  if (!modal) return;
-  _llenarSelectArchivar();
-  _renderArchivar();
-  modal.classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("conceptos:abrir", { detail: { t: "archivar" } }));
 }
 
-function cerrarModalArchivar() {
-  document.getElementById("modal-archivar")?.classList.add("hidden");
+function datosArchivar() {
+  return {
+    ingresos: FUENTES_INGRESO, fijos: GASTOS_FIJOS, variables: GASTOS_VARIABLES,
+    archivados: presupuesto.filter(p => p.archivado).map(p => p.concepto),
+    movimientosDe: nombre => movimientos.filter(m => m.concepto === nombre).length,
+  };
 }
 
+// Si algo falla, restaura lo anterior y lanza (la ventana avisa y se queda abierta).
 async function archivarConcepto(nombre) {
   if (!nombre) return;
   // Los conceptos "de fábrica" (Internet, Gas...) viven en las listas de la app pero no
@@ -4909,22 +4621,14 @@ async function archivarConcepto(nombre) {
   }
   const original = presupuesto;
   const nueva = base.map(p => p.concepto === nombre ? { ...p, archivado: true } : p);
-
-  const btn = document.getElementById("btn-confirmar-archivar");
-  btn.disabled = true; btn.textContent = "Archivando…";
   try {
     await Sheets.guardarPresupuesto(nueva);
   } catch (err) {
     presupuesto = original;
-    alert("No se pudo archivar: " + err.message);
-    btn.textContent = "Archivar";
-    _renderArchivar();
-    return;
+    throw err;
   }
   presupuesto = nueva;
   sincronizarListasConceptos();   // lo saca de las listas
-  btn.textContent = "Archivar";
-  cerrarModalArchivar();
   renderProyeccion();
   if (typeof renderMovimientos === "function") renderMovimientos();
   SyncManager.mostrarToast(`📦 «${nombre}» archivado`);
@@ -4937,13 +4641,10 @@ async function restaurarConcepto(nombre) {
     await Sheets.guardarPresupuesto(nueva);
   } catch (err) {
     presupuesto = original;
-    alert("No se pudo restaurar: " + err.message);
-    return;
+    throw err;
   }
   presupuesto = nueva;
   sincronizarListasConceptos();   // vuelve a las listas
-  _llenarSelectArchivar();
-  _renderArchivar();
   renderProyeccion();
   SyncManager.mostrarToast(`↩️ «${nombre}» restaurado`);
 }
@@ -5008,43 +4709,27 @@ async function eliminarConceptoPresupuesto(concepto, categoria) {
 
 // ---- SETUP LISTENERS PROYECCIÓN ----
 
+function renderConceptosReact() {
+  if (!window.ConceptosReact) return;
+  window.ConceptosReact.render({
+    elegirMes: elegirMesProyeccion,
+    datosConfigMes,
+    onGuardarConfigMes: guardarConfigMesDatos,
+    iconoDe: iconoDeConcepto,
+    nombresConceptos: nombresDeConceptos,
+    estadoNombre: estadoNuevoConcepto,
+    onGuardarConcepto: guardarNuevoConceptoDatos,
+    valorConcepto: valorEstimadoConcepto,
+    onGuardarModificar: guardarModificarConceptoDatos,
+    datosArchivar,
+    onArchivar: archivarConcepto,
+    onRestaurar: restaurarConcepto,
+    evaluarMonto: texto => evaluarMonto(texto),
+  });
+}
+
 function setupProyeccionListeners() {
-  document.getElementById("btn-cancelar-presupuesto")
-    ?.addEventListener("click", cerrarModalPresupuesto);
-  document.getElementById("btn-guardar-presupuesto")
-    ?.addEventListener("click", guardarPresupuesto);
-
-  document.getElementById("modal-presupuesto")?.addEventListener("click", (e) => {
-    if (e.target === document.getElementById("modal-presupuesto")) cerrarModalPresupuesto();
-  });
-
-  document.getElementById("archivar-concepto")?.addEventListener("change", _renderArchivar);
-  document.getElementById("btn-cerrar-archivar")?.addEventListener("click", cerrarModalArchivar);
-  document.getElementById("btn-confirmar-archivar")?.addEventListener("click", () =>
-    archivarConcepto(document.getElementById("archivar-concepto").value));
-  document.getElementById("archivar-existentes")?.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-restaurar-concepto]");
-    if (b) restaurarConcepto(b.dataset.restaurarConcepto);
-  });
-  document.getElementById("btn-cancelar-nuevo-concepto")
-    ?.addEventListener("click", cerrarModalNuevoConcepto);
-  document.getElementById("btn-guardar-nuevo-concepto")
-    ?.addEventListener("click", guardarNuevoConcepto);
-  document.getElementById("nuevo-concepto-nombre")
-    ?.addEventListener("input", validarNombreNuevoConcepto);
-  document.getElementById("nuevo-concepto-parecido")?.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-usar-concepto]");
-    if (b) usarConceptoExistente(b.dataset.usarConcepto);
-  });
-  document.getElementById("nuevo-concepto-cat-group")?.addEventListener("click", (e) => {
-    const btn = e.target.closest(".cat-btn");
-    if (!btn) return;
-    document.querySelectorAll("#nuevo-concepto-cat-group .cat-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("nuevo-concepto-categoria").value = btn.dataset.value;
-    document.getElementById("nuevo-concepto-monto-label").textContent =
-      btn.dataset.value === "Ingreso" ? "Ingreso estimado" : "Monto estimado";
-  });
+  renderConceptosReact();
 }
 
 if (document.readyState === "loading") {
