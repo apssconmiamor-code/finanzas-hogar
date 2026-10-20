@@ -331,93 +331,47 @@ function escapeAttr(str) {
   return str.replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
-// ---- CREAR PRÉSTAMO ----
-async function guardarPrestamo() {
-  const nombre      = document.getElementById("prest-nombre").value.trim();
-  const monto       = evaluarMonto(document.getElementById("prest-monto").value);
-  const cuotas      = parseInt(document.getElementById("prest-cuotas").value) || 0;
-  const fechaInicio = document.getElementById("prest-fecha").value;
-  const descripcion = document.getElementById("prest-descripcion").value.trim();
-
-  if (!nombre || !monto || !fechaInicio) {
-    alert("Completa nombre, monto y fecha de inicio");
-    return;
-  }
-
-  const btn = document.getElementById("btn-guardar-prestamo");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    await Sheets.agregarPrestamo(nombre, monto, cuotas, fechaInicio, descripcion);
-    document.getElementById("modal-prestamo").classList.add("hidden");
-    limpiarFormPrestamo();
-    await cargarPrestamos();
-    SyncManager.mostrarToast(`✅ Préstamo "${nombre}" creado — concepto disponible en movimientos`);
-  } catch (err) {
-    alert("Error guardando préstamo: " + err.message);
-  } finally {
-    btn.textContent = "Crear préstamo"; btn.disabled = false;
-  }
+// ---- CREAR PRÉSTAMO / REGISTRAR PAGO ---- (las ventanas son React, ver
+// react/src/compromisos/Compromisos.jsx; acá solo se guarda. Si algo falla, lanzan: la ventana
+// avisa y se queda abierta.)
+async function guardarPrestamoDatos({ nombre, monto, cuotas, fechaInicio, descripcion }) {
+  await Sheets.agregarPrestamo(nombre, monto, cuotas, fechaInicio, descripcion);
+  await cargarPrestamos();
+  SyncManager.mostrarToast(`✅ Préstamo "${nombre}" creado — concepto disponible en movimientos`);
 }
 
-function limpiarFormPrestamo() {
-  document.getElementById("prest-nombre").value       = "";
-  document.getElementById("prest-monto").value        = "";
-  document.getElementById("prest-cuotas").value       = "";
-  document.getElementById("prest-fecha").value        = new Date().toISOString().split("T")[0];
-  document.getElementById("prest-descripcion").value  = "";
-}
-
-// ---- PAGO RÁPIDO ----
 function abrirPagoRapido(id, nombre, pendiente) {
-  const modal = document.getElementById("modal-pago-rapido");
-  modal.dataset.prestId    = id;
-  modal.dataset.prestNombre = nombre;
-  document.getElementById("pago-concepto-display").textContent = conceptoPrestamo(nombre);
-  document.getElementById("pago-monto").value = "";
-  document.getElementById("pago-fecha").value  = new Date().toISOString().split("T")[0];
-  document.getElementById("pago-pendiente").textContent = formatMonto(pendiente);
-
-  // Poblar selector de cajas
-  poblarSelectCajas("pago-caja");
-
-  modal.classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "pago", id, nombre, pendiente } }));
 }
 
-async function guardarPagoRapido() {
-  const modal     = document.getElementById("modal-pago-rapido");
-  const prestId   = modal.dataset.prestId;
-  const nombre    = modal.dataset.prestNombre;
-  const monto     = evaluarMonto(document.getElementById("pago-monto").value);
-  const fecha     = document.getElementById("pago-fecha").value;
-  const caja      = document.getElementById("pago-caja").value;
-  const desc      = document.getElementById("pago-desc").value.trim();
+async function guardarPagoRapidoDatos({ nombre, monto, fecha, caja, desc }) {
+  const concepto = conceptoPrestamo(nombre);
+  await Sheets.agregarMovimiento(
+    currentUser.email, fecha, concepto, "Gasto variable", caja, monto,
+    desc || `Pago préstamo ${nombre}`
+  );
+  // Recargar movimientos y verificar si se completó
+  await cargarTodo();
+  await cargarPrestamos();
+}
 
-  if (!monto || !fecha || !caja) {
-    alert("Completa monto, fecha y caja");
-    return;
-  }
-
-  const btn = document.getElementById("btn-guardar-pago");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    const concepto = conceptoPrestamo(nombre);
-    await Sheets.agregarMovimiento(
-      currentUser.email, fecha, concepto, "Gasto variable", caja, monto,
-      desc || `Pago préstamo ${nombre}`
-    );
-
-    modal.classList.add("hidden");
-
-    // Recargar movimientos y verificar si se completó
-    await cargarTodo();
-    await cargarPrestamos();
-  } catch (err) {
-    alert("Error registrando pago: " + err.message);
-  } finally {
-    btn.textContent = "Registrar pago"; btn.disabled = false;
-  }
+function renderCompromisosReact() {
+  if (!window.CompromisosReact) return;
+  window.CompromisosReact.render({
+    getCategoriasCompra: () => (typeof GASTOS_VARIABLES !== "undefined" ? GASTOS_VARIABLES : []),
+    getCajas: () => {
+      if (typeof cajas !== "undefined" && cajas.length === 0) {
+        try { const cache = localStorage.getItem("cache_cajas"); if (cache) cajas = JSON.parse(cache); } catch {}
+      }
+      return typeof cajas !== "undefined" ? cajas : [];
+    },
+    evaluarMonto: texto => (typeof evaluarMonto === "function" ? evaluarMonto(texto) : parseFloat(texto)),
+    formatMonto: n => formatMonto(n),
+    conceptoPrestamo: nombre => conceptoPrestamo(nombre),
+    onGuardarCompra: d => guardarCompraDatos(d),
+    onGuardarPrestamo: guardarPrestamoDatos,
+    onGuardarPago: guardarPagoRapidoDatos,
+  });
 }
 
 // ---- BORRAR PRÉSTAMO ----
@@ -436,36 +390,11 @@ async function borrarPrestamo(id) {
 
 // ---- SETUP LISTENERS PRÉSTAMOS ----
 function setupPrestamoListeners() {
+  renderCompromisosReact();
   document.getElementById("btn-nuevo-prestamo")
-    .addEventListener("click", () => {
-      document.getElementById("prest-fecha").value = new Date().toISOString().split("T")[0];
-      document.getElementById("modal-prestamo").classList.remove("hidden");
+    ?.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "prestamo" } }));
     });
-
-  document.getElementById("btn-cancelar-prestamo")
-    .addEventListener("click", () => {
-      document.getElementById("modal-prestamo").classList.add("hidden");
-      limpiarFormPrestamo();
-    });
-
-  document.getElementById("btn-guardar-prestamo")
-    .addEventListener("click", guardarPrestamo);
-
-  document.getElementById("btn-cancelar-pago")
-    .addEventListener("click", () => {
-      document.getElementById("modal-pago-rapido").classList.add("hidden");
-    });
-
-  document.getElementById("btn-guardar-pago")
-    .addEventListener("click", guardarPagoRapido);
-
-  // Separadores de miles en campos de monto de préstamos
-  const prestMonto = document.getElementById("prest-monto");
-  if (prestMonto) prestMonto.addEventListener("input", () => formatearInputMiles(prestMonto));
-  const pagoMonto = document.getElementById("pago-monto");
-  if (pagoMonto) pagoMonto.addEventListener("input", () => formatearInputMiles(pagoMonto));
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js (ver cerrarModal).
 }
 
 if (document.readyState === "loading") {

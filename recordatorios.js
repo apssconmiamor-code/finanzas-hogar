@@ -226,97 +226,22 @@ async function borrarRecordatorio(id) {
 // MODAL CREAR RECORDATORIO (texto / imagen / audio)
 // =============================================
 
-// Una foto y un audio pueden coexistir en el mismo recordatorio — slots independientes
-let recordatorioFotoData  = null; // { data: dataURL, type: mime }
-let recordatorioAudioData = null; // { data: dataURL, type: mime }
-let recMediaRecorder = null;
-let recAudioChunks = [];
-let recGrabando = false;
-let recAudioStream = null; // se reutiliza mientras el modal está abierto para no repetir el permiso
-let recordatorioCategoriaActual = ""; // set por abrirModalCrearRecordatorio() de acá abajo
+// La ventana de crear un recordatorio (texto / foto / audio) es React: react/src/recordatorios/Recordatorios.jsx.
+// Acá quedan el permiso del micrófono y guardar (subir a Drive + Sheets).
+let recAudioStream = null; // se reutiliza mientras la ventana está abierta para no repetir el permiso
 
 // { texto, categoria } opcionales -- permiten pre-llenar el recordatorio
 // (ej. con el bloque de una alerta) al invocar esta función desde otro módulo.
 function abrirModalCrearRecordatorio({ texto = "", categoria = "" } = {}) {
-  document.getElementById("recordatorio-texto").value = texto;
-  recordatorioFotoData  = null;
-  recordatorioAudioData = null;
-  recordatorioCategoriaActual = categoria;
-  renderRecordatorioMediaPreview();
-  const status = document.getElementById("recordatorio-audio-status");
-  if (status) status.textContent = "";
-  resetBotonAudio();
-  const badge = document.getElementById("recordatorio-categoria-badge");
-  if (badge) {
-    badge.textContent = categoria ? `🏷️ ${categoria}` : "";
-    badge.classList.toggle("hidden", !categoria);
-  }
-  document.getElementById("modal-recordatorio-crear")?.classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("recordatorios:abrir", { detail: { texto, categoria } }));
 }
 
-function resetBotonAudio() {
-  const btn = document.getElementById("btn-recordatorio-audio");
-  if (!btn) return;
-  btn.textContent = "🎤";
-  btn.classList.remove("grabando");
-}
-
-// Convierte el audio grabado en el dataURL que se guarda/sube; devuelve una
-// promesa para poder esperar a que termine antes de continuar con el guardado.
-function procesarBlobAudio(blob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      recordatorioAudioData = { data: e.target.result, type: blob.type };
-      renderRecordatorioMediaPreview();
-      resolve();
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
-// Si hay una grabación en curso, la detiene y espera a que el audio quede
-// listo antes de continuar — así "Guardar" nunca pierde el audio por no
-// haber tocado primero el botón de detener.
-function detenerGrabacionYEsperar() {
-  return new Promise((resolve) => {
-    if (!recGrabando || !recMediaRecorder) { resolve(); return; }
-    const recorder = recMediaRecorder;
-    const chunksFinales = recAudioChunks;
-    recorder.onstop = () => {
-      const blob = new Blob(chunksFinales, { type: recorder.mimeType || "audio/webm" });
-      procesarBlobAudio(blob).then(resolve);
-    };
-    recGrabando = false;
-    resetBotonAudio();
-    const status = document.getElementById("recordatorio-audio-status");
-    if (status) status.textContent = "";
-    recorder.stop();
-  });
-}
-
-function cerrarModalCrearRecordatorio() {
-  if (recGrabando && recMediaRecorder) {
-    try { recMediaRecorder.stop(); } catch {}
-    recGrabando = false;
-    resetBotonAudio();
-  }
+// Suelta el micrófono (la ventana lo llama al cerrarse).
+function liberarMicrofono() {
   if (recAudioStream) {
     recAudioStream.getTracks().forEach(t => t.stop());
     recAudioStream = null;
   }
-  recordatorioCategoriaActual = "";
-  document.getElementById("modal-recordatorio-crear")?.classList.add("hidden");
-}
-
-function cargarMediaRecordatorio(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    recordatorioFotoData = { data: e.target.result, type: file.type };
-    renderRecordatorioMediaPreview();
-  };
-  reader.readAsDataURL(file);
 }
 
 // Consigue el stream del micrófono pidiendo permiso una sola vez por sesión:
@@ -349,101 +274,9 @@ async function obtenerStreamMicrofono() {
   return recAudioStream;
 }
 
-async function toggleGrabacionAudio() {
-  const btn    = document.getElementById("btn-recordatorio-audio");
-  const status = document.getElementById("recordatorio-audio-status");
-
-  if (!recGrabando) {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      alert("Este navegador no soporta grabación de audio.");
-      return;
-    }
-    try {
-      await obtenerStreamMicrofono();
-      recAudioChunks = [];
-      recMediaRecorder = new MediaRecorder(recAudioStream);
-      recMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recAudioChunks.push(e.data); };
-      // El stream NO se detiene aquí a propósito: se mantiene vivo mientras
-      // el modal siga abierto por si el usuario graba de nuevo.
-      recMediaRecorder.onstop = () => {
-        const blob = new Blob(recAudioChunks, { type: recMediaRecorder.mimeType || "audio/webm" });
-        procesarBlobAudio(blob);
-      };
-      recMediaRecorder.start();
-      recGrabando = true;
-      btn.textContent = "⏹";
-      btn.classList.add("grabando");
-      if (status) status.textContent = "Grabando…";
-    } catch (err) {
-      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        alert(
-          "El navegador tiene bloqueado el micrófono para esta página.\n\n" +
-          "En iPhone: toca el ícono \"aA\" en la barra de direcciones → " +
-          "Configuración del sitio web → Micrófono → Permitir. Si no aparece esa opción, " +
-          "ve a Ajustes del iPhone → Safari → Micrófono y revisa que no esté en \"Denegar\".\n\n" +
-          "Luego vuelve a intentar."
-        );
-      } else if (err.name === "NotFoundError") {
-        alert("No se encontró un micrófono disponible en este dispositivo.");
-      } else {
-        alert("No se pudo acceder al micrófono: " + err.message);
-      }
-    }
-  } else {
-    recMediaRecorder.stop();
-    recGrabando = false;
-    btn.textContent = "🎤";
-    btn.classList.remove("grabando");
-    if (status) status.textContent = "";
-  }
-}
-
-function renderRecordatorioMediaPreview() {
-  const preview = document.getElementById("recordatorio-media-preview");
-  if (!preview) return;
-
-  let html = "";
-  if (recordatorioFotoData) {
-    html += `
-      <div class="foto-thumb">
-        <img src="${recordatorioFotoData.data}" class="foto-thumb-img" alt="foto adjunta"/>
-        <button class="foto-thumb-remove" type="button" onclick="quitarFotoRecordatorio()">×</button>
-      </div>`;
-  }
-  if (recordatorioAudioData) {
-    html += `
-      <div class="recordatorio-audio-preview">
-        <audio controls src="${recordatorioAudioData.data}"></audio>
-        <button class="foto-thumb-remove" type="button" onclick="quitarAudioRecordatorio()">×</button>
-      </div>`;
-  }
-  preview.innerHTML = html;
-}
-
-window.quitarFotoRecordatorio = function () {
-  recordatorioFotoData = null;
-  renderRecordatorioMediaPreview();
-};
-
-window.quitarAudioRecordatorio = function () {
-  recordatorioAudioData = null;
-  renderRecordatorioMediaPreview();
-};
-
-async function guardarRecordatorio() {
-  // Si el usuario le da Guardar sin haber tocado "detener", la grabación se
-  // corta y se procesa aquí para no perder el audio.
-  await detenerGrabacionYEsperar();
-
-  const texto = document.getElementById("recordatorio-texto").value.trim();
-  if (!texto && !recordatorioFotoData && !recordatorioAudioData) {
-    alert("Escribe una nota o adjunta una foto/audio");
-    return;
-  }
-
-  const btn = document.getElementById("btn-guardar-recordatorio-crear");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
+// Guarda un recordatorio (la ventana ya validó que haya algo). Devuelve true si quedó guardado; si
+// falla avisa acá mismo y devuelve false (la ventana se queda abierta).
+async function guardarRecordatorioDatos({ texto, foto, audio, categoria }) {
   const id    = "R" + Date.now();
   const fecha = new Date().toISOString().split("T")[0];
   let imageUrl = "";
@@ -451,37 +284,36 @@ async function guardarRecordatorio() {
   let mediaPendiente = null;
 
   try {
-    if ((recordatorioFotoData || recordatorioAudioData) && !navigator.onLine) {
+    if ((foto || audio) && !navigator.onLine) {
       // Sin conexión: la foto/audio se guardan tal cual (dataURL) en la cola
       // de sincronización — sync.js las sube de verdad a Drive apenas
       // vuelve la conexión, antes de escribir la fila (ver ejecutarOperacion
       // en sync.js). Antes esto tiraba un error 503 sin manejar porque
       // agregarRecordatorio nunca estaba conectado a esa cola.
       mediaPendiente = {
-        foto: recordatorioFotoData ? { data: recordatorioFotoData.data, type: recordatorioFotoData.type } : null,
-        audio: recordatorioAudioData ? { data: recordatorioAudioData.data, type: recordatorioAudioData.type } : null
+        foto: foto ? { data: foto.data, type: foto.type } : null,
+        audio: audio ? { data: audio.data, type: audio.type } : null
       };
       SyncManager.mostrarToast("💾 Sin conexión — la foto/audio se guardaron localmente y se subirán al reconectar", "warn");
     } else {
-      if (recordatorioFotoData) {
-        const ext = recordatorioFotoData.type.includes("png") ? "png" : "jpg";
-        const { url } = await Sheets.subirArchivoDrive(recordatorioFotoData.data, `recordatorio-${id}-foto.${ext}`, recordatorioFotoData.type);
+      if (foto) {
+        const ext = foto.type.includes("png") ? "png" : "jpg";
+        const { url } = await Sheets.subirArchivoDrive(foto.data, `recordatorio-${id}-foto.${ext}`, foto.type);
         imageUrl = url;
       }
-      if (recordatorioAudioData) {
-        const { url } = await Sheets.subirArchivoDrive(recordatorioAudioData.data, `recordatorio-${id}-audio.webm`, recordatorioAudioData.type);
+      if (audio) {
+        const { url } = await Sheets.subirArchivoDrive(audio.data, `recordatorio-${id}-audio.webm`, audio.type);
         audioUrl = url;
       }
     }
-    const categoria = recordatorioCategoriaActual;
     await Sheets.agregarRecordatorio(id, currentUser.email, fecha, texto, imageUrl, audioUrl, mediaPendiente, categoria);
 
     recordatorios.unshift({ id, fecha, autor: currentUser.email, texto, imageUrl, audioUrl, categoria });
     localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
 
-    cerrarModalCrearRecordatorio();
     renderRecordatorioBadge();
     SyncManager.mostrarToast("✅ Recordatorio guardado");
+    return true;
   } catch (err) {
     if (err.message === "DRIVE_SIN_PERMISO") {
       alert("Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo.");
@@ -490,9 +322,17 @@ async function guardarRecordatorio() {
     } else {
       alert("Error guardando el recordatorio: " + err.message);
     }
-  } finally {
-    btn.textContent = "Guardar"; btn.disabled = false;
+    return false;
   }
+}
+
+function renderRecordatoriosReact() {
+  if (!window.RecordatoriosReact) return;
+  window.RecordatoriosReact.render({
+    obtenerStream: obtenerStreamMicrofono,
+    liberarMicrofono,
+    onGuardar: guardarRecordatorioDatos,
+  });
 }
 
 // =============================================
@@ -626,19 +466,11 @@ if (document.readyState === "loading") {
 function setupRecordatoriosListeners() {
   document.getElementById("btn-recordatorios-badge")?.addEventListener("click", toggleRecordatoriosPanel);
 
-  document.getElementById("recordatorio-foto-file")?.addEventListener("change", (e) => cargarMediaRecordatorio(e.target.files[0]));
-  document.getElementById("btn-recordatorio-audio")?.addEventListener("click", toggleGrabacionAudio);
-  document.getElementById("btn-cancelar-recordatorio-crear")?.addEventListener("click", cerrarModalCrearRecordatorio);
-  document.getElementById("btn-guardar-recordatorio-crear")?.addEventListener("click", guardarRecordatorio);
-
-  document.getElementById("modal-recordatorio-crear")?.addEventListener("click", (e) => {
-    if (e.target === document.getElementById("modal-recordatorio-crear")) cerrarModalCrearRecordatorio();
-  });
-
   document.getElementById("btn-cancelar-mov")?.addEventListener("click", _limpiarRecordatorioContexto);
 
-  // Las acciones rápidas (menú, usar, configurar) son React: ver renderAccionesReact.
+  // Las acciones rápidas (menú, usar, configurar) y la ventana de crear recordatorio son React.
   renderAccionesReact();
+  renderRecordatoriosReact();
 
   // Cerrar el panel de recordatorios al tocar afuera -- pointerup, no
   // click (mismo motivo que el panel de Alertas en notificaciones.js: el

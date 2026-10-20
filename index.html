@@ -526,44 +526,8 @@
       </div>
     </div>
 
-    <!-- Modal nueva compra -->
-    <div id="modal-compra" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Nueva compra</h3>
-        <div class="form-group">
-          <label>¿Qué quieres comprar?</label>
-          <input class="input" id="compra-concepto" type="text" placeholder="Ej: Auriculares Sony"/>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Categoría <span class="label-opcional">(opcional)</span></label>
-            <select class="input" id="compra-categoria"><option value="">Sin categoría</option></select>
-          </div>
-          <div class="form-group">
-            <label>Monto <span class="label-opcional">(opcional)</span></label>
-            <input class="input" id="compra-monto" type="text" inputmode="decimal" placeholder="0"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Urgencia</label>
-            <select class="input" id="compra-urgencia">
-              <option value="Alta">Alta</option>
-              <option value="Media" selected>Media</option>
-              <option value="Baja">Baja</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Fecha</label>
-            <input class="input" id="compra-fecha" type="date"/>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-compra">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-compra">Agregar</button>
-        </div>
-      </div>
-    </div>
+    <!-- Nueva compra, nuevo préstamo y registrar pago: son React (react/src/compromisos/Compromisos.jsx). -->
+    <div id="compromisos-root"></div>
 
     <!-- Modal resumen de una compra (doble toque sobre su tarjeta) --
          solo lectura; Eliminar vive en el menú de mantener presionado. -->
@@ -588,43 +552,6 @@
         <div id="modal-agregar-mes-opciones" style="display:flex;flex-direction:column;gap:8px;margin-top:4px"></div>
         <div class="modal-actions">
           <button class="btn-secondary" id="btn-cancelar-agregar-mes">Cancelar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal préstamo -->
-    <div id="modal-prestamo" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Nuevo préstamo</h3>
-        <p class="modal-subtitle">Se creará el concepto <strong>"Prestamo [nombre]"</strong> para registrar pagos.</p>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Nombre</label>
-            <input id="prest-nombre" type="text" placeholder="Banco, Carro…" class="input"/>
-          </div>
-          <div class="form-group">
-            <label>Monto total</label>
-            <input id="prest-monto" type="text" inputmode="decimal" placeholder="0" class="input"/>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Cuotas <span class="label-opcional">(opcional)</span></label>
-            <input id="prest-cuotas" type="number" inputmode="numeric" placeholder="Ej: 24" class="input"/>
-          </div>
-          <div class="form-group">
-            <label>Fecha inicio</label>
-            <input id="prest-fecha" type="date" class="input"/>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Descripción <span class="label-opcional">(opcional)</span></label>
-          <textarea id="prest-descripcion" rows="2" placeholder="Banco, tasa, referencia…"
-            class="input" style="resize:none;min-height:56px;font-size:15px"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-prestamo">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-prestamo">Crear préstamo</button>
         </div>
       </div>
     </div>
@@ -676,34 +603,6 @@
           <button class="modal-close" id="btn-cerrar-resumen-plan">✕</button>
         </div>
         <div id="resumen-plan-cuerpo" class="detalle-notif-cuerpo"></div>
-      </div>
-    </div>
-
-    <!-- Modal pago rápido -->
-    <div id="modal-pago-rapido" class="modal hidden">
-      <div class="modal-card">
-        <h3 class="modal-title">Registrar pago</h3>
-        <div class="pago-concepto-info">
-          <div class="pago-concepto-label">Se registrará como</div>
-          <div class="pago-concepto-val" id="pago-concepto-display">—</div>
-          <div class="pago-pendiente-info">Pendiente: <strong id="pago-pendiente">$0</strong></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>Fecha</label><input id="pago-fecha" type="date" class="input"/></div>
-          <div class="form-group"><label>Monto</label><input id="pago-monto" type="text" inputmode="decimal" placeholder="0" class="input"/></div>
-        </div>
-        <div class="form-group">
-          <label>Caja</label>
-          <select id="pago-caja" class="input"><option value="">Selecciona una caja</option></select>
-        </div>
-        <div class="form-group">
-          <label>Descripción <span class="label-opcional">(opcional)</span></label>
-          <input id="pago-desc" type="text" placeholder="Cuota 3, referencia…" class="input"/>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-pago">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-pago">Registrar pago</button>
-        </div>
       </div>
     </div>
 
@@ -776,29 +675,8 @@
          Análisis (react/src/franjas) -->
     <div id="franjas-root"></div>
 
-    <!-- Modal: crear recordatorio (texto / imagen / audio) -->
-    <div id="modal-recordatorio-crear" class="modal hidden">
-      <div class="modal-card">
-        <span id="recordatorio-categoria-badge" class="notif-dest-badge hidden"></span>
-        <div class="form-group">
-          <div class="recordatorio-adjuntar-grid">
-            <label class="recordatorio-adjuntar-btn" for="recordatorio-foto-file"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg></span></label>
-            <input id="recordatorio-foto-file" type="file" accept="image/*" capture="environment" style="display:none"/>
-            <button type="button" class="recordatorio-adjuntar-btn" id="btn-recordatorio-audio"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg></span></button>
-          </div>
-          <div id="recordatorio-media-preview" class="fotos-preview"></div>
-          <span id="recordatorio-audio-status" class="recibo-status"></span>
-        </div>
-        <div class="form-group">
-          <textarea id="recordatorio-texto" rows="3" placeholder="Ej: Pagué el mercado, revisar monto exacto…"
-            class="input" style="resize:none;min-height:70px;font-size:15px;line-height:1.4"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="btn-cancelar-recordatorio-crear">Cancelar</button>
-          <button class="btn-primary" id="btn-guardar-recordatorio-crear">Guardar</button>
-        </div>
-      </div>
-    </div>
+    <!-- Crear recordatorio: es React (react/src/recordatorios/Recordatorios.jsx). -->
+    <div id="recordatorios-root"></div>
 
   </div><!-- /app -->
 

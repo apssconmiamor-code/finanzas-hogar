@@ -3,13 +3,14 @@
 // solo lectura, mantener presionada abre Eliminar (no existe "Editar"
 // para un préstamo, nunca la hubo -- solo crear/borrar/registrar pago).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista } = require('./helpers/googleMock');
 
 test.describe('Préstamos', () => {
   test.beforeEach(async ({ page }) => {
     const hoy = new Date().toISOString().slice(0, 10);
     await mockGoogleApis(page, {
       Prestamo: [['P1', 'Carro', 20000000, 24, hoy, 'false', 'Tasa fija']],
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
     });
     await iniciarSesionFalsa(page);
     await page.goto('/index.html');
@@ -59,5 +60,49 @@ test.describe('Préstamos', () => {
     await expect(page.locator('#pago-concepto-display')).toContainText('Carro');
     // Un solo toque en el botón no debe abrir el resumen de la tarjeta de atrás.
     await expect(page.locator('#modal-resumen-prestamo')).toBeHidden();
+  });
+
+  test('"Nuevo préstamo" (hoja) crea el préstamo con monto formateado y lo muestra en la lista', async ({ page }) => {
+    await usarAccionVista(page, 'btn-nuevo-prestamo');
+    await expect(page.locator('#modal-prestamo')).toBeVisible();
+
+    // Sin completar nombre y monto no deja guardar.
+    let aviso = null;
+    page.once('dialog', (d) => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-prestamo').click();
+    await expect.poll(() => aviso).toContain('Completa nombre, monto y fecha de inicio');
+    await expect(page.locator('#modal-prestamo')).toBeVisible();
+
+    await page.locator('#prest-nombre').fill('Moto');
+    await page.locator('#prest-monto').fill('5000000');
+    await expect(page.locator('#prest-monto')).toHaveValue('5.000.000');   // separador de miles
+    await page.locator('#prest-cuotas').fill('12');
+    await page.locator('#btn-guardar-prestamo').click();
+
+    await expect(page.locator('#modal-prestamo')).toBeHidden();
+    await expect(page.locator('.prestamo-card', { hasText: 'Moto' })).toBeVisible();
+  });
+
+  test('"Registrar pago" (hoja) guarda el movimiento del pago en la caja elegida', async ({ page }) => {
+    await page.locator('.prestamo-card', { hasText: 'Carro' }).locator('.btn-prest-pago').click();
+    await expect(page.locator('#modal-pago-rapido')).toBeVisible();
+
+    let aviso = null;
+    page.once('dialog', (d) => { aviso = d.message(); d.accept(); });
+    await page.locator('#btn-guardar-pago').click();
+    await expect.poll(() => aviso).toContain('Completa monto, fecha y caja');
+
+    await page.locator('#pago-monto').fill('300000');
+    await page.locator('#pago-caja').selectOption('Efectivo');
+    await page.locator('#pago-desc').fill('Cuota 1');
+    await page.locator('#btn-guardar-pago').click();
+    await expect(page.locator('#modal-pago-rapido')).toBeHidden({ timeout: 10000 });
+
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    const pago = movs.find(m => m.concepto === 'Prestamo Carro');
+    expect(pago).toBeDefined();
+    expect(pago.caja).toBe('Efectivo');
+    expect(Math.abs(pago.monto)).toBe(300000);
+    expect(pago.descripcion).toBe('Cuota 1');
   });
 });

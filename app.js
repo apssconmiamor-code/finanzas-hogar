@@ -1064,13 +1064,8 @@ function cerrarModal(modalEl) {
     modalEl.dispatchEvent(new CustomEvent("finanzas:cerrar"));
     return;
   }
-  if (modalEl.id === "modal-recordatorio-crear" && typeof cerrarModalCrearRecordatorio === "function") {
-    cerrarModalCrearRecordatorio();
-    return;
-  }
   if (modalEl.id === "modal-nuevo-concepto") { cerrarModalNuevoConcepto(); return; }
   if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
-  if (modalEl.id === "modal-compra" && typeof limpiarFormCompra === "function") limpiarFormCompra();
   modalEl.classList.add("hidden");
 }
 

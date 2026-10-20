@@ -312,45 +312,25 @@ if (document.readyState === "loading") {
   setTimeout(inicializarInterceptorCompras, 100);
 }
 
-// ---- GUARDAR NUEVA COMPRA ----
-async function guardarCompra() {
-  const concepto       = document.getElementById("compra-concepto").value.trim();
-  const categoria      = document.getElementById("compra-categoria").value.trim();
-  const montoDestinado = evaluarMonto(document.getElementById("compra-monto").value) || 0;
-  const urgencia       = document.getElementById("compra-urgencia").value;
-  const fecha          = document.getElementById("compra-fecha").value;
+// ---- GUARDAR NUEVA COMPRA ---- (la ventana es React, ver react/src/compromisos/Compromisos.jsx;
+// acá solo se guarda. Si algo falla, lanza: la ventana avisa y se queda abierta.)
+async function guardarCompraDatos({ concepto, categoria, montoDestinado, urgencia, fecha }) {
+  await Sheets.agregarCompra(currentUser.email, fecha, concepto, categoria, montoDestinado, urgencia);
 
-  if (!concepto) { alert("Escribe el nombre de lo que quieres comprar"); return; }
-  if (!fecha)    { alert("Selecciona una fecha"); return; }
+  compras.push({
+    id: "CP_local_" + Date.now(),
+    fecha, autor: currentUser.email,
+    concepto, categoria, montoDestinado, urgencia
+  });
+  localStorage.setItem("cache_compras", JSON.stringify(compras));
 
-  const btn = document.getElementById("btn-guardar-compra");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    await Sheets.agregarCompra(currentUser.email, fecha, concepto, categoria, montoDestinado, urgencia);
-
-    compras.push({
-      id: "CP_local_" + Date.now(),
-      fecha, autor: currentUser.email,
-      concepto, categoria, montoDestinado, urgencia
-    });
-    localStorage.setItem("cache_compras", JSON.stringify(compras));
-
-    document.getElementById("modal-compra").classList.add("hidden");
-    limpiarFormCompra();
-
-    if (navigator.onLine) {
-      await cargarCompras();
-    } else {
-      renderCompras();
-      SyncManager.mostrarToast("💾 Guardado localmente — se sincronizará al conectarse");
-    }
-    SyncManager.mostrarToast(`✅ "${concepto}" agregado a la lista`);
-  } catch (err) {
-    alert("Error guardando la compra: " + err.message);
-  } finally {
-    btn.textContent = "Agregar"; btn.disabled = false;
+  if (navigator.onLine) {
+    await cargarCompras();
+  } else {
+    renderCompras();
+    SyncManager.mostrarToast("💾 Guardado localmente — se sincronizará al conectarse");
   }
+  SyncManager.mostrarToast(`✅ "${concepto}" agregado a la lista`);
 }
 
 // ---- BORRAR COMPRA ----
@@ -368,47 +348,12 @@ async function borrarCompra(id) {
   }
 }
 
-// ---- LIMPIAR FORM ----
-function limpiarFormCompra() {
-  document.getElementById("compra-concepto").value  = "";
-  document.getElementById("compra-categoria").value = "";
-  document.getElementById("compra-monto").value     = "";
-  document.getElementById("compra-urgencia").value  = "Media";
-  document.getElementById("compra-fecha").value     = new Date().toISOString().split("T")[0];
-}
-
 // ---- SETUP LISTENERS ----
 function setupComprasListeners() {
- document.getElementById("btn-nueva-compra")
-  .addEventListener("click", () => {
-    const sel = document.getElementById("compra-categoria");
-    if (sel && sel.options.length <= 1) {
-      GASTOS_VARIABLES.forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        sel.appendChild(opt);
-      });
-    }
-    document.getElementById("compra-fecha").value = new Date().toISOString().split("T")[0];
-    document.getElementById("modal-compra").classList.remove("hidden");
-  });
-
-  document.getElementById("btn-cancelar-compra")
-    .addEventListener("click", () => {
-      document.getElementById("modal-compra").classList.add("hidden");
-      limpiarFormCompra();
+  document.getElementById("btn-nueva-compra")
+    ?.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "compra" } }));
     });
-
-  document.getElementById("btn-guardar-compra")
-    .addEventListener("click", guardarCompra);
-
-  // Separadores de miles en monto de compra
-  const compraMonto = document.getElementById("compra-monto");
-  if (compraMonto) compraMonto.addEventListener("input", () => formatearInputMiles(compraMonto));
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
-  // (ver cerrarModal, que ya sabe llamar a limpiarFormCompra para este modal).
 
   document.getElementById("btn-cancelar-mov")
     .addEventListener("click", _limpiarCompraContexto, { capture: false });
