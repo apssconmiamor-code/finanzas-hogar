@@ -538,7 +538,7 @@ function poblarSelectBloquePlan() {
   if (!sel) return;
   const valorActual = sel.value;
   const bloques = obtenerBloquesPlanes();
-  sel.innerHTML = `<option value="">🔖 Otros</option>` +
+  sel.innerHTML = `<option value="">Otros</option>` +
     bloques.map(b => `<option value="${escapeAttr(b.nombre)}">${escapeHtml(b.icono)} ${escapeHtml(b.nombre)}</option>`).join("");
   sel.value = ["", ...bloques.map(b => b.nombre)].includes(valorActual) ? valorActual : "";
 }

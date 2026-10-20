@@ -5,7 +5,7 @@
 // se puede crear DESDE una categoría, y guarda nombre, ubicación, fecha,
 // tipo (gratis/pago) e inversión (si es de pago).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista, elegirIcono } = require('./helpers/googleMock');
 
 async function abrirPlanes(page) {
   await irATab(page, 'planes');
@@ -51,7 +51,7 @@ test.describe('Planes', () => {
     await usarAccionVista(page, 'btn-nueva-categoria-plan');
     await expect(page.locator('#modal-bloque-plan')).toBeVisible();
     await page.locator('#bloque-plan-nombre').fill('Restaurantes');
-    await page.locator('#bloque-plan-icono').fill('🍽️');
+    await elegirIcono(page, 'bloque-plan-icono', '🍽️');
     await page.locator('#btn-guardar-bloque-plan').click();
     await expect(page.locator('#modal-bloque-plan')).toBeHidden();
 

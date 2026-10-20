@@ -10,7 +10,7 @@
 // sesión.
 
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, elegirIcono } = require('./helpers/googleMock');
 
 const FOTO_FALSA = { name: 'recibo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
 
@@ -59,7 +59,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await expect(page.locator('#modal-config-accion')).toBeVisible();
     await expect(page.locator('#btn-borrar-accion')).toBeHidden();
     await page.locator('#config-accion-nombre').fill('Salario');
-    await page.locator('#config-accion-icono').fill('💰');
+    await elegirIcono(page, 'config-accion-icono', '💰');
     await page.locator('#config-accion-categoria').selectOption('Ingreso');
     await page.locator('#config-accion-concepto').selectOption('SURA');
     await elegirCajaAccion(page, 'Efectivo');
@@ -97,7 +97,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#fab-recordatorio').click();
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Guardar en ahorros');
-    await page.locator('#config-accion-icono').fill('🔁');
+    await elegirIcono(page, 'config-accion-icono', '🎯');
     await page.locator('#config-accion-categoria').selectOption('Transferencia');
 
     // El concepto y las cajas de gasto/ingreso se esconden; el par
@@ -284,7 +284,7 @@ test.describe('Acciones rápidas (botón flotante)', () => {
     await page.locator('#fab-recordatorio').click();
     await page.locator('#btn-agregar-accion').click();
     await page.locator('#config-accion-nombre').fill('Mercado');
-    await page.locator('#config-accion-icono').fill('🛒');
+    await elegirIcono(page, 'config-accion-icono', '🛒');
     await page.locator('#config-accion-categoria').selectOption('Gasto variable');
     await page.locator('#config-accion-concepto').selectOption('Mercado');
     await elegirCajaAccion(page, 'Efectivo');

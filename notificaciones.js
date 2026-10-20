@@ -538,7 +538,7 @@ function poblarSelectBloque() {
   if (!sel) return;
   const valorActual = sel.value;
   const bloques = obtenerBloquesAlertas();
-  sel.innerHTML = `<option value="">🔖 Otros</option><option value="__gastos_fijos__">📌 Gastos fijos</option>` +
+  sel.innerHTML = `<option value="">Otros</option><option value="__gastos_fijos__">Gastos fijos</option>` +
     bloques.map(b => `<option value="${escapeAttr(b.nombre)}">${escapeHtml(b.icono)} ${escapeHtml(b.nombre)}</option>`).join("");
   sel.value = ["", "__gastos_fijos__", ...bloques.map(b => b.nombre)].includes(valorActual) ? valorActual : "";
 }

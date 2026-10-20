@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Hoja, Cuadricula, Campo, Interruptor } from "../shared/Hoja.jsx";
-import { Icono } from "../shared/Iconos.jsx";
+import { Icono, IconoDe, LogoCaja } from "../shared/Iconos.jsx";
 import { cajasDeAccion, cajasDeTransferencia } from "./modelo.js";
 
 // Acciones rápidas: movimientos preconfigurados que solo piden el monto al usarse. Tres hojas
@@ -90,8 +90,8 @@ function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, a
           return (
             <button key={i} className="accion-rapida-card" data-slot={i}>
               <span className="accion-rapida-icono-fila">
-                <span className="accion-rapida-icono">{accion.icono || "⚡"}</span>
-                {logo && <img className="accion-rapida-caja-icono" src={logo} alt="" />}
+                <span className="accion-rapida-icono"><IconoDe valor={accion.icono || "⚡"} size={34} /></span>
+                <LogoCaja icono={logo} clase="accion-rapida-caja-icono" />
               </span>
               <span className="accion-rapida-nombre">{accion.nombre}</span>
             </button>
@@ -130,6 +130,25 @@ function ParCajas({ idBase, origen, destino, alIntercambiar }) {
         <span className="par-cajas-rotulo">Llega a</span>
         <span className="accion-transferencia-caja" id={idBase + "-destino-elegido"}>{destino || "—"}</span>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Selector de ícono: una cuadrícula de íconos (nunca emojis a la vista). El valor guardado sigue
+// siendo un emoji representativo, para que lo lean igual los demás dispositivos.
+function SelectorIconos({ id, valor, alCambiar }) {
+  const opciones = window.OPCIONES_ICONO || [];
+  const limpio = s => String(s || "").replace(/[\uFE0F\u200D]/g, "");
+  return (
+    <div id={id} className="selector-iconos">
+      {opciones.map(e => (
+        <button key={e} type="button" data-emoji={e}
+          className={"selector-icono" + (limpio(valor) === limpio(e) ? " active" : "")}
+          onClick={() => alCambiar(limpio(valor) === limpio(e) ? "" : e)}>
+          <IconoDe valor={e} size={22} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -248,22 +267,21 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
         </>
       }>
       <Cuadricula>
-        <Campo etiqueta="Nombre">
+        <Campo etiqueta="Nombre" completo>
           <input id="config-accion-nombre" type="text" placeholder="Ej: Mercado" className="input"
             value={nombre} onChange={e => setNombre(e.target.value)} />
         </Campo>
-        <Campo etiqueta="Ícono">
-          <input id="config-accion-icono" type="text" placeholder="Ej: 🛒" className="input" maxLength={4}
-            value={icono} onChange={e => setIcono(e.target.value)} />
+        <Campo etiqueta="Ícono" completo>
+          <SelectorIconos id="config-accion-icono" valor={icono} alCambiar={setIcono} />
         </Campo>
 
         <Campo etiqueta="Categoría" completo={esTransferencia}>
           <select id="config-accion-categoria" className="input" value={categoria}
             onChange={e => { setCategoria(e.target.value); setConceptoElegido(""); }}>
-            <option value="Gasto fijo">📌 Gasto fijo</option>
-            <option value="Gasto variable">🔀 Gasto variable</option>
-            <option value="Ingreso">💰 Ingreso</option>
-            <option value="Transferencia">🔁 Transferencia</option>
+            <option value="Gasto fijo">Gasto fijo</option>
+            <option value="Gasto variable">Gasto variable</option>
+            <option value="Ingreso">Ingreso</option>
+            <option value="Transferencia">Transferencia</option>
           </select>
         </Campo>
         {!esTransferencia && (
@@ -391,7 +409,7 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
 
   return (
     <Hoja id="modal-usar-accion" idTitulo="usar-accion-titulo" titulo={accion.nombre}
-      icono={accion.icono || "⚡"} subtitulo={subtitulo} onCerrar={alCerrar}
+      icono={<IconoDe valor={accion.icono || "⚡"} size={22} />} subtitulo={subtitulo} onCerrar={alCerrar}
       pie={
         <>
           <button className="btn-secondary" id="btn-cancelar-usar-accion" onClick={alCerrar}>Cancelar</button>
@@ -448,7 +466,7 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
             <input id="usar-accion-camara-file" ref={archivoRef} type="file" accept="image/*" capture="environment"
               style={{ display: "none" }} onChange={e => cargarFoto(e.target.files[0])} />
             <button type="button" className="fotos-btn" id="btn-usar-accion-camara"
-              onClick={() => archivoRef.current?.click()}>📷 Cámara</button>
+              onClick={() => archivoRef.current?.click()}><Icono nombre="camara" size={16} /> Cámara</button>
             <div id="usar-accion-foto-preview" className="fotos-preview">
               {foto && (
                 <div className="foto-thumb">

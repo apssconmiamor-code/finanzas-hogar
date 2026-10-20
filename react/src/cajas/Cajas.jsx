@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MenuOpciones } from "../shared/MenuOpciones.jsx";
 import { FilaDeslizable } from "../shared/FilaDeslizable.jsx";
-import { Icono } from "../shared/Iconos.jsx";
+import { Icono, LogoCaja } from "../shared/Iconos.jsx";
 import { BarraInferior } from "../shared/BarraInferior.jsx";
 import { crearManejadorLargo } from "../shared/gestos.js";
 
@@ -194,15 +194,15 @@ function ElegirCajas({ todas, ocultas, onCambiar, onCerrar }) {
 function EstadoVacio({ verificadaEnRed, hayOcultas }) {
   if (hayOcultas) {
     return <div className="empty-state" style={{ gridColumn: "1/-1" }}>
-      <div className="empty-state-icon">🙈</div>
+      <div className="empty-state-icon"><Icono nombre="ojoOff" size={40} /></div>
       <div className="empty-state-text">No tienes cajas visibles — toca "Cajas" para elegir cuáles ver.</div></div>;
   }
   return verificadaEnRed
     ? <div className="empty-state" style={{ gridColumn: "1/-1" }}>
-        <div className="empty-state-icon">🏦</div>
+        <div className="empty-state-icon"><Icono nombre="banco" size={40} /></div>
         <div className="empty-state-text">No tienes cajas aún. Crea una para empezar.</div></div>
     : <div className="empty-state" style={{ gridColumn: "1/-1" }}>
-        <div className="empty-state-icon">📡</div>
+        <div className="empty-state-icon"><Icono nombre="wifi" size={40} /></div>
         <div className="empty-state-text">No se pudieron cargar tus cajas — revisa tu conexión o toca Reconectar.</div></div>;
 }
 
@@ -248,12 +248,12 @@ function Grilla({ scrollRef, cajas, modoSuma, seleccion, alternarCaja, formatMon
             onPointerUpCapture={e => alSoltar(e, c.nombre)}>
             {c.saldoReal < 0 && (
               <div className="caja-card-top">
-                <span className="caja-alerta-ajuste" title="El saldo real es negativo">⚠️ Requiere ajuste</span>
+                <span className="caja-alerta-ajuste" title="El saldo real es negativo"><Icono nombre="alerta" size={14} /> Requiere ajuste</span>
               </div>
             )}
             <div className="caja-nombre-fila">
               <span className="caja-nombre">{c.nombre}</span>
-              {c.icono && <img className="caja-card-icono" src={c.icono} alt="" />}
+              <LogoCaja icono={c.icono} clase="caja-card-icono" />
             </div>
             <div className="caja-saldo positivo">{formatMonto(Math.max(0, c.saldoReal), c.moneda)}</div>
           </div>

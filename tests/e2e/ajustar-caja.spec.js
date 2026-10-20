@@ -73,7 +73,7 @@ test.describe('Ajustar caja', () => {
     await expect(page.locator('#btn-editar-borrar-eliminar')).toBeHidden();
     const btnAjustar = page.locator('#btn-editar-borrar-editar');
     await expect(btnAjustar).toBeVisible();
-    await expect(btnAjustar).toHaveText('⚖️ Ajustar');
+    await expect(btnAjustar).toContainText('Ajustar');
     // El detalle no se abrió solo por mantener presionado.
     await expect(page.locator('#modal-detalle-caja')).toBeHidden();
 

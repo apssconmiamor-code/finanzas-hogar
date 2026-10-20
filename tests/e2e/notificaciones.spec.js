@@ -9,7 +9,7 @@
 // correctos. No se puede probar la entrega real de un push en un test
 // headless (necesitaría un servicio de push real).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista, elegirIcono } = require('./helpers/googleMock');
 
 async function abrirNotificaciones(page) {
   await irATab(page, 'notificaciones');
@@ -484,7 +484,7 @@ test.describe('Notificaciones (Web Push)', () => {
     const tarjeta = page.locator('.notificacion-item');
     await expect(tarjeta).toContainText('Pagar internet');
     // Mismo emoji que el bloque "Gastos fijos" (grupos.gastosFijos.icono en notificaciones.js).
-    await expect(tarjeta.locator('.notif-card-icon')).toHaveText('📌');
+    await expect(tarjeta.locator('.notif-card-icon .ic')).toHaveCount(1);
 
     await tarjeta.dblclick();
     await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
@@ -652,11 +652,11 @@ test.describe('Notificaciones (Web Push)', () => {
     // debe quedar con el 🗂️ de respaldo.
     await usarAccionVista(page, 'btn-nuevo-bloque');
     await page.locator('#bloque-alerta-nombre').fill('Servicios');
-    await page.locator('#bloque-alerta-icono').fill('🧾');
+    await elegirIcono(page, 'bloque-alerta-icono', '🧾');
     await page.locator('#btn-guardar-bloque-alerta').click();
     const tarjetaServicios = page.locator('.alerta-bloque-card', { hasText: 'Servicios' });
     await expect(tarjetaServicios).toBeVisible();
-    await expect(tarjetaServicios.locator('.alerta-bloque-icono')).toHaveText('🧾');
+    await expect(tarjetaServicios.locator('.alerta-bloque-icono .ic')).toHaveCount(1);
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(6);
 
     // Crea una alerta DESDE ese bloque (no hace falta elegirlo, ya viene puesto).

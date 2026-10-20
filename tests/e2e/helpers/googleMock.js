@@ -203,4 +203,17 @@ async function opcionDeVista(page, idBoton, { hayOpcion }) {
   return texto;
 }
 
-module.exports = { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, abrirMenuVista, usarAccionVista, opcionDeVista, SHEET_NAMES };
+// Los campos de "ícono" ya no son un cuadro de texto: son una cuadrícula de íconos (el valor
+// guardado sigue siendo un emoji representativo). Elige el ícono de ese emoji en el campo "idCampo"
+// (el input oculto de las ventanas de JS plano, o la propia cuadrícula en las de React).
+async function elegirIcono(page, idCampo, emoji) {
+  await page.evaluate(({ id, e }) => {
+    const limpio = s => s.replace(/[\uFE0F\u200D]/g, '');
+    const grid = document.querySelector('#' + id + ' + .selector-iconos') || document.getElementById(id);
+    const boton = [...grid.querySelectorAll('[data-emoji]')].find(b => limpio(b.dataset.emoji) === limpio(e));
+    if (!boton) throw new Error('No hay ícono para ' + e);
+    boton.click();
+  }, { id: idCampo, e: emoji });
+}
+
+module.exports = { elegirIcono, mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, abrirMenuVista, usarAccionVista, opcionDeVista, SHEET_NAMES };

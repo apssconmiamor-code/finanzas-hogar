@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { FilaDeslizable } from "../shared/FilaDeslizable.jsx";
+import { Icono } from "../shared/Iconos.jsx";
 
 // Meses proyectados: mismas tarjetas que las Cajas (.caja-card), en una sola fila
 // que se desliza con tres visibles.
@@ -60,7 +61,7 @@ function Fila({ scrollRef, meses, puedeQuitar, formatMonto, onSeleccionar, onCon
           <div className="caja-nombre-fila">
             <span className="caja-nombre">{m.label}</span>
             <button type="button" className="proy-4m-config" title="Configurar este mes" aria-label={"Configurar " + m.label}
-              onClick={e => { e.stopPropagation(); onConfigurar(m.mes); }}>⚙️</button>
+              onClick={e => { e.stopPropagation(); onConfigurar(m.mes); }}><Icono nombre="engranaje" size={18} /></button>
           </div>
           <div className={"caja-saldo " + (m.excedente >= 0 ? "positivo" : "negativo")}>{formatMonto(m.excedente)}</div>
           <div className="proy-mes-detalle">

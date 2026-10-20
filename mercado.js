@@ -464,10 +464,9 @@ function _generarTextoListaMercado() {
   });
   const categoriasOrdenadas = Object.keys(porCategoria).sort((a, b) => a.localeCompare(b));
 
-  let texto = "🛒 *Lista del mercado*\n";
+  let texto = "*Lista del mercado*\n";
   categoriasOrdenadas.forEach(cat => {
-    const icono = cat === "Sin categoría" ? "🔖" : (mercadoCategorias.find(c => c.nombre === cat)?.icono || "🗂️");
-    texto += `\n${icono} *${cat}*\n`;
+    texto += `\n*${cat}*\n`;
     [...porCategoria[cat]].sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(p => {
       texto += `• ${p.nombre}\n`;
     });
@@ -610,7 +609,7 @@ function _conectarLargoPresionMercado(cont) {
 function poblarSelectMercadoCategoria(seleccionActual) {
   const sel = document.getElementById("mercado-categoria");
   if (!sel) return;
-  sel.innerHTML = `<option value="">🔖 Sin categoría</option>` +
+  sel.innerHTML = `<option value="">Sin categoría</option>` +
     mercadoCategorias.map(c => `<option value="${escapeAttr(c.nombre)}">${escapeHtml(c.icono)} ${escapeHtml(c.nombre)}</option>`).join("");
   const valores = ["", ...mercadoCategorias.map(c => c.nombre)];
   sel.value = valores.includes(seleccionActual) ? seleccionActual : "";

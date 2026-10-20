@@ -162,5 +162,5 @@
 
   Sheets._intentarOEncolar = intentarOEncolar;
 
-  console.info("✅ Sheets offline patch aplicado");
+  console.info("Sheets offline patch aplicado");
 })();

@@ -10,6 +10,7 @@
 // gris), pedido explícito del usuario. Mantener presionado un producto
 // sigue siendo el único camino a Editar/Eliminar el producto.
 const { test, expect } = require('@playwright/test');
+const { elegirIcono } = require('./helpers/googleMock');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
 
 async function abrirMercado(page) {
@@ -21,7 +22,7 @@ async function crearCategoria(page, nombre, icono) {
   await usarAccionVista(page, 'btn-nueva-categoria-mercado');
   await expect(page.locator('#modal-mercado-categoria')).toBeVisible();
   await page.locator('#mercado-categoria-nombre').fill(nombre);
-  if (icono) await page.locator('#mercado-categoria-icono').fill(icono);
+  if (icono) await elegirIcono(page, 'mercado-categoria-icono', icono);
   await page.locator('#btn-guardar-mercado-categoria').click();
   await expect(page.locator('#modal-mercado-categoria')).toBeHidden();
 }
@@ -72,7 +73,9 @@ test.describe('Mercado', () => {
 
     const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
     await expect(tarjeta).toBeVisible();
-    await expect(tarjeta.locator('.alerta-bloque-icono')).toHaveText('🥦');
+    // El ícono se ve como SVG (nunca como emoji).
+    await expect(tarjeta.locator('.alerta-bloque-icono .ic')).toHaveCount(1);
+    await expect(tarjeta.locator('.alerta-bloque-icono')).toHaveText('');
 
     await abrirCategoria(page, 'Alimentos');
     await opcionDeVista(page, 'btn-nuevo-producto-mercado-categoria', { hayOpcion: true });
@@ -302,7 +305,7 @@ test.describe('Mercado', () => {
     await expect(page.locator('#mercado-categoria-titulo')).toHaveText('Editar categoría');
     await expect(page.locator('#mercado-categoria-nombre')).toHaveValue('Alimentos');
     await page.locator('#mercado-categoria-nombre').fill('Despensa');
-    await page.locator('#mercado-categoria-icono').fill('🧺');
+    await elegirIcono(page, 'mercado-categoria-icono', '🎁');
     await page.locator('#btn-guardar-mercado-categoria').click();
     await expect(page.locator('#modal-mercado-categoria')).toBeHidden();
 

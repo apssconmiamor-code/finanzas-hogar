@@ -1947,9 +1947,9 @@ function iconoCajaImagen(nombre) {
   if (n.includes("bancolombia"))  return "bancolombia.png";
   if (n.includes("mercado pago")) return "mercado-pago.png";
   if (n.includes("falabella"))    return "falabella.png";
-  if (n.includes("ahorro"))       return "ahorro.png";
-  if (n.includes("emergencia"))   return "emergencia.png";
-  if (n.includes("efectivo"))     return "efectivo.png";
+  if (n.includes("ahorro"))       return "svg:alcancia";
+  if (n.includes("emergencia"))   return "svg:escudoMas";
+  if (n.includes("efectivo"))     return "svg:billete";
   return null;
 }
 
@@ -2773,7 +2773,7 @@ if (!concepto || !caja || !monto) {
 if (categoria !== "Ingreso") {
   const saldoCaja = Math.max(0, calcularSaldoCaja(caja));
   if (monto > saldoCaja) {
-    alert(`⚠️ Fondos insuficientes en "${caja}"\nSaldo disponible: ${formatMonto(saldoCaja)}\nMonto solicitado: ${formatMonto(monto)}`);
+    alert(`Fondos insuficientes en "${caja}"\nSaldo disponible: ${formatMonto(saldoCaja)}\nMonto solicitado: ${formatMonto(monto)}`);
     const btn2 = document.getElementById("btn-guardar-mov");
     if (btn2) { btn2.textContent = "Guardar"; btn2.disabled = false; }
     return;
@@ -3122,7 +3122,7 @@ function refrescarSelectorCaja(selectId) {
         <button type="button" class="caja-picker-option" data-value="${o.value.replace(/"/g, "&quot;")}"
           style="background-color:${cajaColorFondo(o.value)}">
           <span class="caja-picker-option-texto">${o.textContent}</span>
-          ${icono ? `<img class="caja-picker-option-icono" src="${icono}" alt="" />` : ""}
+          ${icono ? (icono.startsWith("svg:") ? `<span class="caja-picker-option-icono caja-icono-svg">${window.iconoSvg(icono.slice(4))}</span>` : `<img class="caja-picker-option-icono" src="${icono}" alt="" />`) : ""}
         </button>
       `;
       }).join("")
@@ -4584,14 +4584,14 @@ async function verificarYGuardarCronologia() {
           m.ingresoTotal, m.asertividadMensual, m.balanceCierre, m.gastoPrestamos,
           m.mayorDesvioConcepto, m.mayorDesvioMonto
         );
-        console.log(`✅ Cronología actualizada (fila vieja puesta al día) para ${mesStr}`);
+        console.log(`Cronología actualizada (fila vieja puesta al día) para ${mesStr}`);
       } else {
         await Sheets.guardarCronologia(
           mesStr, m.fijoAser, m.fijoReal, m.varAser, m.varReal,
           m.ingresoTotal, m.asertividadMensual, m.balanceCierre, m.gastoPrestamos,
           m.mayorDesvioConcepto, m.mayorDesvioMonto
         );
-        console.log(`✅ Cronología guardada para ${mesStr}`);
+        console.log(`Cronología guardada para ${mesStr}`);
       }
     }
   } catch (err) {
@@ -4955,7 +4955,7 @@ async function restaurarConcepto(nombre) {
 function quitarConceptoDelMes(concepto, categoria) {
   const mes = proyMesActivo;
   const label = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long" });
-  if (!confirm(`¿Quitar "${concepto}" solo de ${label}?\n\nSigue existiendo y lo puedes volver a agregar desde Configurar mes (⚙️).\n\n(Cancelar te deja borrarlo definitivamente de todos los meses.)`)) {
+  if (!confirm(`¿Quitar "${concepto}" solo de ${label}?\n\nSigue existiendo y lo puedes volver a agregar desde Configurar mes ().\n\n(Cancelar te deja borrarlo definitivamente de todos los meses.)`)) {
     // Salida al borrado definitivo, con su propia confirmación.
     eliminarConceptoPresupuesto(concepto, categoria);
     return;

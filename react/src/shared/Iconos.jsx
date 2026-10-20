@@ -32,9 +32,29 @@ const TRAZOS = {
   agregar: <><path d="M11 12H3" /><path d="M16 6H3" /><path d="M16 18H3" /><path d="M18 9v6" /><path d="M21 12h-6" /></>,
 };
 
-export function Icono({ nombre, size = 26 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{TRAZOS[nombre]}</svg>
-  );
+const propiedades = size => ({
+  viewBox: "0 0 24 24", width: size, height: size, fill: "none", stroke: "currentColor",
+  strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
+});
+
+// Los íconos que no están arriba salen de la tabla global de iconos.js (window.ICONOS_SVG).
+export function Icono({ nombre, size = 26, clase }) {
+  if (TRAZOS[nombre]) return <svg {...propiedades(size)} className={clase}>{TRAZOS[nombre]}</svg>;
+  const global = window.ICONOS_SVG || {};
+  return <svg {...propiedades(size)} className={clase} dangerouslySetInnerHTML={{ __html: global[nombre] || global.estrella || "" }} />;
+}
+
+// Ícono de un valor guardado por el usuario: los datos viejos son emojis (se siguen guardando
+// así), pero se muestran como ícono -- el más parecido (ver iconoDeEmoji en iconos.js).
+export function IconoDe({ valor, size = 26 }) {
+  const { nombre, clase } = window.iconoDeEmoji ? window.iconoDeEmoji(valor) : { nombre: "estrella", clase: "" };
+  return <Icono nombre={nombre} size={size} clase={clase ? "ic " + clase : undefined} />;
+}
+
+// Logo de una caja: la imagen de la entidad (Nequi, Bancolombia...) o, para Efectivo / Ahorro /
+// Emergencia, un ícono de línea ("svg:nombre").
+export function LogoCaja({ icono, clase }) {
+  if (!icono) return null;
+  if (icono.startsWith("svg:")) return <span className={clase + " caja-icono-svg"}><Icono nombre={icono.slice(4)} size={24} /></span>;
+  return <img className={clase} src={icono} alt="" />;
 }
