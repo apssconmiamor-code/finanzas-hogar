@@ -6,7 +6,7 @@
 // Sheets.agregarRecordatorio nunca había estado conectado al sistema de
 // cola offline (sheets-offline.js / sync.js).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista } = require('./helpers/googleMock');
 const { seleccionarCaja } = require('./helpers/uiHelpers');
 
 const FOTO_FALSA = { name: 'recibo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) };
@@ -21,7 +21,7 @@ test.describe('Adjuntar foto/audio sin conexión', () => {
     await esperarAppLista(page);
     await irATab(page, 'movimientos');
 
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('500000');

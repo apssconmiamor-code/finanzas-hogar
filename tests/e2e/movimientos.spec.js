@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista } = require('./helpers/googleMock');
 const { seleccionarCaja } = require('./helpers/uiHelpers');
 
 test.describe('Movimientos', () => {
@@ -16,7 +16,7 @@ test.describe('Movimientos', () => {
   });
 
   test('registrar un ingreso lo muestra en la lista', async ({ page }) => {
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await expect(page.locator('#modal-movimiento')).toBeVisible();
 
     await page.locator('#mov-concepto-ingreso').fill('SURA');
@@ -30,7 +30,7 @@ test.describe('Movimientos', () => {
   });
 
   test('no deja guardar un movimiento sin monto', async ({ page }) => {
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await page.locator('#mov-concepto-ingreso').fill('SURA');
 
     let dialogo = null;
@@ -45,7 +45,7 @@ test.describe('Movimientos', () => {
   test('doble clic en un movimiento abre su resumen', async ({ page }) => {
     // Ingreso porque no valida saldo suficiente (a diferencia de un gasto,
     // que necesitaría fondos ya cargados en la caja de prueba).
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('80000');
@@ -60,7 +60,7 @@ test.describe('Movimientos', () => {
   });
 
   test('"Nuevo ingreso" preselecciona la categoría y oculta el selector', async ({ page }) => {
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nuevo ingreso');
     await expect(page.locator('#grupo-categoria')).toBeHidden();
     await expect(page.locator('#mov-categoria')).toHaveValue('Ingreso');
@@ -68,7 +68,7 @@ test.describe('Movimientos', () => {
   });
 
   test('"Nuevo gasto" no asume categoría -- solo deja elegir Fijo o Variable', async ({ page }) => {
-    await page.locator('#btn-nuevo-gasto').click();
+    await usarAccionVista(page, 'btn-nuevo-gasto');
     await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nuevo gasto');
     await expect(page.locator('#grupo-categoria')).toBeVisible();
     await expect(page.locator('#mov-categoria')).toHaveValue('');
@@ -91,7 +91,7 @@ test.describe('Movimientos', () => {
   });
 
   test('"Nueva transferencia" preselecciona la categoría y va directo al bloque origen/destino', async ({ page }) => {
-    await page.locator('#btn-nueva-transferencia').click();
+    await usarAccionVista(page, 'btn-nueva-transferencia');
     await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nueva transferencia');
     await expect(page.locator('#grupo-categoria')).toBeHidden();
     await expect(page.locator('#mov-categoria')).toHaveValue('Transferencia');
@@ -111,7 +111,7 @@ test.describe('Movimientos', () => {
     await esperarAppLista(page);
     await irATab(page, 'movimientos');
 
-    await page.locator('#btn-nueva-transferencia').click();
+    await usarAccionVista(page, 'btn-nueva-transferencia');
     const toggleOrigen = page.locator('#mov-caja-origen + .caja-picker .caja-picker-toggle');
     await toggleOrigen.click();
 
@@ -142,13 +142,13 @@ test.describe('Movimientos', () => {
     await esperarAppLista(page);
     await irATab(page, 'movimientos');
 
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     let opciones = await page.locator('#mov-caja option').allTextContents();
     expect(opciones.some(t => t.includes('Efectivo'))).toBe(true);
     expect(opciones.some(t => t.includes('Nequi de otra persona'))).toBe(false);
     await page.locator('#btn-cancelar-mov').click();
 
-    await page.locator('#btn-nueva-transferencia').click();
+    await usarAccionVista(page, 'btn-nueva-transferencia');
     const opcionesOrigen  = await page.locator('#mov-caja-origen option').allTextContents();
     const opcionesDestino = await page.locator('#mov-caja-destino option').allTextContents();
     expect(opcionesOrigen.some(t => t.includes('Nequi de otra persona'))).toBe(true);
@@ -160,11 +160,11 @@ test.describe('Movimientos', () => {
     // ocultos) -- se cancela sin guardar y se registra un ingreso aparte,
     // para comprobar que ese recorte no queda pegado al editar después
     // cualquier movimiento (independiente de si el gasto llegó a guardarse).
-    await page.locator('#btn-nuevo-gasto').click();
+    await usarAccionVista(page, 'btn-nuevo-gasto');
     await expect(page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]')).toBeHidden();
     await page.locator('#btn-cancelar-mov').click();
 
-    await page.locator('#btn-nuevo-ingreso').click();
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
     await page.locator('#mov-concepto-ingreso').fill('SURA');
     await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
     await page.locator('#mov-monto').fill('50000');

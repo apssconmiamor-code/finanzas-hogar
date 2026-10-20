@@ -990,6 +990,7 @@ async function mostrarApp() {
   // Renderizar INMEDIATAMENTE con lo que haya en caché
   renderCajas();
   renderMovimientos();
+  renderFranjas();
   poblarFiltrosCajas();
   if (presupuesto && presupuesto.length > 0) renderProyeccion();
   if (cacheCron) { try { renderCronologia(JSON.parse(cacheCron)); } catch {} }
@@ -2203,6 +2204,7 @@ function toggleModoSumaMov() {
   modoSumaMovActivo = !modoSumaMovActivo;
   movimientosSeleccionadosParaSumar = new Set();
   renderMovimientos();
+  renderFranjas();   // renderMovimientos no siempre llega a repintar la franja (mes archivado, lista vacía)
 }
 
 function renderBotonSumarMov() {
@@ -2224,16 +2226,8 @@ function _conectarSeleccionMovimientos(list) {
   });
 }
 
-function renderSumarMovBarra() {
-  renderBotonSumarMov();
-  const barra = document.getElementById("sumar-mov-barra");
-  if (!barra) return;
-  if (!modoSumaMovActivo) { barra.classList.add("hidden"); barra.innerHTML = ""; return; }
-  barra.classList.remove("hidden");
-  if (movimientosSeleccionadosParaSumar.size === 0) {
-    barra.innerHTML = `<span class="sumar-cajas-barra-vacio">Tocá los movimientos que querés sumar</span>`;
-    return;
-  }
+// Estado del modo Sumar para la franja inferior de Movimientos (ver renderFranjas).
+function _estadoSumaMov() {
   const porMoneda = {};
   movimientosSeleccionadosParaSumar.forEach(id => {
     const m = movimientos.find(x => x.id === id);
@@ -2243,9 +2237,79 @@ function renderSumarMovBarra() {
     const esEntrada = m.categoria === "Ingreso" || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"));
     porMoneda[moneda] = (porMoneda[moneda] || 0) + (esEntrada ? 1 : -1) * Math.abs(m.monto);
   });
-  barra.innerHTML = Object.entries(porMoneda)
-    .map(([moneda, total]) => `<span class="sumar-cajas-barra-total">${formatMonto(total, moneda)}</span>`)
-    .join("");
+  return {
+    activo: modoSumaMovActivo,
+    botonListo: "btn-sumar-mov",
+    vacio: movimientosSeleccionadosParaSumar.size === 0,
+    textoVacio: "Tocá los movimientos que querés sumar",
+    textos: Object.entries(porMoneda).map(([moneda, total]) => formatMonto(total, moneda)),
+  };
+}
+
+function renderSumarMovBarra() {
+  renderBotonSumarMov();
+  renderFranjas();
+}
+
+// ---- Franja inferior de las vistas en JS plano ----
+// Cada vista lleva su menú ⋯ en una franja fija abajo (React: react/src/franjas). Sus
+// acciones son los botones de siempre, que quedan ocultos en la página: el menú los
+// pulsa. Una opción solo sale si su botón existe en ese momento (ej. "Nuevo producto"
+// existe solo dentro de una categoría de Mercado).
+const FRANJA_ACCIONES = {
+  movimientos: [
+    { boton: "btn-nuevo-ingreso", texto: "Nuevo ingreso", icono: "ingreso" },
+    { boton: "btn-nuevo-gasto", texto: "Nuevo gasto", icono: "gasto" },
+    { boton: "btn-nueva-transferencia", texto: "Nueva transferencia", icono: "movimientos" },
+    { boton: "btn-sumar-mov", texto: "Sumar movimientos", icono: "sumar" },
+  ],
+  compromisos: [
+    { boton: "btn-nuevo-prestamo", texto: "Nuevo préstamo", icono: "prestamo" },
+    { boton: "btn-nueva-compra", texto: "Nueva compra", icono: "mercado" },
+  ],
+  notificaciones: [
+    { boton: "btn-nueva-notificacion-bloque", texto: "Nueva alerta", icono: "alertas" },
+    { boton: "btn-nuevo-bloque", texto: "Nuevo bloque", icono: "agregar" },
+    { boton: "btn-activar-push", texto: "Activar en este dispositivo", icono: "alertas" },
+    { boton: "btn-suscribir-calendario", texto: "Ver en el Calendario", icono: "mes" },
+  ],
+  mercado: [
+    { boton: "btn-nuevo-producto-mercado-categoria", texto: "Nuevo producto", icono: "sumar" },
+    { boton: "btn-compra-realizada-mercado", texto: "Compra realizada", icono: "check" },
+    { boton: "btn-nueva-categoria-mercado", texto: "Nueva categoría", icono: "agregar" },
+    { boton: "btn-whatsapp-mercado", texto: "Enviar lista por WhatsApp", icono: "enviar", conConteo: true },
+  ],
+  planes: [
+    { boton: "btn-nuevo-plan-bloque", texto: "Nuevo plan", icono: "sumar" },
+    { boton: "btn-nueva-categoria-plan", texto: "Nueva categoría", icono: "agregar" },
+  ],
+  resumen: [],
+};
+
+function _botonDisponible(id) {
+  const el = document.getElementById(id);
+  return !!el && !el.classList.contains("hidden") && !el.closest(".hidden");
+}
+
+function renderFranjas() {
+  if (!window.FranjasReact) return;
+  window.FranjasReact.render({
+    acciones: FRANJA_ACCIONES,
+    estado: { movimientos: _estadoSumaMov() },
+    hayBoton: _botonDisponible,
+    pulsar: (id) => document.getElementById(id)?.click(),
+    // El botón de WhatsApp trae el conteo entre paréntesis: "... (3)".
+    etiquetaDe: (a) => {
+      if (!a.conConteo) return a.texto;
+      const n = /\((\d+)\)/.exec(document.getElementById(a.boton)?.textContent || "");
+      return n ? `${a.texto} (${n[1]})` : a.texto;
+    },
+    irAInicio: () => { if (!volverAInicio()) window.navegarATab("cajas"); },
+    actualizar: async () => {
+      await cargarTodo();
+      if (typeof renderResumen === "function") renderResumen();
+    },
+  });
 }
 
 // Mantener presionada una tarjeta de movimiento abre Editar/Eliminar (ver

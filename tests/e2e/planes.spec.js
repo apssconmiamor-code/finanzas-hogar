@@ -5,7 +5,7 @@
 // se puede crear DESDE una categoría, y guarda nombre, ubicación, fecha,
 // tipo (gratis/pago) e inversión (si es de pago).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
 
 async function abrirPlanes(page) {
   await irATab(page, 'planes');
@@ -38,7 +38,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Otros' })).toBeVisible();
-    await expect(page.locator('#btn-nueva-categoria-plan')).toBeVisible();
+    await opcionDeVista(page, 'btn-nueva-categoria-plan', { hayOpcion: true });
     await expect(listaPlanes(page).locator('.alerta-bloque-card[data-clave^="bloque_"]')).toHaveCount(0);
   });
 
@@ -48,7 +48,7 @@ test.describe('Planes', () => {
     await esperarAppLista(page);
     await abrirPlanes(page);
 
-    await page.locator('#btn-nueva-categoria-plan').click();
+    await usarAccionVista(page, 'btn-nueva-categoria-plan');
     await expect(page.locator('#modal-bloque-plan')).toBeVisible();
     await page.locator('#bloque-plan-nombre').fill('Restaurantes');
     await page.locator('#bloque-plan-icono').fill('🍽️');
@@ -60,7 +60,7 @@ test.describe('Planes', () => {
     await card.click();
 
     await expect(page.locator('#modal-plan')).toBeHidden();
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await expect(page.locator('#modal-plan')).toBeVisible();
     // Al crear (a diferencia de editar) no se ve el selector de categoría --
     // ya viene decidida por el bloque desde el que se creó.
@@ -97,13 +97,13 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Solo con inicio');
     await page.locator('#plan-fecha-inicio').fill('2026-11-01');
     await page.locator('#btn-guardar-plan').click();
     await expect(listaPlanes(page).locator('.notificacion-item')).toContainText('Desde');
 
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Con rango');
     await page.locator('#plan-fecha-inicio').fill('2026-11-05');
     await page.locator('#plan-fecha-fin').fill('2026-11-10');
@@ -121,7 +121,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Fechas al revés');
     await page.locator('#plan-fecha-inicio').fill('2026-12-10');
     await page.locator('#plan-fecha-fin').fill('2026-12-01');
@@ -140,11 +140,11 @@ test.describe('Planes', () => {
     await esperarAppLista(page);
     await abrirPlanes(page);
 
-    await page.locator('#btn-nueva-categoria-plan').click();
+    await usarAccionVista(page, 'btn-nueva-categoria-plan');
     await page.locator('#bloque-plan-nombre').fill('Viajes');
     await page.locator('#btn-guardar-bloque-plan').click();
     await abrirCategoriaPlan(page, 'Viajes');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
 
     await page.locator('#plan-nombre').fill('Cartagena');
     await page.locator('#plan-tipo-pago').click();
@@ -169,7 +169,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Alguna idea suelta');
     await page.locator('#btn-guardar-plan').click();
     await expect(page.locator('#modal-plan')).toBeHidden();
@@ -186,7 +186,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Eje Cafetero');
     await page.locator('#plan-ubicacion').fill('Salento');
     await page.locator('#plan-tipo-pago').click();
@@ -228,7 +228,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await expect(page.locator('#plan-reserva-no')).toHaveClass(/active/);
     await page.locator('#plan-nombre').fill('Paseo improvisado');
     await page.locator('#btn-guardar-plan').click();
@@ -248,7 +248,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Concierto');
     await page.locator('#plan-reserva-si').click();
     await page.locator('#btn-guardar-plan').click();
@@ -269,7 +269,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Con reserva online');
     await page.locator('#plan-url').fill('https://reservas.example.com/mesa/123');
     await page.locator('#btn-guardar-plan').click();
@@ -288,7 +288,7 @@ test.describe('Planes', () => {
     await abrirPlanes(page);
 
     await abrirCategoriaPlan(page, 'Otros');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Idea a borrar');
     await page.locator('#btn-guardar-plan').click();
 
@@ -313,11 +313,11 @@ test.describe('Planes', () => {
     await esperarAppLista(page);
     await abrirPlanes(page);
 
-    await page.locator('#btn-nueva-categoria-plan').click();
+    await usarAccionVista(page, 'btn-nueva-categoria-plan');
     await page.locator('#bloque-plan-nombre').fill('Cine');
     await page.locator('#btn-guardar-bloque-plan').click();
     await abrirCategoriaPlan(page, 'Cine');
-    await page.locator('#btn-nuevo-plan-bloque').click();
+    await usarAccionVista(page, 'btn-nuevo-plan-bloque');
     await page.locator('#plan-nombre').fill('Estreno de diciembre');
     await page.locator('#btn-guardar-plan').click();
     await expect(listaPlanes(page).locator('.notificacion-item')).toHaveCount(1);

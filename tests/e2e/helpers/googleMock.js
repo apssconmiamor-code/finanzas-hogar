@@ -182,4 +182,25 @@ async function irATab(page, tab) {
   await page.evaluate((t) => window.navegarATab(t), tab);
 }
 
-module.exports = { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, SHEET_NAMES };
+// Las acciones de cada vista viven en el menú ⋯ de su franja inferior (los botones de
+// siempre quedan ocultos en la página). "idBoton" es el id del botón de siempre
+// (ej. "btn-nuevo-gasto"); en el menú la opción se llama "franja-<idBoton>".
+async function abrirMenuVista(page) {
+  await page.locator('.barra-inferior [id^="btn-menu-"]').click();
+}
+async function usarAccionVista(page, idBoton) {
+  await abrirMenuVista(page);
+  await page.locator('#franja-' + idBoton).click();
+}
+// Comprueba si el menú de la vista ofrece (o no) esa acción, y lo cierra.
+async function opcionDeVista(page, idBoton, { hayOpcion }) {
+  await abrirMenuVista(page);
+  const opcion = page.locator('#franja-' + idBoton);
+  if (hayOpcion) await opcion.waitFor({ state: 'visible' });
+  else await opcion.waitFor({ state: 'detached' });
+  const texto = hayOpcion ? await opcion.textContent() : '';
+  await page.keyboard.press('Escape');
+  return texto;
+}
+
+module.exports = { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, abrirMenuVista, usarAccionVista, opcionDeVista, SHEET_NAMES };

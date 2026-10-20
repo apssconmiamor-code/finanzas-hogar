@@ -9,7 +9,7 @@
 // correctos. No se puede probar la entrega real de un push en un test
 // headless (necesitaría un servicio de push real).
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
 
 async function abrirNotificaciones(page) {
   await irATab(page, 'notificaciones');
@@ -27,7 +27,7 @@ async function abrirBloqueAlerta(page, nombre) {
 // del usuario) -- no hay "+ Nueva" suelto en la pantalla principal.
 async function nuevaAlertaEnBloque(page, nombreBloque) {
   await abrirBloqueAlerta(page, nombreBloque);
-  await page.locator('#btn-nueva-notificacion-bloque').click();
+  await usarAccionVista(page, 'btn-nueva-notificacion-bloque');
 }
 
 // La pantalla de detalle de un bloque no tiene botón de "Volver" -- se
@@ -100,7 +100,8 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Pasados' })).toBeVisible();
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Gastos fijos' })).toBeVisible();
     await expect(page.locator('.alerta-bloque-card', { hasText: 'Otros' })).toBeVisible();
-    await expect(page.locator('.alerta-bloque-card', { hasText: 'Agregar bloque' })).toBeVisible();
+    // "Agregar bloque" ya no es una tarjeta de la cuadrícula: es una opción del menú ⋯ de la franja.
+    await opcionDeVista(page, 'btn-nuevo-bloque', { hayOpcion: true });
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(5);
   });
 
@@ -390,7 +391,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await abrirBloqueAlerta(page, 'Activos');
     await expect(page.locator('.notificacion-item')).toContainText('Sacar la basura');
     // "Activos" es una agrupación, no un bloque -- no se puede crear desde acá.
-    await expect(page.locator('#btn-nueva-notificacion-bloque')).toHaveCount(0);
+    await opcionDeVista(page, 'btn-nueva-notificacion-bloque', { hayOpcion: false });
 
     await page.locator('.notificacion-item').dblclick();
     await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
@@ -649,7 +650,7 @@ test.describe('Notificaciones (Web Push)', () => {
 
     // Crea el bloque "Servicios" con un ícono elegido por el usuario -- no
     // debe quedar con el 🗂️ de respaldo.
-    await page.locator('.alerta-bloque-card', { hasText: 'Agregar bloque' }).click();
+    await usarAccionVista(page, 'btn-nuevo-bloque');
     await page.locator('#bloque-alerta-nombre').fill('Servicios');
     await page.locator('#bloque-alerta-icono').fill('🧾');
     await page.locator('#btn-guardar-bloque-alerta').click();
@@ -735,7 +736,7 @@ test.describe('Notificaciones (Web Push)', () => {
 
     await expect(page.locator('#notif-header-nota')).toBeVisible();
 
-    await page.locator('#btn-activar-push').click();
+    await usarAccionVista(page, 'btn-activar-push');
     await expect.poll(() => cuerpoRecibido).not.toBeNull();
 
     expect(cuerpoRecibido.subscription.endpoint).toBe('https://fcm.googleapis.com/fake/endpoint123');
@@ -774,7 +775,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
-    await expect(page.locator('#btn-activar-push')).toBeHidden();
+    await opcionDeVista(page, 'btn-activar-push', { hayOpcion: false });
     // La explicación de "cada dispositivo necesita activarlas" tampoco
     // tiene sentido si este dispositivo ya las activó.
     await expect(page.locator('#notif-header-nota')).toBeHidden();
@@ -868,14 +869,14 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
-    await page.locator('#btn-suscribir-calendario').click();
+    await usarAccionVista(page, 'btn-suscribir-calendario');
     await expect.poll(() => headerRecibido).toBe('Bearer FAKE_SESSION_TOKEN');
 
     // No hay forma de confirmar desde la web que la suscripción se
     // completó de verdad (eso pasa afuera de la app) -- se asume que sí y
     // el botón se oculta solo, en este dispositivo, para no seguir
     // ofreciéndolo cada vez que se abre Alertas.
-    await expect(page.locator('#btn-suscribir-calendario')).toBeHidden();
+    await opcionDeVista(page, 'btn-suscribir-calendario', { hayOpcion: false });
     await expect.poll(() => page.evaluate(() => localStorage.getItem('calendario_suscrito'))).toBe('1');
   });
 
@@ -890,7 +891,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await esperarAppLista(page);
     await abrirNotificaciones(page);
 
-    await expect(page.locator('#btn-suscribir-calendario')).toBeHidden();
+    await opcionDeVista(page, 'btn-suscribir-calendario', { hayOpcion: false });
   });
 });
 

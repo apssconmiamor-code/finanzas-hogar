@@ -3,7 +3,7 @@
 // (modal, detalle de un bloque...), primero cierra eso -- un nivel atrás.
 
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, usarAccionVista } = require('./helpers/googleMock');
 
 async function deslizarParaVolver(page) {
   await page.evaluate(() => {
@@ -41,7 +41,7 @@ test.describe('Gesto de volver lleva a Inicio', () => {
 
   test('con un modal abierto, el gesto cierra el modal primero y recién el siguiente vuelve a Inicio', async ({ page }) => {
     await page.locator('#atajo-movimientos').click();
-    await page.locator('#btn-nuevo-gasto').click();
+    await usarAccionVista(page, 'btn-nuevo-gasto');
     await expect(page.locator('#modal-movimiento')).toBeVisible();
     await deslizarParaVolver(page);
     await expect(page.locator('#modal-movimiento')).toBeHidden();

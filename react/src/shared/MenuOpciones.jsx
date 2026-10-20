@@ -7,7 +7,8 @@ import { Icono } from "./Iconos.jsx";
 //
 //   id          id del botón ⋯ (los tests lo usan)
 //   etiqueta    aria-label del botón
-//   items[]     { id, icono (nombre en Iconos.jsx), texto, accion }
+//   items       [{ id, icono (nombre en Iconos.jsx), texto, accion }], o una función que lo
+//               devuelva (se evalúa al abrir: las opciones pueden depender del momento)
 //   arriba      el panel se abre hacia arriba (los menús viven en la franja inferior)
 export function MenuOpciones({ id, etiqueta, items, arriba = true }) {
   const [abierto, setAbierto] = useState(false);
@@ -38,7 +39,7 @@ export function MenuOpciones({ id, etiqueta, items, arriba = true }) {
       </button>
       {abierto && (
         <div className={"dropdown-menu cajas-menu-panel" + (arriba ? " cajas-menu-panel-arriba" : "")} role="menu">
-          {items.map(it => (
+          {(typeof items === "function" ? items() : items).map(it => (
             <button key={it.id} type="button" role="menuitem" className="dropdown-item" id={it.id}
               onClick={() => elegir(it.accion)}>
               <span className="dd-icon"><Icono nombre={it.icono} size={18} /></span>{it.texto}

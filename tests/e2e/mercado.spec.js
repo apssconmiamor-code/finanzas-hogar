@@ -10,7 +10,7 @@
 // gris), pedido explícito del usuario. Mantener presionado un producto
 // sigue siendo el único camino a Editar/Eliminar el producto.
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab, usarAccionVista, opcionDeVista } = require('./helpers/googleMock');
 
 async function abrirMercado(page) {
   await irATab(page, 'mercado');
@@ -18,7 +18,7 @@ async function abrirMercado(page) {
 }
 
 async function crearCategoria(page, nombre, icono) {
-  await page.locator('#btn-nueva-categoria-mercado').click();
+  await usarAccionVista(page, 'btn-nueva-categoria-mercado');
   await expect(page.locator('#modal-mercado-categoria')).toBeVisible();
   await page.locator('#mercado-categoria-nombre').fill(nombre);
   if (icono) await page.locator('#mercado-categoria-icono').fill(icono);
@@ -32,7 +32,7 @@ async function abrirCategoria(page, nombre) {
 }
 
 async function agregarProducto(page, nombre, categoria) {
-  await page.locator('#btn-nuevo-producto-mercado-categoria').click();
+  await usarAccionVista(page, 'btn-nuevo-producto-mercado-categoria');
   await expect(page.locator('#modal-mercado-producto')).toBeVisible();
   await page.locator('#mercado-nombre').fill(nombre);
   if (categoria !== undefined) await page.locator('#mercado-categoria').selectOption(categoria);
@@ -64,7 +64,7 @@ test.describe('Mercado', () => {
 
   test('sin categorías todavía, la cuadrícula solo ofrece "Agregar categoría"', async ({ page }) => {
     await expect(page.locator('#mercado-list .alerta-bloque-card')).toHaveCount(1);
-    await expect(page.locator('#btn-nueva-categoria-mercado')).toBeVisible();
+    await opcionDeVista(page, 'btn-nueva-categoria-mercado', { hayOpcion: true });   // la acción vive en el menú ⋯
   });
 
   test('crear una categoría la agrega a la cuadrícula; tocarla entra a su detalle vacío', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('Mercado', () => {
     await expect(tarjeta.locator('.alerta-bloque-icono')).toHaveText('🥦');
 
     await abrirCategoria(page, 'Alimentos');
-    await expect(page.locator('#btn-nuevo-producto-mercado-categoria')).toBeVisible();
+    await opcionDeVista(page, 'btn-nuevo-producto-mercado-categoria', { hayOpcion: true });
     await expect(page.locator('#mercado-list')).toContainText('No hay productos acá todavía');
   });
 
@@ -163,12 +163,11 @@ test.describe('Mercado', () => {
     await page.locator('.mercado-item', { hasText: 'Leche' }).dblclick();
     await page.waitForTimeout(300);
 
-    // Vive dentro del header (junto al título), no suelto como un botón
-    // primario de ancho completo debajo.
-    const btn = page.locator('#btn-nuevo-producto-mercado-categoria');
+    // "Nuevo producto" ya no es un botón suelto en el header: es una opción del menú ⋯
+    // de la franja inferior (el botón de siempre queda oculto).
     await expect(page.locator('.alerta-bloque-detalle-header')).toContainText('Alimentos');
-    await expect(page.locator('.alerta-bloque-detalle-header ' + '#btn-nuevo-producto-mercado-categoria')).toBeVisible();
-    await expect(btn).toHaveClass(/btn-sutil/);
+    await expect(page.locator('#btn-nuevo-producto-mercado-categoria')).toBeHidden();
+    await opcionDeVista(page, 'btn-nuevo-producto-mercado-categoria', { hayOpcion: true });
   });
 
   test('"Compra realizada" pide confirmación y sube todo lo marcado de vuelta arriba', async ({ page }) => {
@@ -185,18 +184,17 @@ test.describe('Mercado', () => {
     // "Huevos" queda sin marcar a propósito -- no debe verse afectado.
 
     await expect(page.locator('.mercado-seccion-comprar-titulo')).toContainText('Para comprar (2)');
-    const btnCompraRealizada = page.locator('#btn-compra-realizada-mercado');
-    await expect(btnCompraRealizada).toBeVisible();
+    await opcionDeVista(page, 'btn-compra-realizada-mercado', { hayOpcion: true });
 
     // Cancelar el diálogo no cambia nada.
     page.once('dialog', (d) => d.dismiss());
-    await btnCompraRealizada.click();
+    await usarAccionVista(page, 'btn-compra-realizada-mercado');
     await expect(page.locator('.mercado-seccion-comprar-titulo')).toContainText('Para comprar (2)');
 
     // Confirmar lo sube todo -- la sección desaparece, "Huevos" sigue como estaba.
     let mensajeDialogo = null;
     page.once('dialog', (d) => { mensajeDialogo = d.message(); d.accept(); });
-    await btnCompraRealizada.click();
+    await usarAccionVista(page, 'btn-compra-realizada-mercado');
     await expect.poll(() => mensajeDialogo).not.toBeNull();
     expect(mensajeDialogo).toContain('2');
     await expect(page.locator('.mercado-seccion-comprar')).toHaveCount(0);
@@ -214,7 +212,7 @@ test.describe('Mercado', () => {
 
   test('el botón de WhatsApp solo aparece con algo marcado, y abre wa.me con el número y la lista agrupada por categoría', async ({ page }) => {
     // Sin nada marcado, el botón no está.
-    await expect(page.locator('#btn-whatsapp-mercado')).toHaveCount(0);
+    await opcionDeVista(page, 'btn-whatsapp-mercado', { hayOpcion: false });
 
     await crearCategoria(page, 'Alimentos', '🥦');
     await abrirCategoria(page, 'Alimentos');
@@ -225,7 +223,7 @@ test.describe('Mercado', () => {
 
     // Sigue sin aparecer en la cuadrícula: "Pan" no está marcado, solo "Leche".
     await deslizarParaVolver(page);
-    await expect(page.locator('#btn-whatsapp-mercado')).toContainText('(1)');
+    expect(await opcionDeVista(page, 'btn-whatsapp-mercado', { hayOpcion: true })).toContain('(1)');
 
     // wa.me es un servicio real (redirige a api.whatsapp.com) -- se
     // responde localmente para no depender de red real ni de a dónde
@@ -237,7 +235,7 @@ test.describe('Mercado', () => {
 
     const [popup] = await Promise.all([
       page.context().waitForEvent('page'),
-      page.locator('#btn-whatsapp-mercado').click()
+      usarAccionVista(page, 'btn-whatsapp-mercado')
     ]);
     const url = new URL(popup.url());
     expect(url.hostname).toBe('wa.me');

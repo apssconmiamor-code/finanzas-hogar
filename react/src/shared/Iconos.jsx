@@ -18,6 +18,13 @@ const TRAZOS = {
   concepto: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /><path d="M12 12v6" /><path d="M9 15h6" /></>,
   archivar: <><rect x="2" y="3" width="20" height="5" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></>,
   salir: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>,
+  ingreso: <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>,
+  gasto: <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>,
+  prestamo: <><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></>,
+  enviar: <><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></>,
+  check: <path d="M20 6 9 17l-5-5" />,
+  casa: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>,
+  refrescar: <><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></>,
   agregar: <><path d="M11 12H3" /><path d="M16 6H3" /><path d="M16 18H3" /><path d="M18 9v6" /><path d="M21 12h-6" /></>,
 };
 

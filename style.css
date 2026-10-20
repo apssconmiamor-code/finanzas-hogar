@@ -185,7 +185,7 @@ input, select, textarea, table {
 .btn-google:active { transform: scale(0.98); }
 
 /* ═══════════════ LAYOUT ═══════════════ */
-.app { display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
+.app { display: flex; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg); }
 
 /* macOS: la app flota como una ventana sobre un "escritorio", con esquinas
    redondeadas y sombra — solo tiene sentido en pantallas grandes, donde
@@ -819,17 +819,29 @@ input, select, textarea, table {
 .proy-suma-item { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
 .proy-suma-item small { font-size: 10.5px; color: var(--text-4); font-weight: 600; letter-spacing: .2px; }
 .proy-suma .sumar-cajas-barra-total { font-size: 16px; }
+/* Botones de acción de las vistas en JS plano: ahora viven en el menú ⋯ de la franja inferior
+   (ver FranjasVistas). Quedan en el DOM, ocultos, porque el menú los pulsa -- así no cambia la
+   lógica de cada módulo. */
+#tipo-mov-btn-group, #btn-sumar-mov, #tab-movimientos .cajas-header,
+#btn-nuevo-prestamo, #btn-nueva-compra,
+#btn-activar-push, #btn-suscribir-calendario, #btn-nuevo-bloque, #btn-nueva-notificacion-bloque,
+#btn-nueva-categoria-mercado, #btn-whatsapp-mercado, #btn-nuevo-producto-mercado-categoria, #btn-compra-realizada-mercado,
+#btn-nueva-categoria-plan, #btn-nuevo-plan-bloque { display: none !important; }
+
 /* ═══════════════ FRANJA INFERIOR DE CADA VISTA ═══════════════
    Aloja el menú ⋯ de la vista (y, en Inicio, la versión). Vive dentro de
    .main-content como último hijo: sticky al fondo del área que se desplaza, así
    queda estática sin importar el scroll y respeta el sidebar en escritorio. */
 .barra-inferior {
   position: sticky; bottom: 0; margin-top: auto; z-index: 60;
+  /* flex-shrink:0: es hijo de un contenedor flex y, con mucho contenido, se encogía hasta el
+     min-height (56px) mientras que con poco contenido mantenía su altura real (67px). */
+  flex-shrink: 0;
   width: 100%; box-sizing: border-box; min-height: 56px;
   /* Tres zonas: izquierda | menú ⋯ redondo y CENTRADO | derecha (versión o total). */
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
   padding: 8px 16px max(10px, env(safe-area-inset-bottom));
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.97);
   backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
 }
@@ -1691,7 +1703,10 @@ a.detalle-notif-url-texto { color: var(--brand); text-decoration: underline; }
   .sidebar { display: none; }
   .topbar { display: flex; }
   /* Sin barra inferior (la navegación es por los atajos de Inicio y el gesto de volver). */
-  .tab-section { padding: 16px 16px max(40px, env(safe-area-inset-bottom)); }
+  /* La franja inferior va fija al borde de la pantalla (siempre a la vista, aunque la tabla
+     sea larguísima): se le deja al contenido el espacio que ella ocupa. */
+  .tab-section { padding: 16px 16px calc(84px + env(safe-area-inset-bottom)); }
+  .barra-inferior { position: fixed; left: 0; right: 0; bottom: 0; margin-top: 0; }
   .main-content { padding-top: 0; }
   .proy-kpi-row { grid-template-columns: repeat(3,1fr); }
   /* Ingresos/Gastos/Balance siempre en una sola fila, incluso en móvil */

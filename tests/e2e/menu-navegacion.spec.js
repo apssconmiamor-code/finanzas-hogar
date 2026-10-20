@@ -4,7 +4,7 @@
 // "Compromisos" de la pantalla de Inicio (ya no está en el menú ⋯).
 
 const { test, expect } = require('@playwright/test');
-const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista } = require('./helpers/googleMock');
+const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, opcionDeVista } = require('./helpers/googleMock');
 
 test.describe('Navegación a Compromisos y menú ⋯', () => {
   test.beforeEach(async ({ page }) => {
@@ -27,9 +27,9 @@ test.describe('Navegación a Compromisos y menú ⋯', () => {
 
     // Los dos bloques están ahí, cada uno con su propio "+ Nuevo".
     await expect(page.locator('#tab-compromisos')).toContainText('Préstamos');
-    await expect(page.locator('#btn-nuevo-prestamo')).toBeVisible();
+    await expect(await opcionDeVista(page, 'btn-nuevo-prestamo', { hayOpcion: true })).toContain('Nuevo préstamo');
     await expect(page.locator('#tab-compromisos')).toContainText('Lista de compras');
-    await expect(page.locator('#btn-nueva-compra')).toBeVisible();
+    await expect(await opcionDeVista(page, 'btn-nueva-compra', { hayOpcion: true })).toContain('Nueva compra');
   });
 
   // Se quitó la barra superior (título, foto de la cuenta y menú principal): la
