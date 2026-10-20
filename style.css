@@ -1243,6 +1243,24 @@ input, select, textarea, table {
 }
 .filtros-bar > .input-sm + .input-sm { border-left: 1px solid var(--border-mid); }
 
+/* Movimientos: filtros, resumen y filas forman UN solo bloque, pegados unos a otros. La primera fila
+   (la de filtros) lleva un embudo a la izquierda para que se note que es para filtrar. */
+.filtros-icono {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 0 4px 0 14px;
+  color: var(--text-4); font-size: 15px;
+}
+#tab-movimientos .filtros-bar {
+  margin-bottom: 0; border-color: var(--border); border-radius: var(--r-md) var(--r-md) 0 0;
+  box-shadow: var(--shadow-sm);
+}
+#tab-movimientos .filtros-bar > .input-sm + .input-sm { border-left-color: var(--border); }
+#tab-movimientos #resumen-bar {
+  margin-bottom: 0; border-radius: 0; border-top: none; box-shadow: none;
+}
+#tab-movimientos .movimientos-list:has(.mov-card) {
+  border-top: none; border-radius: 0 0 var(--r-md) var(--r-md);
+}
+
 /* ═══════════════ MOVIMIENTOS ═══════════════ */
 .movimientos-list {
   display: flex; flex-direction: column; gap: 0;
