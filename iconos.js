@@ -288,7 +288,7 @@
     });
     marcar();
   };
-  const CAMPOS = ["nuevo-concepto-icono", "mercado-categoria-icono", "bloque-alerta-icono", "bloque-plan-icono"];
+  const CAMPOS = ["nuevo-concepto-icono", "mercado-categoria-icono", "bloque-plan-icono"];
   const montarTodos = () => CAMPOS.forEach(window.montarSelectorIconos);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", montarTodos); else montarTodos();
 })();

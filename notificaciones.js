@@ -530,19 +530,6 @@ async function borrarBloqueAlerta(nombre) {
   await _guardarBloquesAlertas(obtenerBloquesAlertas().filter(b => b.nombre !== nombre));
 }
 
-// GASTOS_FIJOS ya tiene su propio select (poblarSelectGastoFijo) -- este
-// puebla el select de "a qué bloque pertenece esta alerta", que incluye el
-// fijo "Gastos fijos" + los personalizados del usuario logueado.
-function poblarSelectBloque() {
-  const sel = document.getElementById("notif-bloque");
-  if (!sel) return;
-  const valorActual = sel.value;
-  const bloques = obtenerBloquesAlertas();
-  sel.innerHTML = `<option value="">Otros</option><option value="__gastos_fijos__">Gastos fijos</option>` +
-    bloques.map(b => `<option value="${escapeAttr(b.nombre)}">${escapeHtml(b.icono)} ${escapeHtml(b.nombre)}</option>`).join("");
-  sel.value = ["", "__gastos_fijos__", ...bloques.map(b => b.nombre)].includes(valorActual) ? valorActual : "";
-}
-
 async function cargarNotificaciones() {
   try {
     notificaciones = filtrarNotificacionesVisibles(await Sheets.getNotificaciones());
@@ -895,9 +882,7 @@ function renderBloquesAlertaGrid(lista, grupos) {
   });
 
   document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
-    document.getElementById("bloque-alerta-nombre").value = "";
-    document.getElementById("bloque-alerta-icono").value = "";
-    document.getElementById("modal-bloque-alerta")?.classList.remove("hidden");
+    document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "bloque" } }));
   });
 }
 
@@ -1072,48 +1057,8 @@ async function borrarNotificacion(id) {
   }
 }
 
-// GASTOS_FIJOS (definida en app.js) crece con el tiempo -- se repuebla
-// cada vez que se abre el modal en vez de una sola vez al cargar la página.
-function poblarSelectGastoFijo() {
-  const sel = document.getElementById("notif-gasto-fijo");
-  if (!sel || typeof GASTOS_FIJOS === "undefined") return;
-  const valorActual = sel.value;
-  sel.innerHTML = `<option value="">— Ninguno —</option>` +
-    GASTOS_FIJOS.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join("");
-  sel.value = GASTOS_FIJOS.includes(valorActual) ? valorActual : "";
-}
-
-// El "recordar de nuevo" solo tiene sentido para notificaciones "unica":
-// son las únicas que quedan en estado "enviada" esperando revisión (ver
-// tocaRecordatorioDeSeguimiento en worker/src/push.js) -- también aplica a
-// recurrentes: si se activa ahí, esa notificación pasa por "revisar" en
-// cada ciclo antes de volver a su repetición normal (ver
-// marcarNotificacionRevisada). Por eso el campo queda siempre visible, sin
-// importar la repetición elegida.
-
-function limpiarFormNotificacion() {
-  document.getElementById("notif-texto").value = "";
-  document.getElementById("notif-url").value = "";
-  document.getElementById("notif-repetir-preset").value = "no";
-  document.getElementById("notif-repetir-intervalo").value = "1";
-  document.getElementById("notif-repetir-unidad").value = "dia";
-  document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
-  document.getElementById("notif-recordar-dias").value = "";
-  document.getElementById("notif-destinatario").value = "yo";
-  poblarSelectBloque();
-  document.getElementById("notif-bloque").value = "";
-  document.getElementById("notif-bloque-row")?.classList.remove("hidden");
-  document.getElementById("notif-gasto-fijo-row")?.classList.add("hidden");
-  poblarSelectGastoFijo();
-  const ahora = new Date(Date.now() + 5 * 60000); // +5 min, para que no quede en el pasado por defecto
-  document.getElementById("notif-fecha-hora").value = ahora.toISOString().slice(0, 16);
-  document.getElementById("notif-fecha-limite").value = "";
-
-  const modal = document.getElementById("modal-notificacion");
-  delete modal.dataset.editId;
-  modal.querySelector(".modal-title").textContent = "Nueva alerta";
-  document.getElementById("btn-guardar-notificacion").textContent = "Guardar";
-}
+// ---- Nueva / editar alerta y nuevo bloque: ventanas en React (react/src/alertas/Alertas.jsx) ----
+// Acá quedan los datos: qué mostrar, y guardar en Sheets.
 
 // Convierte un ISO en UTC (como se guarda en la hoja) al formato que
 // espera un <input type="datetime-local"> -- en hora LOCAL del navegador,
@@ -1127,133 +1072,75 @@ function _isoAFechaHoraLocalInput(iso) {
 }
 
 // ---- Nueva alerta DESDE un bloque (único lugar donde se puede crear una
-// alerta -- ver conversación: ya no hay "+ Nueva" suelto en la pantalla
-// principal). El bloque ya viene decidido por dónde se entró, así que ni
-// tiene sentido mostrar el selector: se precarga y se oculta.
+// alerta -- ya no hay "+ Nueva" suelto en la pantalla principal). El bloque ya
+// viene decidido por dónde se entró, así que ni tiene sentido mostrar el selector.
 function abrirNuevaNotificacionEnBloque(valorBloque) {
-  limpiarFormNotificacion();
-  document.getElementById("notif-bloque").value = valorBloque;
-  document.getElementById("notif-bloque-row")?.classList.add("hidden");
-  const esGastosFijos = valorBloque === "__gastos_fijos__";
-  document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", !esGastosFijos);
-  if (esGastosFijos) poblarSelectGastoFijo();
-  document.getElementById("modal-notificacion").classList.remove("hidden");
+  document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "alerta", valorBloque } }));
 }
 
-// ---- Editar (reusa el modal de "Nueva alerta") -- acá sí se ve y se
+// ---- Editar (reusa la ventana de "Nueva alerta") -- acá sí se ve y se
 // puede cambiar el bloque, a diferencia de crear una alerta nueva. ----
 function abrirEditarNotificacion(id) {
+  document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "alerta", editId: id } }));
+}
+
+// Los datos de una alerta guardada, con la forma del formulario de React.
+// "Repetir" es el picker de presets + Personalizado (mismo patrón que Recordatorios de iPhone).
+const _PRESETS_REPETIR = ["dia:1", "semana:1", "semana:2", "mes:1", "anio:1"];
+function formularioDeNotificacion(id) {
   const n = notificaciones.find(x => x.id === id);
-  if (!n) return;
-
-  document.getElementById("notif-bloque-row")?.classList.remove("hidden");
-  document.getElementById("notif-texto").value = n.titulo;
-  document.getElementById("notif-url").value = n.url || "";
-  document.getElementById("notif-destinatario").value = n.destinatario;
-  document.getElementById("notif-fecha-hora").value = _isoAFechaHoraLocalInput(n.fechaHora);
-  document.getElementById("notif-fecha-limite").value = n.fechaLimite || "";
-  document.getElementById("notif-recordar-dias").value = n.recordarEnDias || "";
-
-  const presetSelect = document.getElementById("notif-repetir-preset");
-  if (n.tipo === "unica") {
-    presetSelect.value = "no";
-    document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
-  } else {
+  if (!n) return null;
+  let repetir = "no", intervaloCustom = "1", unidadCustom = "dia";
+  if (n.tipo !== "unica") {
     const unidad = n.unidad || UNIDAD_LEGADO_NOTIF[n.tipo] || "dia";
     const intervalo = parseInt(n.intervalo, 10) || 1;
-    const presetEquivalente = `${unidad}:${intervalo}`;
-    const esPreset = [...presetSelect.options].some(o => o.value === presetEquivalente);
-    if (esPreset) {
-      presetSelect.value = presetEquivalente;
-      document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
-    } else {
-      presetSelect.value = "custom";
-      document.getElementById("notif-repetir-custom-row")?.classList.remove("hidden");
-      document.getElementById("notif-repetir-intervalo").value = intervalo;
-      document.getElementById("notif-repetir-unidad").value = unidad;
-    }
+    if (_PRESETS_REPETIR.includes(`${unidad}:${intervalo}`)) repetir = `${unidad}:${intervalo}`;
+    else { repetir = "custom"; intervaloCustom = String(intervalo); unidadCustom = unidad; }
   }
-
-  poblarSelectBloque();
-  const bloqueValor = n.gastoFijo ? "__gastos_fijos__" : (n.categoria || "");
-  document.getElementById("notif-bloque").value = bloqueValor;
-  document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", bloqueValor !== "__gastos_fijos__");
-
-  poblarSelectGastoFijo();
-  const selGastoFijo = document.getElementById("notif-gasto-fijo");
-  if (selGastoFijo) selGastoFijo.value = n.gastoFijo || "";
-
-  const modal = document.getElementById("modal-notificacion");
-  modal.dataset.editId = id;
-  modal.querySelector(".modal-title").textContent = "Editar alerta";
-  document.getElementById("btn-guardar-notificacion").textContent = "Guardar cambios";
-  modal.classList.remove("hidden");
+  return {
+    texto: n.titulo, url: n.url || "", repetir, intervalo: intervaloCustom, unidad: unidadCustom,
+    recordarDias: n.recordarEnDias ? String(n.recordarEnDias) : "", destinatario: n.destinatario,
+    bloque: n.gastoFijo ? "__gastos_fijos__" : (n.categoria || ""), gastoFijo: n.gastoFijo || "",
+    fechaHora: _isoAFechaHoraLocalInput(n.fechaHora), fechaLimite: n.fechaLimite || "",
+  };
 }
 
-// Traduce el picker "Repetir" (presets + Personalizado, mismo patrón que
-// Recordatorios de iPhone) a { tipo, intervalo, unidad } para guardar.
-function _leerRepeticionDelForm() {
-  const preset = document.getElementById("notif-repetir-preset").value;
-  if (preset === "no") return { tipo: "unica", intervalo: "", unidad: "" };
-  if (preset === "custom") {
-    const intervalo = Math.max(1, parseInt(document.getElementById("notif-repetir-intervalo").value, 10) || 1);
-    const unidad = document.getElementById("notif-repetir-unidad").value;
-    return { tipo: "recurrente", intervalo, unidad };
+// Guarda una alerta nueva o editada. "datos" viene ya validado de la ventana de React; si algo
+// falla, lanza (la ventana muestra el aviso y se queda abierta).
+async function guardarNotificacionDatos(d, editId) {
+  if (!editId) {
+    const estadoPush = await estadoSuscripcionPush();
+    if (estadoPush !== "activo") {
+      const activar = confirm("Todavía no activaste las alertas push en este dispositivo. ¿Activarlas ahora? (Sin esto, esta alerta se guarda pero no te va a avisar.)");
+      if (activar) await activarNotificacionesPush();
+    }
   }
-  const [unidad, intervalo] = preset.split(":");
-  return { tipo: "recurrente", intervalo: parseInt(intervalo, 10) || 1, unidad };
+  if (editId) {
+    await Sheets.editarNotificacion(editId, {
+      titulo: d.texto, tipo: d.tipo, fechaHora: d.fechaHoraISO, fechaLimite: d.fechaLimite,
+      destinatario: d.destinatario, intervalo: d.intervalo, unidad: d.unidad, gastoFijo: d.gastoFijo,
+      recordarEnDias: d.recordarEnDias, categoria: d.categoria, url: d.url
+    });
+  } else {
+    await Sheets.agregarNotificacion(d.texto, d.tipo, d.fechaHoraISO, d.fechaLimite, d.destinatario, currentUser?.email || "", d.intervalo, d.unidad, d.gastoFijo, d.recordarEnDias, d.categoria, d.url);
+  }
+  await cargarNotificaciones();
+  SyncManager.mostrarToast(`✅ "${d.texto}" ${editId ? "actualizada" : "programada"}`);
 }
 
-async function guardarNotificacion() {
-  const texto          = document.getElementById("notif-texto").value.trim();
-  const url             = document.getElementById("notif-url")?.value.trim() || "";
-  const { tipo, intervalo, unidad } = _leerRepeticionDelForm();
-  const fechaHoraLocal  = document.getElementById("notif-fecha-hora").value;
-  const fechaLimite     = document.getElementById("notif-fecha-limite").value;
-  const destinatario    = document.getElementById("notif-destinatario").value;
-  const bloqueSel       = document.getElementById("notif-bloque")?.value || "";
-  const gastoFijo       = bloqueSel === "__gastos_fijos__" ? (document.getElementById("notif-gasto-fijo")?.value || "") : "";
-  const categoria       = (bloqueSel && bloqueSel !== "__gastos_fijos__") ? bloqueSel : "";
-  const recordarEnDias  = parseInt(document.getElementById("notif-recordar-dias")?.value, 10) || "";
-
-  if (!texto || !fechaHoraLocal) {
-    alert("Completa al menos el texto y la fecha/hora");
-    return;
-  }
-
-  const fechaHoraISO = new Date(fechaHoraLocal).toISOString();
-  const modal = document.getElementById("modal-notificacion");
-  const editId = modal.dataset.editId;
-
-  const btn = document.getElementById("btn-guardar-notificacion");
-  btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-    if (!editId) {
-      const estadoPush = await estadoSuscripcionPush();
-      if (estadoPush !== "activo") {
-        const activar = confirm("Todavía no activaste las alertas push en este dispositivo. ¿Activarlas ahora? (Sin esto, esta alerta se guarda pero no te va a avisar.)");
-        if (activar) await activarNotificacionesPush();
-      }
-    }
-
-    if (editId) {
-      await Sheets.editarNotificacion(editId, {
-        titulo: texto, tipo, fechaHora: fechaHoraISO, fechaLimite,
-        destinatario, intervalo, unidad, gastoFijo, recordarEnDias, categoria, url
-      });
-    } else {
-      await Sheets.agregarNotificacion(texto, tipo, fechaHoraISO, fechaLimite, destinatario, currentUser?.email || "", intervalo, unidad, gastoFijo, recordarEnDias, categoria, url);
-    }
-    modal.classList.add("hidden");
-    limpiarFormNotificacion();
-    await cargarNotificaciones();
-    SyncManager.mostrarToast(`✅ "${texto}" ${editId ? "actualizada" : "programada"}`);
-  } catch (err) {
-    alert("Error guardando la alerta: " + err.message);
-  } finally {
-    btn.textContent = editId ? "Guardar cambios" : "Guardar"; btn.disabled = false;
-  }
+function renderAlertasReact() {
+  if (!window.AlertasReact) return;
+  window.AlertasReact.render({
+    getBloques: () => obtenerBloquesAlertas(),
+    getGastosFijos: () => (typeof GASTOS_FIJOS !== "undefined" ? GASTOS_FIJOS : []),
+    formularioDe: formularioDeNotificacion,
+    onGuardar: guardarNotificacionDatos,
+    onGuardarBloque: async (nombre, icono) => {
+      const ok = await agregarBloqueAlerta(nombre, icono);
+      if (ok) renderNotificaciones();
+      return ok;
+    },
+  });
 }
 
 // =============================================
@@ -1273,76 +1160,13 @@ function renderNotificacionesBadge() {
 }
 
 function setupNotificacionesListeners() {
-  document.getElementById("btn-cancelar-notificacion")
-    ?.addEventListener("click", () => {
-      document.getElementById("modal-notificacion").classList.add("hidden");
-      limpiarFormNotificacion();
-    });
-
-  document.getElementById("btn-guardar-notificacion")
-    ?.addEventListener("click", guardarNotificacion);
-
-  document.getElementById("notif-repetir-preset")
-    ?.addEventListener("change", (e) => {
-      document.getElementById("notif-repetir-custom-row")?.classList.toggle("hidden", e.target.value !== "custom");
-    });
-
-  document.getElementById("notif-bloque")
-    ?.addEventListener("change", (e) => {
-      document.getElementById("notif-gasto-fijo-row")?.classList.toggle("hidden", e.target.value !== "__gastos_fijos__");
-    });
-
-  // Elegir un gasto fijo pre-llena texto/destinatario/repetición con
-  // valores sensatos (mensual, familia) -- todo sigue siendo editable
-  // después, esto es solo para no partir de un formulario en blanco.
-  document.getElementById("notif-gasto-fijo")
-    ?.addEventListener("change", (e) => {
-      const concepto = e.target.value;
-      if (!concepto) return;
-      const texto = document.getElementById("notif-texto");
-      if (!texto.value.trim()) texto.value = `Pagar ${concepto}`;
-      document.getElementById("notif-destinatario").value = "familia";
-      const preset = document.getElementById("notif-repetir-preset");
-      if (preset.value === "no") {
-        preset.value = "mes:1";
-        document.getElementById("notif-repetir-custom-row")?.classList.add("hidden");
-      }
-    });
+  renderAlertasReact();
 
   document.getElementById("btn-activar-push")
     ?.addEventListener("click", activarNotificacionesPush);
 
   document.getElementById("btn-suscribir-calendario")
     ?.addEventListener("click", suscribirCalendario);
-
-  // Cerrar tocando el fondo ya lo cubre el listener genérico de app.js
-  // (ver cerrarModal, que ya sabe llamar a limpiarFormNotificacion para este modal).
-
-  document.getElementById("btn-guardar-bloque-alerta")
-    ?.addEventListener("click", async () => {
-      const nombre = document.getElementById("bloque-alerta-nombre").value.trim();
-      const icono  = document.getElementById("bloque-alerta-icono").value.trim();
-      if (!nombre) { alert("Ponle un nombre al bloque"); return; }
-      if (nombre === "Gastos fijos") { alert('"Gastos fijos" ya existe y es fijo -- elige otro nombre.'); return; }
-      const btn = document.getElementById("btn-guardar-bloque-alerta");
-      const textoOriginal = btn.textContent;
-      btn.disabled = true; btn.textContent = "Guardando...";
-      try {
-        const ok = await agregarBloqueAlerta(nombre, icono);
-        if (!ok) { alert("Ya existe un bloque con ese nombre"); return; }
-        document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
-        renderNotificaciones();
-      } catch (err) {
-        alert("Error guardando el bloque: " + err.message);
-      } finally {
-        btn.disabled = false; btn.textContent = textoOriginal;
-      }
-    });
-
-  document.getElementById("btn-cancelar-bloque-alerta")
-    ?.addEventListener("click", () => {
-      document.getElementById("modal-bloque-alerta")?.classList.add("hidden");
-    });
 
   document.getElementById("btn-resumen-vista")
     ?.addEventListener("click", () => {

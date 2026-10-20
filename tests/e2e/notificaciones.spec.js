@@ -626,7 +626,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await page.mouse.up();
     await expect(page.locator('#modal-editar-borrar')).toBeVisible();
     await page.locator('#btn-editar-borrar-editar').click();
-    await expect(page.locator('#modal-notificacion .modal-title')).toHaveText('Editar alerta');
+    await expect(page.locator('#modal-notificacion .hoja-titulo')).toHaveText('Editar alerta');
     await expect(page.locator('#notif-bloque-row')).toBeVisible();
     await expect(page.locator('#notif-texto')).toHaveValue('Pagar internet');
 

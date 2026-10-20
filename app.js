@@ -1072,7 +1072,6 @@ function cerrarModal(modalEl) {
   if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
   if (modalEl.id === "modal-compra" && typeof limpiarFormCompra === "function") limpiarFormCompra();
   if (modalEl.id === "modal-mercado-producto" && typeof limpiarFormMercado === "function") limpiarFormMercado();
-  if (modalEl.id === "modal-notificacion" && typeof limpiarFormNotificacion === "function") limpiarFormNotificacion();
   modalEl.classList.add("hidden");
 }
 

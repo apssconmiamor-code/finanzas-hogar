@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Hoja, Cuadricula, Campo, Interruptor } from "../shared/Hoja.jsx";
 import { Icono, IconoDe, LogoCaja } from "../shared/Iconos.jsx";
+import { SelectorIconos } from "../shared/SelectorIconos.jsx";
 import { cajasDeAccion, cajasDeTransferencia } from "./modelo.js";
 
 // Acciones rápidas: movimientos preconfigurados que solo piden el monto al usarse. Tres hojas
@@ -130,25 +131,6 @@ function ParCajas({ idBase, origen, destino, alIntercambiar }) {
         <span className="par-cajas-rotulo">Llega a</span>
         <span className="accion-transferencia-caja" id={idBase + "-destino-elegido"}>{destino || "—"}</span>
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Selector de ícono: una cuadrícula de íconos (nunca emojis a la vista). El valor guardado sigue
-// siendo un emoji representativo, para que lo lean igual los demás dispositivos.
-function SelectorIconos({ id, valor, alCambiar }) {
-  const opciones = window.OPCIONES_ICONO || [];
-  const limpio = s => String(s || "").replace(/[\uFE0F\u200D]/g, "");
-  return (
-    <div id={id} className="selector-iconos">
-      {opciones.map(e => (
-        <button key={e} type="button" data-emoji={e}
-          className={"selector-icono" + (limpio(valor) === limpio(e) ? " active" : "")}
-          onClick={() => alCambiar(limpio(valor) === limpio(e) ? "" : e)}>
-          <IconoDe valor={e} size={22} />
-        </button>
-      ))}
     </div>
   );
 }
