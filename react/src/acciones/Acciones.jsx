@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Hoja, Cuadricula, Campo, Interruptor } from "../shared/Hoja.jsx";
 import { Icono } from "../shared/Iconos.jsx";
-import { cajasDeAccion, origenesDeAccion, destinosDeAccion } from "./modelo.js";
+import { cajasDeAccion, cajasDeTransferencia } from "./modelo.js";
 
 // Acciones rápidas: movimientos preconfigurados que solo piden el monto al usarse. Tres hojas
 // -- el menú (cuadrícula de acciones), usar una acción y configurarla -- con el diseño común de
@@ -162,11 +162,11 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
   const [categoria, setCategoria] = useState(accion?.categoria || "Gasto fijo");
   const [conceptoElegido, setConceptoElegido] = useState(accion?.concepto || "");
   const [cajasSel, setCajasSel] = useState(() => new Set(cajasDeAccion(accion)));
-  // Transferencia: se eligen DOS cajas de una sola lista (la primera sale, la segunda llega) y
-  // un botón intercambia cuál es cuál. Una acción guardada con varias cajas por lado conserva
-  // solo la primera de cada una al editarla.
-  const [origen, setOrigen] = useState(origenesDeAccion(accion)[0] || null);
-  const [destino, setDestino] = useState(destinosDeAccion(accion)[0] || null);
+  // Transferencia: una sola lista de cajas, se pueden elegir varias. Por defecto la primera
+  // sale y la segunda llega; un botón intercambia esas dos (al usarla se elige entre ellas).
+  const [orden, setOrden] = useState(() => cajasDeTransferencia(accion));
+  const origen = orden[0] || null;
+  const destino = orden[1] || null;
   const [pedirDescripcion, setPedirDescripcion] = useState(!!accion?.pedirDescripcion);
   const [camara, setCamara] = useState(!!accion?.camara);
   const [guardando, setGuardando] = useState(false);
@@ -187,20 +187,17 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
     const ico = icono.trim() || "⚡";
     let nueva;
     if (esTransferencia) {
-      if (!nom || !origen || !destino) {
-        alert("Completa el nombre y elige las dos cajas (de cuál sale y a cuál llega)");
+      const cajasElegidas = nombresTodas.length ? orden.filter(n => nombresTodas.includes(n)) : orden;
+      if (!nom || cajasElegidas.length < 2) {
+        alert("Completa el nombre y elige al menos dos cajas");
         return;
       }
-      if (origen === destino) {
-        alert("La caja origen y destino no pueden ser la misma");
-        return;
-      }
-      const cajasOrigen = [origen];
-      const cajasDestino = [destino];
-      // Se guarda también cajaOrigen/cajaDestino (la primera de cada lista) para que una
-      // versión anterior de la app en otro dispositivo siga entendiendo la acción.
+      const cajasOrigen = [cajasElegidas[0]];
+      const cajasDestino = [cajasElegidas[1]];
+      // Se guarda también cajasOrigen/cajasDestino/cajaOrigen/cajaDestino (las dos primeras) para
+      // que una versión anterior de la app en otro dispositivo siga entendiendo la acción.
       nueva = {
-        nombre: nom, icono: ico, categoria, cajasOrigen, cajasDestino,
+        nombre: nom, icono: ico, categoria, cajas: cajasElegidas, cajasOrigen, cajasDestino,
         cajaOrigen: cajasOrigen[0], cajaDestino: cajasDestino[0], pedirDescripcion, camara,
       };
     } else {
@@ -286,17 +283,12 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
         )}
 
         {esTransferencia && (
-          <Campo etiqueta="Cajas — elige de cuál sale y a cuál llega" completo id="config-accion-transferencia-wrap">
+          <Campo etiqueta="Cajas — elige las que quieras: la 1ª sale y la 2ª llega; al usarla se elige entre ellas" completo id="config-accion-transferencia-wrap">
             <Chips id="config-accion-transf-cajas" nombres={nombresTodas}
-              activos={new Set([origen, destino].filter(Boolean))}
-              alAlternar={n => {
-                if (n === origen) setOrigen(null);
-                else if (n === destino) setDestino(null);
-                else if (!origen) setOrigen(n);
-                else setDestino(n);   // la segunda; una tercera reemplaza a la segunda
-              }} />
+              activos={new Set(orden)}
+              alAlternar={n => setOrden(o => o.includes(n) ? o.filter(x => x !== n) : [...o, n])} />
             <ParCajas idBase="config-accion" origen={origen} destino={destino}
-              alIntercambiar={() => { setOrigen(destino); setDestino(origen); }} />
+              alIntercambiar={() => setOrden(o => [o[1], o[0], ...o.slice(2)])} />
           </Campo>
         )}
 
@@ -315,8 +307,7 @@ function ConfigAccion({ slot, acciones, getCajas, cajaVisible, getConceptos, onG
 function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCerrar }) {
   const accion = acciones[slot];
   const cajasAccion = cajasDeAccion(accion);
-  const origenes = origenesDeAccion(accion);
-  const destinos = destinosDeAccion(accion);
+  const poolTransf = cajasDeTransferencia(accion);
   const esTransferencia = accion?.categoria === "Transferencia";
 
   const [monto, setMonto] = useState("");
@@ -325,13 +316,16 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
   const [foto, setFoto] = useState(null);                    // { data, type }
   // Con una sola opción se usa directo, sin preguntar; con más de una hay que elegir.
   const [caja, setCaja] = useState(cajasAccion.length === 1 ? cajasAccion[0] : null);
-  const [origen, setOrigen] = useState(origenes.length === 1 ? origenes[0] : null);
-  const [destino, setDestino] = useState(destinos.length === 1 ? destinos[0] : null);
+  // Transferencia: con dos cajas, la 1ª sale y la 2ª llega (botón para intercambiar); con más,
+  // se eligen dos de ellas (la primera que se toca sale).
+  const [orden, setOrden] = useState(poolTransf.length === 2 ? poolTransf : []);
+  const origen = orden[0] || null;
+  const destino = orden[1] || null;
   const [guardando, setGuardando] = useState(false);
   const montoRef = useRef(null);
   const archivoRef = useRef(null);
 
-  const hayQueElegir = esTransferencia ? (origenes.length > 1 || destinos.length > 1) : cajasAccion.length > 1;
+  const hayQueElegir = esTransferencia ? poolTransf.length > 2 : cajasAccion.length > 1;
   useEffect(() => {
     // Si hay que elegir caja primero, el teclado del monto no se adelanta a taparle los
     // chips: se enfoca recién cuando ya no hace falta elegir.
@@ -357,7 +351,7 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
   async function guardar() {
     let cajaElegida = null;
     if (esTransferencia) {
-      if (origenes.length === 0 || destinos.length === 0) { alert("Esta acción no tiene cajas de origen y destino configuradas"); return; }
+      if (poolTransf.length < 2) { alert("Esta acción no tiene dos cajas configuradas"); return; }
       if (!origen) { alert("Elige de qué caja sale"); return; }
       if (!destino) { alert("Elige a qué caja llega"); return; }
       if (origen === destino) { alert("La caja origen y destino no pueden ser la misma"); return; }
@@ -416,25 +410,14 @@ function UsarAccion({ slot, acciones, getCajas, evaluarMonto, onRegistrar, alCer
 
         {esTransferencia && (
           <Campo completo id="usar-accion-transferencia-info">
-            {hayQueElegir ? (
-              <Cuadricula>
-                <Campo etiqueta="Sale de">
-                  {origenes.length > 1
-                    ? <Chips id="usar-accion-origen-opciones" nombres={origenes} activos={new Set(origen ? [origen] : [])}
-                        alAlternar={elegirUno(setOrigen)} />
-                    : <span className="accion-transferencia-caja">{origenes[0]}</span>}
-                </Campo>
-                <Campo etiqueta="Llega a">
-                  {destinos.length > 1
-                    ? <Chips id="usar-accion-destino-opciones" nombres={destinos} activos={new Set(destino ? [destino] : [])}
-                        alAlternar={elegirUno(setDestino)} />
-                    : <span className="accion-transferencia-caja">{destinos[0]}</span>}
-                </Campo>
-              </Cuadricula>
-            ) : (
-              <ParCajas idBase="usar-accion-transferencia" origen={origen} destino={destino}
-                alIntercambiar={() => { setOrigen(destino); setDestino(origen); }} />
+            {/* Una tercera caja elegida reemplaza a la segunda. */}
+            {hayQueElegir && (
+              <Chips id="usar-accion-transf-opciones" nombres={poolTransf} activos={new Set(orden)}
+                alAlternar={n => setOrden(o => o.includes(n) ? o.filter(x => x !== n)
+                  : o.length < 2 ? [...o, n] : [o[0], n])} />
             )}
+            <ParCajas idBase="usar-accion-transferencia" origen={origen} destino={destino}
+              alIntercambiar={() => setOrden(o => [o[1], o[0]])} />
           </Campo>
         )}
 

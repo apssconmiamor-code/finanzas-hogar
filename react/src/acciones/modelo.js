@@ -4,6 +4,8 @@
 //   - Ingreso / Gasto: "cajas": [...] (antes solo "caja": "...").
 //   - Transferencia:   "cajasOrigen": [...] y "cajasDestino": [...]
 //                      (antes solo "cajaOrigen" / "cajaDestino", una sola de cada una).
+//                      Hoy además "cajas": [...] -- las cajas elegidas, en orden; al usarla la
+//                      primera sale y la segunda llega (con un botón para intercambiar).
 
 export function cajasDeAccion(accion) {
   if (!accion) return [];
@@ -21,4 +23,12 @@ export function destinosDeAccion(accion) {
   if (!accion) return [];
   if (Array.isArray(accion.cajasDestino)) return accion.cajasDestino;
   return accion.cajaDestino ? [accion.cajaDestino] : [];
+}
+
+// Cajas entre las que se elige al usar una transferencia, en orden. Las acciones nuevas traen
+// "cajas"; las anteriores se leen juntando sus orígenes y destinos.
+export function cajasDeTransferencia(accion) {
+  if (!accion) return [];
+  if (Array.isArray(accion.cajas) && accion.cajas.length) return accion.cajas;
+  return [...new Set([...origenesDeAccion(accion), ...destinosDeAccion(accion)])];
 }
