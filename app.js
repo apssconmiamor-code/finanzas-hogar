@@ -342,13 +342,13 @@ const ICONOS = {
   "Ingreso": "💰",
 
   // Gastos fijos
-  "Alquiler": "🏠",
+  "Alquiler": "🔑",
   "Mercado": "🛒",
   "Emcali": "💡",
   "Gas": "🔥",
   "Internet": "📡",
   "Celular": "📱",
-  "Netflix": "🎬",
+  "Netflix": "📺",
   "Susc. Adobe": "🎨",
   "Susc. Claude": "🤖",
   "Seguridad Social": "🏥",
@@ -358,17 +358,17 @@ const ICONOS = {
 
   // Gastos variables
   "Mercado": "🛒",
-  "Ahorro": "🏦",
+  "Ahorro": "🐷",
   "Inversiones": "📈",
-  "Salud": "🩺",
+  "Salud": "💊",
   "Educación": "📚",
-  "Belleza": "💅",
-  "Deporte": "⚽",
+  "Belleza": "✂️",
+  "Deporte": "🏋️",
   "Ocio": "🎮",
-  "Entretenimiento": "🎉",
+  "Entretenimiento": "🎵",
   "Vacaciones": "✈️",
   "Ropa": "👕",
-  "Compras online": "📦",
+  "Compras online": "🏪",
   "Regalos": "🎁",
   "Hogar": "🏡",
   "Reparaciones hogar": "🔧",
@@ -384,6 +384,14 @@ const ICONOS = {
   // Automático (ver ajustarCaja) -- nivela una caja con saldo negativo.
   "Ajuste": "⚖️"
 };
+
+// Ícono de un concepto: el que tenga asignado; si no, uno según su nombre (agua, arriendo,
+// gasolina, mascota...); y si tampoco, el genérico (ingreso o gasto).
+function iconoDeConcepto(concepto, esIngreso) {
+  return ICONOS[concepto]
+    || (window.iconoPorNombre && window.iconoPorNombre(concepto))
+    || (esIngreso ? "💰" : "📌");
+}
 
 // ---- PERSISTENCIA DE SESIÓN (localStorage + respaldo en cookie) ----
 //
@@ -2056,7 +2064,7 @@ function abrirDetalleCaja(nombre) {
     const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
     return `<div class="detalle-real-item">
       <div class="detalle-real-item-texto">
-        <span class="detalle-real-item-caja">${ICONOS[m.concepto] || (esEntrada ? "💰" : "📌")} ${m.concepto}</span>
+        <span class="detalle-real-item-caja">${iconoDeConcepto(m.concepto, esEntrada)} ${m.concepto}</span>
         ${m.descripcion ? `<span class="detalle-real-item-desc">${m.descripcion}</span>` : ""}
         <span class="detalle-real-item-fecha">${fechaFmt}</span>
       </div>
@@ -2346,7 +2354,7 @@ function renderTarjetaMovimiento(m, sumable = false) {
   const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
   const cls   = esEntrada ? "ingreso" : "gasto";
   const signo = esEntrada ? "+" : "-";
-  const icono = ICONOS[m.concepto] || (esIngreso ? "💰" : "📌");
+  const icono = iconoDeConcepto(m.concepto, esIngreso);
   const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO",
     { day: "2-digit", month: "short", year: "numeric" });
   const catCls = m.categoria.toLowerCase().replace(/ /g,"");
@@ -3766,7 +3774,7 @@ function abrirConfigMes(mes, borrador) {
     .sort((x, y) => Number(y.conValor) - Number(x.conValor))
     .map(f => `
       <div class="pres-fila">
-        <span class="pres-concepto">${ICONOS[f.nombre] || iconoPorDefecto} ${f.nombre}</span>
+        <span class="pres-concepto">${ICONOS[f.nombre] || (window.iconoPorNombre && window.iconoPorNombre(f.nombre)) || iconoPorDefecto} ${f.nombre}</span>
         <input class="input pres-input" type="text" inputmode="decimal" placeholder="0" onfocus="this.select()"
           data-tipo="${tipo}" ${atributo}="${f.nombre}" value="${f.texto}"/>
       </div>`).join("");
@@ -3829,7 +3837,7 @@ function abrirModificarConcepto(concepto, categoria) {
   const datosActuales = esIngreso ? getIngresosMesParaEditor(mes) : getGastosMesParaEditor(mes);
   const valorActual = datosActuales[concepto] || 0;
 
-  nombre.textContent = `${ICONOS[concepto] || (esIngreso ? "💰" : "📌")} ${concepto}`;
+  nombre.textContent = `${iconoDeConcepto(concepto, esIngreso)} ${concepto}`;
   input.value = valorActual ? Number(valorActual).toLocaleString("es-CO") : "";
   modal.classList.remove("hidden");
   setTimeout(() => { input.focus(); input.select(); }, 60);
@@ -4005,7 +4013,7 @@ function renderTablaComparacion(movsDelMes) {
     return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}${seleccionada ? " proy-tabla-row-seleccionada" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" data-estimado="${f.estimado}" data-real="${f.real}"${tapNormal}>
       <td>
         <div class="proy-cell-concepto">
-          <span class="proy-concepto-nombre">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
+          <span class="proy-concepto-nombre">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
         </div>
       </td>
       <td class="proy-cell-num proy-cell-estimado">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
@@ -4081,7 +4089,7 @@ function _conectarLargoPresionTablaComparacion() {
     if (!puedeModificar && !puedeEliminar) return;
     crearManejadorPresionSostenida(row, {
       onLargo: () => abrirMenuEditarBorrar({
-        titulo: `${ICONOS[concepto] || "📌"} ${concepto}`,
+        titulo: `${iconoDeConcepto(concepto)} ${concepto}`,
         onEditar: puedeModificar ? () => abrirModificarConcepto(concepto, categoria) : null,
         // Gastos: por defecto solo se quitan de ESTE mes (ver
         // quitarConceptoDelMes); el borrado definitivo queda detrás de una
@@ -4143,7 +4151,7 @@ function _renderListaMovimientosReales(lista, esOtros) {
   return ordenados.map(m => {
     const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
     const esIngreso = m.categoria === "Ingreso";
-    const etiqueta = esOtros ? `${ICONOS[m.concepto] || "📌"} ${m.concepto}` : m.caja;
+    const etiqueta = esOtros ? `${iconoDeConcepto(m.concepto)} ${m.concepto}` : m.caja;
     const metaFecha = esOtros ? `${fechaFmt} · ${m.caja}` : fechaFmt;
     return `<div class="detalle-real-item">
       <div class="detalle-real-item-texto">
@@ -4169,7 +4177,7 @@ function abrirResumenConcepto(concepto, categoria, esOtros) {
     : (getGastosMesParaEditor(mes)[concepto] || 0);
 
   document.getElementById("resumen-concepto-titulo").textContent =
-    `${ICONOS[concepto] || (categoria === "Ingreso" ? "💰" : "📌")} ${concepto}`;
+    `${iconoDeConcepto(concepto, categoria === "Ingreso")} ${concepto}`;
 
   // Balance = Real - Estimado. El COLOR no es simplemente "positivo=verde"
   // -- sigue el mismo criterio que ya usa "excedido" en la tabla: para un
@@ -4365,7 +4373,7 @@ function renderFormPresupuesto() {
     <div class="pres-seccion-title" style="margin-top:4px">📌 Gastos fijos</div>
     ${filas.filter(f => f.categoria === "Gasto fijo").map(f => `
       <div class="pres-fila">
-        <span class="pres-concepto">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
+        <span class="pres-concepto">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
         <input class="input pres-input" type="text" inputmode="decimal" placeholder="0"
           data-tipo="gasto" data-concepto="${f.concepto}" data-categoria="Gasto fijo"
           value="${f.montoEstimado ? Number(f.montoEstimado).toLocaleString("es-CO") : ""}"/>
@@ -4374,7 +4382,7 @@ function renderFormPresupuesto() {
     <div class="pres-seccion-title" style="margin-top:20px">🔀 Gastos variables</div>
     ${filas.filter(f => f.categoria === "Gasto variable").map(f => `
       <div class="pres-fila">
-        <span class="pres-concepto">${ICONOS[f.concepto] || "📌"} ${f.concepto}</span>
+        <span class="pres-concepto">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
         <input class="input pres-input" type="text" inputmode="decimal" placeholder="0"
           data-tipo="gasto" data-concepto="${f.concepto}" data-categoria="Gasto variable"
           value="${f.montoEstimado ? Number(f.montoEstimado).toLocaleString("es-CO") : ""}"/>

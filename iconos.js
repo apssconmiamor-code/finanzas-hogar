@@ -98,6 +98,20 @@
     globo: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/>',
     cerrar: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     intercambiar: '<path d="m17 3 4 4-4 4"/><path d="M21 7H8"/><path d="m7 21-4-4 4-4"/><path d="M3 17h13"/>',
+    gota: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+    tv: '<rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/>',
+    cafe: '<path d="M10 2v2"/><path d="M14 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/><path d="M6 2v2"/>',
+    musica: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    bici: '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>',
+    gasolina: '<path d="M3 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M3 22h12"/><path d="M15 10h2a2 2 0 0 1 2 2v3a2 2 0 0 0 4 0V8l-3-3"/><path d="M6 8h6"/>',
+    maleta: '<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect x="2" y="6" width="20" height="14" rx="2"/>',
+    tijeras: '<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>',
+    pastilla: '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7z"/><path d="m8.5 8.5 7 7"/>',
+    manzana: '<path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/>',
+    llaveCasa: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
+    telefono: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    nube: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    tienda: '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-.8 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>',
     alcancia: '<path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/><path d="M2 9v1c0 1.1.9 2 2 2h1"/><path d="M16 11h.01"/>',
     escudoMas: '<path d="M20 13c0 5-3.5 7.5-7.7 8.97a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 9v6"/><path d="M9 12h6"/>',
     estrella: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.3-6.2 3.3L8 14.2 3 9.3l6.9-1z"/>',
@@ -121,6 +135,8 @@
     "⚽": "balon", "🎮": "juego", "✈": "avion", "👕": "camiseta", "🔧": "llave", "🐶": "huella", "🍽": "cubiertos",
     "🥦": "hoja", "🏋": "pesa", "🎫": "ticket", "📎": "clip", "➡": "adelante", "↩": "deshacer", "⬇": "abajo",
     "➕": "sumar", "➖": "restar", "⏹": "alto", "💬": "comentario",
+    "💧": "gota", "📺": "tv", "☕": "cafe", "🎵": "musica", "🚲": "bici", "⛽": "gasolina", "💼": "maleta", "✂": "tijeras",
+    "💊": "pastilla", "🍎": "manzana", "🔑": "llaveCasa", "☎": "telefono", "☁": "nube", "🏪": "tienda", "🐷": "alcancia",
     "🟢": ["punto", "ic-verde"], "🟡": ["punto", "ic-amarillo"], "🔴": ["punto", "ic-rojo"], "⚪": ["punto", "ic-gris"],
   };
   const sinSelector = s => s.replace(/[️‍]/g, "");
@@ -197,6 +213,39 @@
   if (document.body) iniciar(); else document.addEventListener("DOMContentLoaded", iniciar);
 
   // ------------------------------------------------------------------
+  // Ícono por defecto según el NOMBRE de un concepto (cuando nadie le eligió uno): busca palabras
+  // clave (agua, arriendo, gasolina, mascota...). Devuelve el emoji representativo, o null.
+  // ------------------------------------------------------------------
+  const CLAVES = [
+    [/agua|acueducto|alcantarillado/, "💧"], [/luz|energia|electric|emcali|enel|codensa/, "💡"], [/\bgas\b|gasodomestico|gases/, "🔥"],
+    [/internet|wifi|fibra|banda ancha/, "📡"], [/celular|movil|datos|claro|tigo|movistar|wom/, "📱"], [/telefon|linea fija/, "☎️"],
+    [/netflix|disney|hbo|prime|streaming|television|cable|\btv\b|youtube/, "📺"], [/spotify|musica|concierto/, "🎵"],
+    [/arriendo|alquiler|renta de|administracion|inmobiliaria/, "🔑"], [/hipoteca|vivienda|hogar|\bcasa\b|apartamento/, "🏡"],
+    [/gasolina|combustible|tanque|acpm/, "⛽"], [/taxi|uber|didi|cabify|inDrive/i, "🚕"], [/parqueadero|peaje|carro|vehiculo|moto|mecanic/, "🚕"],
+    [/bus\b|transporte|pasaje|\bmio\b|metro|transmilenio|tren/, "🚌"], [/bicicleta|\bbici\b/, "🚲"],
+    [/mercado|supermercado|viveres|abarrotes|plaza de/, "🛒"], [/tienda|compras|shopping|centro comercial/, "🛍️"],
+    [/restaurante|almuerzo|comida|domicilio|rappi|desayuno|cena\b|corrientazo/, "🍽️"], [/cafe|cafeteria|tinto/, "☕"], [/fruta|verdura|\bfrutas\b/, "🍎"],
+    [/farmacia|droga|medicina|medicament|pastilla|vitamina/, "💊"], [/salud|eps|prepagada|hospital|clinica|doctor|medico|odont|examen/, "🏥"],
+    [/gimnasio|\bgym\b|deporte|futbol|entrenamiento/, "🏋️"], [/belleza|peluquer|barber|spa\b|manicur|cabello|uñas|unas/, "✂️"],
+    [/ropa|zapato|vestuario|calzado|moda/, "👕"], [/regalo|cumple|aniversario|detalle/, "🎁"],
+    [/viaje|vacacion|vuelo|hotel|tiquete|turismo|paseo/, "✈️"], [/mascota|perro|gato|veterin|concentrado/, "🐶"],
+    [/educacion|colegio|universidad|matricula|pension escolar|jardin|guarderia|utiles/, "📚"], [/curso|certificacion|diplomado|congreso|capacitacion/, "🎓"],
+    [/seguro|poliza|soat/, "🛡️"], [/impuesto|predial|dian|retefuente|iva\b|declaracion/, "🧾"],
+    [/prestamo|credito|deuda|cuota|tarjeta|financiaci|icetex/, "💳"], [/ahorro|alcancia|fondo de emergencia|emergencia/, "🐷"],
+    [/inversion|cdt|accion|cripto|bolsa|dividendo|rendimiento/, "📈"], [/salario|sueldo|nomina|honorario|ingreso|comision|bono|prima|cesantia|pago de/, "💰"],
+    [/donacion|diezmo|ofrenda|caridad|ayuda a/, "🤝"], [/trabajo|oficina|empresa|negocio|cliente/, "💼"],
+    [/suscripcion|susc\.|software|hosting|dominio|nube|licencia|app\b/, "☁️"], [/tecnologia|computador|portatil|tecnico|celular nuevo|electronic/, "💻"],
+    [/reparacion|mantenimiento|arreglo|plomer|electricista|ferreter/, "🔧"], [/juego|play\b|xbox|nintendo|ocio|diversion|entretenimiento|salida/, "🎮"],
+    [/cine|pelicula|teatro/, "🎬"], [/fiesta|evento|celebracion|rumba/, "🎉"],
+    [/ajuste|nivelacion/, "⚖️"], [/pasatiempo|arte|pintura|hobby/, "🎨"],
+  ];
+  window.iconoPorNombre = function (nombre) {
+    const n = String(nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    for (const [re, emoji] of CLAVES) if (re.test(n)) return emoji;
+    return null;
+  };
+
+  // ------------------------------------------------------------------
   // Selector de íconos para los campos de "ícono"
   // ------------------------------------------------------------------
   // [emoji que se guarda, nombre del ícono]. El valor guardado sigue siendo un emoji (así lo
@@ -205,6 +254,7 @@
     "🛒", "🏠", "🍽️", "🥦", "🚌", "🚕", "✈️", "🎁", "🎮", "🎬", "📚", "🎓", "💻", "📱", "💡", "🔥",
     "🔧", "🏥", "💅", "⚽", "👕", "🐶", "🏋️", "💰", "💳", "🏦", "📈", "🎯", "🗂️", "🔖", "📌", "🧾",
     "🎤", "📦", "🤝", "🔔", "🗓️", "📋", "🎨", "🛍️",
+    "💧", "📺", "☕", "🎵", "🚲", "⛽", "💼", "✂️", "💊", "🍎", "🔑", "☎️", "☁️", "🏪", "🐷",
   ];
   window.OPCIONES_ICONO = OPCIONES;
 

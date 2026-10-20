@@ -1278,15 +1278,11 @@ input, select, textarea, table {
 .mov-card-left {
   display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
 }
+/* Ícono del concepto: solo el trazo, sin color de fondo (igual que en Proyección). */
 .mov-card-icono {
-  width: 36px; height: 36px; border-radius: 4px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  width: 28px; height: 28px; flex-shrink: 0; color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
 }
-.mov-cat-ingreso       { background: var(--green-soft); }
-.mov-cat-gastofijo     { background: var(--slate-soft); }
-.mov-cat-gastovariable { background: var(--slate-mid); }
-.mov-cat-transferencia { background: var(--slate-soft); }
-.mov-cat-sincategoria  { background: var(--bg); }
 
 .mov-card-texto {
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
@@ -1380,7 +1376,7 @@ input, select, textarea, table {
 .accion-rapida-caja-icono.caja-icono-svg { height: 34px; width: 34px; }
 .accion-rapida-caja-icono.caja-icono-svg svg { width: 34px; height: 34px; }
 /* Selector de íconos de los campos de "ícono" */
-.selector-iconos { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; margin-top: 2px; }
+.selector-iconos { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 8px; margin-top: 2px; max-height: 240px; overflow-y: auto; padding: 2px; }
 .selector-icono {
   height: 44px; border-radius: 14px; border: 1.5px solid var(--border-mid); background: var(--surface);
   color: var(--text-2); font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer;
