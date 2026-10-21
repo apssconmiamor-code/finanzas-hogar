@@ -270,6 +270,37 @@ async function agregarBloquePlan(nombre, icono) {
   return true;
 }
 
+async function confirmarBorrarBloquePlan(nombre) {
+  if (!confirm(`¿Eliminar la categoría "${nombre}"?\n\nLos planes que tenía pasan a "Otros" -- no se borran.`)) return;
+  try {
+    await borrarBloquePlan(nombre);
+  } catch (err) {
+    alert("Error borrando la categoría: " + err.message);
+    return;
+  }
+  bloquePlanAbierto = null;
+  renderPlanes();
+}
+
+// Editar una categoría: nombre e ícono. Los planes guardan la categoría por NOMBRE, así que si
+// cambia el nombre hay que pasar a los planes que la usaban al nombre nuevo (si no, caerían en "Otros").
+function abrirEditarBloquePlan(nombre) {
+  document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "bloque", editNombre: nombre } }));
+}
+
+async function editarBloquePlan(nombreViejo, nombre, icono) {
+  const bloques = obtenerBloquesPlanes();
+  if (!nombre || bloques.some(b => b.nombre === nombre && b.nombre !== nombreViejo)) return false;
+  if (nombre !== nombreViejo) {
+    for (const p of planes.filter(x => x.categoria === nombreViejo)) {
+      await Sheets.editarPlan(p.id, { categoria: nombre });
+    }
+  }
+  await _guardarBloquesPlanes(bloques.map(b => b.nombre === nombreViejo ? { nombre, icono: icono || b.icono || "🗂️" } : b));
+  await cargarPlanes();
+  return true;
+}
+
 async function borrarBloquePlan(nombre) {
   await _guardarBloquesPlanes(obtenerBloquesPlanes().filter(b => b.nombre !== nombre));
 }
@@ -349,8 +380,15 @@ function renderBloquesPlanGrid(lista, grupos) {
     // Solo las categorías que el usuario creó (bloque_N) se pueden
     // arrastrar para reordenar -- "Otros" siempre va primero.
     if (clave.startsWith("bloque_")) {
+      const bloque = obtenerBloquesPlanes()[parseInt(clave.slice("bloque_".length), 10)];
       crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-clave^="bloque_"]', {
         onCorto: () => abrir(clave),
+        // Mantener presionado (sin arrastrar) ofrece Editar / Eliminar; arrastrar reordena.
+        onLargo: () => bloque && abrirMenuEditarBorrar({
+          titulo: bloque.nombre,
+          onEditar: () => abrirEditarBloquePlan(bloque.nombre),
+          onBorrar: () => confirmarBorrarBloquePlan(bloque.nombre)
+        }),
         onReordenar: () => _reordenarBloquesPlanesDesdeGrid(grid)
       });
     } else {
@@ -441,18 +479,7 @@ function renderBloquePlanDetalle(lista, grupo, clave) {
     abrirNuevoPlanEnBloque(grupo.valorBloque);
   });
 
-  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", async () => {
-    const nombre = grupo.nombreBloque;
-    if (!confirm(`¿Eliminar la categoría "${nombre}"?\n\nLos planes que tenía pasan a "Otros" -- no se borran.`)) return;
-    try {
-      await borrarBloquePlan(nombre);
-    } catch (err) {
-      alert("Error borrando la categoría: " + err.message);
-      return;
-    }
-    bloquePlanAbierto = null;
-    renderPlanes();
-  });
+  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => confirmarBorrarBloquePlan(grupo.nombreBloque));
 
   lista.querySelectorAll(".notificacion-item[data-id]").forEach(item => {
     const id = item.dataset.id;
@@ -562,7 +589,8 @@ function renderPlanesReact() {
     formularioDe: formularioDePlan,
     evaluarMonto: texto => (typeof evaluarMonto === "function" ? evaluarMonto(texto) : parseFloat(texto)),
     onGuardar: guardarPlanDatos,
-    onGuardarBloque: async (nombre, icono) => {
+    onGuardarBloque: async (nombre, icono, editNombre) => {
+      if (editNombre) return editarBloquePlan(editNombre, nombre, icono);
       const ok = await agregarBloquePlan(nombre, icono);
       if (ok) renderPlanes();
       return ok;

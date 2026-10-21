@@ -334,6 +334,40 @@ test.describe('Planes', () => {
     expect(planes[0].categoria).toBe('Cine'); // el dato del plan no se toca, solo cambia dónde cae visualmente
   });
 
+  test('mantener presionada una categoría ofrece Editar: cambia nombre e ícono y los planes la siguen', async ({ page }) => {
+    await mockGoogleApis(page, {
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'planes_bloques', JSON.stringify([{ nombre: 'Cursos', icono: '🎓' }])]],
+      Planes: [['P1', 'Curso de cocina', '', '', '', 'gratis', '', 'Cursos', 'prueba@example.com', '']],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirPlanes(page);
+
+    const tarjeta = listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Cursos' });
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await page.locator('#btn-editar-borrar-editar').click();
+    await expect(page.locator('#modal-bloque-plan .hoja-titulo')).toHaveText('Editar categoría');
+    await expect(page.locator('#bloque-plan-nombre')).toHaveValue('Cursos');
+    await page.locator('#bloque-plan-nombre').fill('Estudios');
+    await page.locator('#btn-guardar-bloque-plan').click();
+    await expect(page.locator('#modal-bloque-plan')).toBeHidden();
+
+    await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Estudios' })).toBeVisible();
+    await expect(listaPlanes(page).locator('.alerta-bloque-card', { hasText: 'Cursos' })).toHaveCount(0);
+    // El plan que estaba en "Cursos" se mueve con la categoría (no cae en "Otros").
+    const planes = await page.evaluate(() => Sheets.getPlanes());
+    expect(planes[0].categoria).toBe('Estudios');
+    await abrirCategoriaPlan(page, 'Estudios');
+    await expect(listaPlanes(page).locator('.notificacion-item')).toContainText('Curso de cocina');
+  });
+
   test('una categoría configurada en otro dispositivo carga igual acá (sincronizada por Sheets)', async ({ page }) => {
     await mockGoogleApis(page, {
       ConfigUsuario: [['CFG1', 'prueba@example.com', 'planes_bloques', JSON.stringify([{ nombre: 'Playas', icono: '🏖️' }])]],

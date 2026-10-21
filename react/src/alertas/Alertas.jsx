@@ -11,13 +11,14 @@ import { SelectorIconos } from "../shared/SelectorIconos.jsx";
 //   { t: "alerta", valorBloque }  nueva alerta dentro de un bloque ("" = Otros, "__gastos_fijos__"...)
 //   { t: "alerta", editId }       editar una alerta (se ve y se puede cambiar el bloque)
 //   { t: "bloque" }               nuevo bloque
+//   { t: "bloque", editNombre }   editar un bloque (nombre e ícono)
 //
 // Props (ver renderAlertasReact en notificaciones.js):
 //   getBloques()               bloques propios del usuario [{ nombre, icono }]
 //   getGastosFijos()           nombres de los gastos fijos
 //   formularioDe(id)           los datos de una alerta ya guardada, con la forma del formulario
 //   onGuardar(datos, editId)   guarda (Promise; si falla, lanza)
-//   onGuardarBloque(nombre, icono)  guarda un bloque (Promise<boolean>: false = ya existía)
+//   onGuardarBloque(nombre, icono, editNombre)  guarda un bloque (Promise<boolean>: false = ya existía)
 
 const FORM_VACIO = () => ({
   texto: "", url: "", repetir: "no", intervalo: "1", unidad: "dia", recordarDias: "",
@@ -37,7 +38,7 @@ export function Alertas(props) {
 
   const cerrar = () => setVista(null);
   if (!vista) return null;
-  if (vista.t === "bloque") return <HojaBloque {...props} alCerrar={cerrar} />;
+  if (vista.t === "bloque") return <HojaBloque key={vista.editNombre || "nuevo"} {...props} editNombre={vista.editNombre} alCerrar={cerrar} />;
   return <HojaAlerta key={vista.editId || "nueva"} {...props} editId={vista.editId}
     valorBloque={vista.valorBloque} alCerrar={cerrar} />;
 }
@@ -211,9 +212,10 @@ function HojaAlerta({ getBloques, getGastosFijos, formularioDe, onGuardar, editI
 // ---------------------------------------------------------------------------
 // Nuevo bloque
 // ---------------------------------------------------------------------------
-function HojaBloque({ onGuardarBloque, alCerrar }) {
-  const [nombre, setNombre] = useState("");
-  const [icono, setIcono] = useState("");
+function HojaBloque({ getBloques, onGuardarBloque, editNombre, alCerrar }) {
+  const existente = editNombre ? getBloques().find(b => b.nombre === editNombre) : null;
+  const [nombre, setNombre] = useState(existente?.nombre || "");
+  const [icono, setIcono] = useState(existente?.icono || "");
   const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
@@ -222,7 +224,7 @@ function HojaBloque({ onGuardarBloque, alCerrar }) {
     if (nom === "Gastos fijos") { alert('"Gastos fijos" ya existe y es fijo -- elige otro nombre.'); return; }
     setGuardando(true);
     try {
-      const ok = await onGuardarBloque(nom, icono.trim());
+      const ok = await onGuardarBloque(nom, icono.trim(), editNombre);
       if (!ok) { alert("Ya existe un bloque con ese nombre"); setGuardando(false); return; }
       alCerrar();
     } catch (err) {
@@ -232,7 +234,7 @@ function HojaBloque({ onGuardarBloque, alCerrar }) {
   }
 
   return (
-    <Hoja id="modal-bloque-alerta" icono={<Icono nombre="carpeta" size={22} />} titulo="Nuevo bloque"
+    <Hoja id="modal-bloque-alerta" icono={<Icono nombre="carpeta" size={22} />} titulo={editNombre ? "Editar bloque" : "Nuevo bloque"}
       subtitulo="Agrupa tus alertas como quieras — solo lo ves vos en este dispositivo."
       onCerrar={alCerrar}
       pie={

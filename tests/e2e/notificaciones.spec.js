@@ -638,6 +638,39 @@ test.describe('Notificaciones (Web Push)', () => {
     await expect(page.locator('.notificacion-item')).toContainText('Pagar internet fibra');
   });
 
+  test('mantener presionado un bloque ofrece Editar: cambia el nombre y las alertas lo siguen', async ({ page }) => {
+    const enUnaHora = new Date(Date.now() + 3600000).toISOString();
+    await mockGoogleApis(page, {
+      ConfigUsuario: [['CFG1', 'prueba@example.com', 'alertas_bloques', JSON.stringify([{ nombre: 'Cursos', icono: '🎓' }])]],
+      Notificaciones: [['N5', 'Entregar tarea', '', 'unica', enUnaHora, '', 'yo', 'prueba@example.com', 'activa', '', '', '', '', '', '', 'Cursos']],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await abrirNotificaciones(page);
+
+    const tarjeta = page.locator('#notificaciones-list .alerta-bloque-card', { hasText: 'Cursos' });
+    const box = await tarjeta.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+
+    await expect(page.locator('#modal-editar-borrar')).toBeVisible();
+    await page.locator('#btn-editar-borrar-editar').click();
+    await expect(page.locator('#modal-bloque-alerta .hoja-titulo')).toHaveText('Editar bloque');
+    await expect(page.locator('#bloque-alerta-nombre')).toHaveValue('Cursos');
+    await page.locator('#bloque-alerta-nombre').fill('Estudios');
+    await page.locator('#btn-guardar-bloque-alerta').click();
+    await expect(page.locator('#modal-bloque-alerta')).toBeHidden();
+
+    await expect(page.locator('#notificaciones-list .alerta-bloque-card', { hasText: 'Estudios' })).toBeVisible();
+    await expect(page.locator('#notificaciones-list .alerta-bloque-card', { hasText: 'Cursos' })).toHaveCount(0);
+    // La alerta que estaba en "Cursos" se mueve con el bloque.
+    await abrirBloqueAlerta(page, 'Estudios');
+    await expect(page.locator('.notificacion-item')).toContainText('Entregar tarea');
+  });
+
   test('bloques personalizados: se ven como tarjetas en la cuadrícula, se les crea alertas desde adentro, y borrarlos las vuelve a "Otros"', async ({ page }) => {
     await mockGoogleApis(page);
     await page.goto('/index.html');

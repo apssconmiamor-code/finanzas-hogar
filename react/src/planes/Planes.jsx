@@ -10,13 +10,14 @@ import { SelectorIconos } from "../shared/SelectorIconos.jsx";
 //   { t: "plan", categoria }  nuevo plan dentro de una categoría ("" = Otros)
 //   { t: "plan", editId }     editar un plan (acá sí se puede cambiar la categoría)
 //   { t: "bloque" }           nueva categoría
+//   { t: "bloque", editNombre }   editar una categoría (nombre e ícono)
 //
 // Props (ver renderPlanesReact en planes.js):
 //   getBloques()                 categorías propias [{ nombre, icono }]
 //   formularioDe(id)             los datos de un plan guardado, con la forma del formulario
 //   evaluarMonto(texto)          "50000+20000" -> 70000
 //   onGuardar(datos, editId)     guarda (Promise; si falla, lanza)
-//   onGuardarBloque(nombre, icono)  (Promise<boolean>: false = ya existía)
+//   onGuardarBloque(nombre, icono, editNombre)  (Promise<boolean>: false = ya existía)
 
 const FORM_VACIO = { nombre: "", ubicacion: "", url: "", fechaInicio: "", fechaFin: "", tipo: "gratis", inversion: "", reserva: "no", categoria: "" };
 
@@ -31,7 +32,7 @@ export function Planes(props) {
 
   const cerrar = () => setVista(null);
   if (!vista) return null;
-  if (vista.t === "bloque") return <HojaBloque {...props} alCerrar={cerrar} />;
+  if (vista.t === "bloque") return <HojaBloque key={vista.editNombre || "nueva"} {...props} editNombre={vista.editNombre} alCerrar={cerrar} />;
   return <HojaPlan key={vista.editId || "nuevo"} {...props} editId={vista.editId} categoriaInicial={vista.categoria} alCerrar={cerrar} />;
 }
 
@@ -137,9 +138,10 @@ function HojaPlan({ getBloques, formularioDe, evaluarMonto, onGuardar, editId, c
   );
 }
 
-function HojaBloque({ onGuardarBloque, alCerrar }) {
-  const [nombre, setNombre] = useState("");
-  const [icono, setIcono] = useState("");
+function HojaBloque({ getBloques, onGuardarBloque, editNombre, alCerrar }) {
+  const existente = editNombre ? getBloques().find(b => b.nombre === editNombre) : null;
+  const [nombre, setNombre] = useState(existente?.nombre || "");
+  const [icono, setIcono] = useState(existente?.icono || "");
   const [guardando, setGuardando] = useState(false);
 
   async function guardar() {
@@ -147,7 +149,7 @@ function HojaBloque({ onGuardarBloque, alCerrar }) {
     if (!nom) { alert("Ponle un nombre a la categoría"); return; }
     setGuardando(true);
     try {
-      const ok = await onGuardarBloque(nom, icono.trim());
+      const ok = await onGuardarBloque(nom, icono.trim(), editNombre);
       if (!ok) { alert("Ya existe una categoría con ese nombre"); setGuardando(false); return; }
       alCerrar();
     } catch (err) {
@@ -157,7 +159,7 @@ function HojaBloque({ onGuardarBloque, alCerrar }) {
   }
 
   return (
-    <Hoja id="modal-bloque-plan" icono={<Icono nombre="carpeta" size={22} />} titulo="Nueva categoría"
+    <Hoja id="modal-bloque-plan" icono={<Icono nombre="carpeta" size={22} />} titulo={editNombre ? "Editar categoría" : "Nueva categoría"}
       subtitulo="Agrupa tus planes como quieras — solo lo ves vos en este dispositivo." onCerrar={alCerrar}
       pie={
         <>

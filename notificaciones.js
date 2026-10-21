@@ -874,8 +874,15 @@ function renderBloquesAlertaGrid(lista, grupos) {
     // para reordenar -- los fijos (Activos/Pasados/Gastos fijos/Otros)
     // siempre van primero, en ese orden (pedido explícito: no mezclarlos).
     if (clave.startsWith("bloque_")) {
+      const bloque = obtenerBloquesAlertas()[parseInt(clave.slice("bloque_".length), 10)];
       crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-clave^="bloque_"]', {
         onCorto: () => abrir(clave),
+        // Mantener presionado (sin arrastrar) ofrece Editar / Eliminar; arrastrar reordena.
+        onLargo: () => bloque && abrirMenuEditarBorrar({
+          titulo: bloque.nombre,
+          onEditar: () => abrirEditarBloqueAlerta(bloque.nombre),
+          onBorrar: () => confirmarBorrarBloqueAlerta(bloque.nombre)
+        }),
         onReordenar: () => _reordenarBloquesAlertaDesdeGrid(grid)
       });
     } else {
@@ -886,6 +893,37 @@ function renderBloquesAlertaGrid(lista, grupos) {
   document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
     document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "bloque" } }));
   });
+}
+
+async function confirmarBorrarBloqueAlerta(nombre) {
+  if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
+  try {
+    await borrarBloqueAlerta(nombre);
+  } catch (err) {
+    alert("Error borrando el bloque: " + err.message);
+    return;
+  }
+  bloqueAlertaAbierto = null;
+  renderNotificaciones();
+}
+
+// Editar un bloque: nombre e ícono. Las alertas guardan el bloque por NOMBRE, así que si cambia el
+// nombre hay que pasar a las alertas que lo usaban al nombre nuevo (si no, quedarían sueltas).
+function abrirEditarBloqueAlerta(nombre) {
+  document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "bloque", editNombre: nombre } }));
+}
+
+async function editarBloqueAlerta(nombreViejo, nombre, icono) {
+  const bloques = obtenerBloquesAlertas();
+  if (!nombre || nombre === "Gastos fijos" || bloques.some(b => b.nombre === nombre && b.nombre !== nombreViejo)) return false;
+  if (nombre !== nombreViejo) {
+    for (const n of notificaciones.filter(x => x.categoria === nombreViejo)) {
+      await Sheets.editarNotificacion(n.id, { categoria: nombre });
+    }
+  }
+  await _guardarBloquesAlertas(bloques.map(b => b.nombre === nombreViejo ? { nombre, icono: icono || b.icono || "🗂️" } : b));
+  await cargarNotificaciones();
+  return true;
 }
 
 // ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
@@ -928,18 +966,7 @@ function renderBloqueAlertaDetalle(lista, grupo, clave) {
     abrirNuevaNotificacionEnBloque(grupo.valorBloque);
   });
 
-  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", async () => {
-    const nombre = grupo.nombreBloque;
-    if (!confirm(`¿Eliminar el bloque "${nombre}"?\n\nLas alertas que tenía pasan a "Activas" -- no se borran.`)) return;
-    try {
-      await borrarBloqueAlerta(nombre);
-    } catch (err) {
-      alert("Error borrando el bloque: " + err.message);
-      return;
-    }
-    bloqueAlertaAbierto = null;
-    renderNotificaciones();
-  });
+  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => confirmarBorrarBloqueAlerta(grupo.nombreBloque));
 
   // Mantener presionada abre Editar/Eliminar (ver abrirMenuEditarBorrar en
   // gestos.js) -- salvo en "Activos", donde no aplica (ver comentario
@@ -1137,7 +1164,8 @@ function renderAlertasReact() {
     getGastosFijos: () => (typeof GASTOS_FIJOS !== "undefined" ? GASTOS_FIJOS : []),
     formularioDe: formularioDeNotificacion,
     onGuardar: guardarNotificacionDatos,
-    onGuardarBloque: async (nombre, icono) => {
+    onGuardarBloque: async (nombre, icono, editNombre) => {
+      if (editNombre) return editarBloqueAlerta(editNombre, nombre, icono);
       const ok = await agregarBloqueAlerta(nombre, icono);
       if (ok) renderNotificaciones();
       return ok;
