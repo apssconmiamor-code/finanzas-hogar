@@ -98,6 +98,26 @@ Sheets.agregarRecordatorio = async function (id, autor, fecha, texto, imageUrl =
   );
 };
 
+// Cambia el texto y/o los links de foto y audio de un recordatorio ya guardado.
+Sheets.editarRecordatorio = async function (id, { texto, imageUrl, audioUrl }) {
+  const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:A`);
+  const rowIndex = rows.findIndex(r => r[0] === id);
+  if (rowIndex === -1) throw new Error("Recordatorio no encontrado");
+  const sheetRow = rowIndex + 2;
+  const range = `${CONFIG.SHEETS.RECORDATORIOS}!D${sheetRow}:F${sheetRow}`;
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[texto, imageUrl, audioUrl]] })
+    }
+  );
+  if (res.status === 401) { Sheets._renovarToken(); throw new Error("TOKEN_EXPIRADO"); }
+  if (!res.ok) throw new Error(`Error actualizando recordatorio: ${res.status}`);
+  return res.json();
+};
+
 Sheets.borrarRecordatorio = async function (id) {
   const rows = await this.leer(`${CONFIG.SHEETS.RECORDATORIOS}!A2:A`);
   const rowIndex = rows.findIndex(r => r[0] === id);
@@ -154,6 +174,7 @@ async function cargarRecordatorios() {
 // =============================================
 
 function renderRecordatorioBadge() {
+  renderAccionesReact();   // la lista de recordatorios guardados vive en el menú de Acciones rápidas
   const btn   = document.getElementById("btn-recordatorios-badge");
   const count = document.getElementById("recordatorios-count");
   if (!btn || !count) return;
@@ -276,7 +297,8 @@ async function obtenerStreamMicrofono() {
 
 // Guarda un recordatorio (la ventana ya validó que haya algo). Devuelve true si quedó guardado; si
 // falla avisa acá mismo y devuelve false (la ventana se queda abierta).
-async function guardarRecordatorioDatos({ texto, foto, audio, categoria }) {
+async function guardarRecordatorioDatos({ texto, foto, audio, categoria, editId, quitarFoto, quitarAudio }) {
+  if (editId) return editarRecordatorioDatos({ editId, texto, foto, audio, quitarFoto, quitarAudio });
   const id    = "R" + Date.now();
   const fecha = new Date().toISOString().split("T")[0];
   let imageUrl = "";
@@ -326,12 +348,73 @@ async function guardarRecordatorioDatos({ texto, foto, audio, categoria }) {
   }
 }
 
+// Edita un recordatorio guardado: texto, y foto/audio (reemplazarlos o quitarlos). Devuelve true si
+// quedó guardado; si falla avisa acá mismo y devuelve false (la ventana se queda abierta).
+async function editarRecordatorioDatos({ editId, texto, foto, audio, quitarFoto, quitarAudio }) {
+  const r = recordatorios.find(x => x.id === editId);
+  if (!r) return false;
+  if (!navigator.onLine) {
+    alert("Necesitas conexión para editar un recordatorio.");
+    return false;
+  }
+  let imageUrl = r.imageUrl, audioUrl = r.audioUrl;
+  const viejos = [];
+  try {
+    if (foto) {
+      const ext = foto.type.includes("png") ? "png" : "jpg";
+      const { url } = await Sheets.subirArchivoDrive(foto.data, `recordatorio-${editId}-foto-${Date.now()}.${ext}`, foto.type);
+      if (r.imageUrl) viejos.push(r.imageUrl);
+      imageUrl = url;
+    } else if (quitarFoto) {
+      if (r.imageUrl) viejos.push(r.imageUrl);
+      imageUrl = "";
+    }
+    if (audio) {
+      const { url } = await Sheets.subirArchivoDrive(audio.data, `recordatorio-${editId}-audio-${Date.now()}.webm`, audio.type);
+      if (r.audioUrl) viejos.push(r.audioUrl);
+      audioUrl = url;
+    } else if (quitarAudio) {
+      if (r.audioUrl) viejos.push(r.audioUrl);
+      audioUrl = "";
+    }
+    await Sheets.editarRecordatorio(editId, { texto, imageUrl, audioUrl });
+
+    // Los archivos reemplazados o quitados se borran de Drive (si falla, no importa: ya no se usan).
+    for (const url of viejos) {
+      try { await Sheets.borrarArchivoDrive(Sheets.idDesdeUrlDrive(url)); } catch {}
+    }
+
+    r.texto = texto; r.imageUrl = imageUrl; r.audioUrl = audioUrl;
+    localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
+    renderRecordatorioBadge();
+    SyncManager.mostrarToast("✅ Recordatorio actualizado");
+    return true;
+  } catch (err) {
+    if (err.message === "DRIVE_SIN_PERMISO") {
+      alert("Necesitas volver a iniciar sesión para subir archivos a Drive (se agregó un permiso nuevo). Cierra sesión y entra de nuevo.");
+    } else if (err.message === "DRIVE_SIN_PERMISO_PUBLICO") {
+      alert("El archivo se subió a Drive, pero Google no dejó hacerlo visible con el link. No se guardaron los cambios.");
+    } else {
+      alert("Error actualizando el recordatorio: " + err.message);
+    }
+    return false;
+  }
+}
+
+// Abre la ventana para editar un recordatorio guardado (mantener presionado en su tarjeta).
+function abrirEditarRecordatorio(id) {
+  if (!recordatorios.find(x => x.id === id)) return;
+  document.dispatchEvent(new CustomEvent("recordatorios:abrir", { detail: { editId: id } }));
+}
+
 function renderRecordatoriosReact() {
   if (!window.RecordatoriosReact) return;
   window.RecordatoriosReact.render({
     obtenerStream: obtenerStreamMicrofono,
     liberarMicrofono,
     onGuardar: guardarRecordatorioDatos,
+    getRecordatorio: id => recordatorios.find(x => x.id === id) || null,
+    cargarMedia: async url => ({ blobUrl: await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(url)) }),
   });
 }
 
@@ -521,6 +604,12 @@ function renderAccionesReact() {
     onGuardarLista: _guardarAccionesRapidas,
     onRegistrar: registrarAccionRapida,
     onAbrirRecordatorio: () => abrirModalCrearRecordatorio(),
+    // Recordatorios guardados (se muestran en el menú): tocar uno lo convierte en movimiento;
+    // mantenerlo presionado ofrece Editar / Eliminar.
+    getRecordatorios: () => [...recordatorios].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    onUsarRecordatorio: id => abrirRecordatorioComoMovimiento(id),
+    onEditarRecordatorio: id => abrirEditarRecordatorio(id),
+    onBorrarRecordatorio: id => borrarRecordatorio(id),
   });
 }
 

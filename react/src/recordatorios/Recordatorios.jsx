@@ -6,13 +6,15 @@ import { Icono } from "../shared/Iconos.jsx";
 // recordatorios.js sigue siendo dueño de los datos (subir a Drive, escribir en Sheets) y del
 // permiso del micrófono; acá se maneja el formulario y la grabación.
 //
-// Se abre con el evento "recordatorios:abrir": { texto, categoria }  (ambos opcionales: permiten
-// pre-llenar el recordatorio, ej. con el bloque de una alerta).
+// Se abre con el evento "recordatorios:abrir":
+//   { texto, categoria }  nuevo (ambos opcionales: permiten pre-llenarlo, ej. con el bloque de una alerta)
+//   { editId }            editar un recordatorio ya guardado (texto, y reemplazar o quitar su foto/audio)
 //
 // Props (ver renderRecordatoriosReact en recordatorios.js):
 //   obtenerStream()   consigue el micrófono pidiendo permiso una sola vez por sesión (Promise<MediaStream>)
 //   liberarMicrofono()  suelta el micrófono al cerrar la ventana
-//   onGuardar({ texto, foto, audio, categoria })  guarda (Promise<boolean>: false = falló y ya se avisó)
+//   onGuardar({ texto, foto, audio, categoria, editId, quitarFoto, quitarAudio })  guarda (Promise<boolean>: false = falló y ya se avisó)
+//   getRecordatorio(id) / cargarMedia(url)   al editar: el recordatorio y sus archivos de Drive ({ blobUrl })
 
 export function Recordatorios(props) {
   const [vista, setVista] = useState(null);
@@ -35,9 +37,22 @@ function leerComoDataUrl(blob) {
   });
 }
 
-function HojaRecordatorio({ obtenerStream, liberarMicrofono, onGuardar, inicial, alCerrar }) {
-  const categoria = inicial.categoria || "";
-  const [texto, setTexto] = useState(inicial.texto || "");
+function HojaRecordatorio({ obtenerStream, liberarMicrofono, onGuardar, getRecordatorio, cargarMedia, inicial, alCerrar }) {
+  const editId = inicial.editId || null;
+  const existente = editId ? getRecordatorio(editId) : null;
+  const categoria = existente ? (existente.categoria || "") : (inicial.categoria || "");
+  const [texto, setTexto] = useState(existente ? existente.texto : (inicial.texto || ""));
+  // Al editar: la foto y el audio que ya tenía (se pueden quitar; subir uno nuevo lo reemplaza).
+  const [quitarFoto, setQuitarFoto] = useState(false);
+  const [quitarAudio, setQuitarAudio] = useState(false);
+  const [mediaExistente, setMediaExistente] = useState({});   // { foto: blobUrl, audio: blobUrl }
+  useEffect(() => {
+    if (!existente) return;
+    let vivo = true;
+    if (existente.imageUrl) cargarMedia(existente.imageUrl).then(m => vivo && setMediaExistente(a => ({ ...a, foto: m.blobUrl }))).catch(() => {});
+    if (existente.audioUrl) cargarMedia(existente.audioUrl).then(m => vivo && setMediaExistente(a => ({ ...a, audio: m.blobUrl }))).catch(() => {});
+    return () => { vivo = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Una foto y un audio pueden coexistir en el mismo recordatorio: slots independientes.
   const [foto, setFoto] = useState(null);     // { data, type }
   const [audio, setAudio] = useState(null);   // { data, type }
@@ -116,23 +131,25 @@ function HojaRecordatorio({ obtenerStream, liberarMicrofono, onGuardar, inicial,
   async function guardar() {
     const audioFinal = await detenerYEsperar();
     const t = texto.trim();
-    if (!t && !foto && !audioFinal) {
+    const quedaFoto = foto || (existente?.imageUrl && !quitarFoto);
+    const quedaAudio = audioFinal || (existente?.audioUrl && !quitarAudio);
+    if (!t && !quedaFoto && !quedaAudio) {
       alert("Escribe una nota o adjunta una foto/audio");
       return;
     }
     setGuardando(true);
-    const ok = await onGuardar({ texto: t, foto, audio: audioFinal, categoria });
+    const ok = await onGuardar({ texto: t, foto, audio: audioFinal, categoria, editId, quitarFoto, quitarAudio });
     if (ok) alCerrar(); else setGuardando(false);
   }
 
   return (
-    <Hoja id="modal-recordatorio-crear" icono={<Icono nombre="nota" size={22} />} titulo="Recordatorio"
-      subtitulo="Una nota rápida, con foto o audio si quieres." onCerrar={alCerrar}
+    <Hoja id="modal-recordatorio-crear" icono={<Icono nombre="nota" size={22} />} titulo={editId ? "Editar recordatorio" : "Recordatorio"}
+      subtitulo={editId ? "Cambia el texto, o reemplaza o quita la foto y el audio." : "Una nota rápida, con foto o audio si quieres."} onCerrar={alCerrar}
       pie={
         <>
           <button className="btn-secondary" id="btn-cancelar-recordatorio-crear" onClick={alCerrar}>Cancelar</button>
           <button className="btn-primary" id="btn-guardar-recordatorio-crear" onClick={guardar} disabled={guardando}>
-            {guardando ? "Guardando..." : "Guardar"}
+            {guardando ? "Guardando..." : editId ? "Guardar cambios" : "Guardar"}
           </button>
         </>
       }>
@@ -154,6 +171,18 @@ function HojaRecordatorio({ obtenerStream, liberarMicrofono, onGuardar, inicial,
           </button>
         </div>
         <div id="recordatorio-media-preview" className="fotos-preview">
+          {existente?.imageUrl && !quitarFoto && !foto && (
+            <div className="foto-thumb">
+              {mediaExistente.foto ? <img src={mediaExistente.foto} className="foto-thumb-img" alt="foto del recordatorio" /> : null}
+              <button className="foto-thumb-remove" type="button" onClick={() => setQuitarFoto(true)}>×</button>
+            </div>
+          )}
+          {existente?.audioUrl && !quitarAudio && !audio && (
+            <div className="recordatorio-audio-preview">
+              {mediaExistente.audio ? <audio controls src={mediaExistente.audio}></audio> : <span className="recibo-status">Cargando audio…</span>}
+              <button className="foto-thumb-remove" type="button" onClick={() => setQuitarAudio(true)}>×</button>
+            </div>
+          )}
           {foto && (
             <div className="foto-thumb">
               <img src={foto.data} className="foto-thumb-img" alt="foto adjunta" />

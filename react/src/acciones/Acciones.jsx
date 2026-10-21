@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Hoja, Cuadricula, Campo, Interruptor } from "../shared/Hoja.jsx";
 import { Icono, IconoDe, LogoCaja } from "../shared/Iconos.jsx";
+import { crearManejadorLargo } from "../shared/gestos.js";
 import { SelectorIconos } from "../shared/SelectorIconos.jsx";
 import { cajasDeAccion, cajasDeTransferencia } from "./modelo.js";
 
@@ -21,6 +22,8 @@ import { cajasDeAccion, cajasDeTransferencia } from "./modelo.js";
 //   onGuardarLista(lista)   guarda la lista completa (Promise)
 //   onRegistrar(accion, datos)  crea el/los movimiento(s) en Sheets (Promise)
 //   onAbrirRecordatorio()   tarjeta "Recordatorio" del menú
+//   getRecordatorios()      recordatorios guardados (se listan debajo de las acciones)
+//   onUsarRecordatorio(id) / onEditarRecordatorio(id) / onBorrarRecordatorio(id)
 //   renderId                cambia en cada render() de afuera
 
 export function Acciones(props) {
@@ -52,8 +55,10 @@ export function Acciones(props) {
 // ---------------------------------------------------------------------------
 // Menú: cuadrícula de acciones + Recordatorio + Agregar
 // ---------------------------------------------------------------------------
-function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, alConfigurar, alRecordatorio }) {
+function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, alConfigurar, alRecordatorio, getRecordatorios, onUsarRecordatorio, onEditarRecordatorio, onBorrarRecordatorio }) {
   const gridRef = useRef(null);
+  const listaRecRef = useRef(null);
+  const guardados = getRecordatorios ? getRecordatorios() : [];
 
   // Toque corto = usar la acción; mantener presionado ~500ms = configurarla; mantener y
   // ARRASTRAR = reordenarla (gestos.js, crearManejadorArrastrable -- pedido explícito de
@@ -74,6 +79,30 @@ function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, a
         },
       });
     });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recordatorios guardados: tocar uno lo convierte en movimiento; mantenerlo presionado ofrece
+  // Editar / Eliminar (el menú se cierra primero, para que ese menú quede encima).
+  useEffect(() => {
+    const lista = listaRecRef.current;
+    if (!lista) return undefined;
+    const quitar = [];
+    lista.querySelectorAll(".recordatorio-fila[data-id]").forEach(fila => {
+      const id = fila.dataset.id;
+      const r = guardados.find(x => x.id === id);
+      quitar.push(crearManejadorLargo(fila, {
+        onCorto: () => { alCerrar(); onUsarRecordatorio(id); },
+        onLargo: () => {
+          alCerrar();
+          window.abrirMenuEditarBorrar({
+            titulo: resumenRecordatorio(r),
+            onEditar: () => onEditarRecordatorio(id),
+            onBorrar: () => onBorrarRecordatorio(id),
+          });
+        },
+      }));
+    });
+    return () => quitar.forEach(f => f());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -109,8 +138,33 @@ function MenuAcciones({ acciones, iconoCaja, onGuardarLista, alCerrar, alUsar, a
           <span className="accion-rapida-nombre">Agregar</span>
         </button>
       </div>
+      {guardados.length > 0 && (
+        <>
+          <div className="pres-seccion-title" style={{ marginTop: 14 }}>Recordatorios guardados</div>
+          <p className="hoja-subtitulo" style={{ margin: "0 0 8px" }}>Toca uno para pasarlo a movimiento · mantenlo presionado para editarlo o eliminarlo</p>
+          <div id="recordatorios-guardados" className="recordatorios-guardados" ref={listaRecRef}>
+            {guardados.map(r => (
+              <button key={r.id} type="button" className="recordatorio-fila" data-id={r.id}>
+                <span className="recordatorio-item-icon">
+                  <Icono nombre={r.imageUrl ? "camara" : r.audioUrl ? "micro" : "nota"} size={20} />
+                </span>
+                <span className="recordatorio-item-body">
+                  <span className="recordatorio-item-texto">{resumenRecordatorio(r)}</span>
+                  <span className="recordatorio-item-fecha">{r.fecha}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </Hoja>
   );
+}
+
+function resumenRecordatorio(r) {
+  if (!r) return "";
+  if (r.texto) return r.texto.length > 60 ? r.texto.slice(0, 60) + "…" : r.texto;
+  return [r.imageUrl && "Foto adjunta", r.audioUrl && "Audio adjunto"].filter(Boolean).join(" · ");
 }
 
 // Resumen "Sale de  A  ⇄  Llega a  B" con el botón sutil que intercambia las dos.
