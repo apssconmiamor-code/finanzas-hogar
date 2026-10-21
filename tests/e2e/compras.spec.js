@@ -5,6 +5,7 @@
 // hubo -- solo se puede crear o borrar).
 const { test, expect } = require('@playwright/test');
 const { mockGoogleApis, iniciarSesionFalsa, esperarAppLista, irATab } = require('./helpers/googleMock');
+const { seleccionarCaja } = require('./helpers/uiHelpers');
 
 test.describe('Compras', () => {
   test.beforeEach(async ({ page }) => {
@@ -59,8 +60,64 @@ test.describe('Compras', () => {
     await tarjeta.locator('.btn-comprar').click();
 
     await expect(page.locator('#modal-movimiento')).toBeVisible();
-    await expect(page.locator('#modal-movimiento .modal-title')).toContainText('Comprar: Auriculares Sony');
+    await expect(page.locator('#modal-movimiento-titulo')).toContainText('Comprar: Auriculares Sony');
     // Un solo toque en el botón no debe abrir el resumen de la tarjeta de atrás.
     await expect(page.locator('#modal-resumen-compra')).toBeHidden();
+  });
+});
+
+test.describe('Compras y recordatorios -> movimiento (hoja)', () => {
+  const hoy = () => new Date().toISOString().slice(0, 10);
+
+  test('"Comprar ahora" abre el formulario ya armado y, al guardar, la compra sale de la lista', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      'Movimiento de Caja': [['M1', hoy(), 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 1000000, '', '']],
+      Compras: [['CP1', hoy(), 'prueba@example.com', 'Auriculares Sony', 'Tecnología', 300000, 'Alta']],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await irATab(page, 'compromisos');
+
+    await page.locator('.compra-item', { hasText: 'Auriculares Sony' }).locator('.btn-comprar').click();
+    await expect(page.locator('#modal-movimiento-titulo')).toContainText('Comprar: Auriculares Sony');
+    await expect(page.locator('#mov-categoria')).toHaveValue('Gasto variable');
+    await expect(page.locator('#mov-concepto-variable')).toHaveValue('Tecnología');
+    await expect(page.locator('#mov-descripcion')).toHaveValue('Auriculares Sony');
+    await expect(page.locator('#mov-monto')).toHaveValue('300.000');
+
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden({ timeout: 10000 });
+
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    expect(movs.find(m => m.concepto === 'Tecnología' && m.categoria === 'Gasto variable')).toBeDefined();
+    await irATab(page, 'compromisos');
+    await expect(page.locator('.compra-item')).toHaveCount(0);
+  });
+
+  test('un recordatorio se convierte en movimiento: llega con su texto y fecha, y al guardar se elimina', async ({ page }) => {
+    await mockGoogleApis(page, {
+      Cajas: [['C1', 'prueba@example.com', 'Efectivo', 'COP']],
+      Recordatorios: [['R1', hoy(), 'prueba@example.com', 'Pagué el mercado', '', '', '']],
+    });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await page.waitForFunction(() => typeof abrirRecordatorioComoMovimiento === 'function' && recordatorios.length === 1);
+
+    await page.evaluate(() => abrirRecordatorioComoMovimiento('R1'));
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Nuevo movimiento (desde recordatorio)');
+    await expect(page.locator('#modal-movimiento .recordatorio-info-bloque')).toContainText('Pagué el mercado');
+    await expect(page.locator('#mov-descripcion')).toHaveValue('Pagué el mercado');
+
+    await page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]').click();
+    await page.locator('#mov-concepto-ingreso').fill('SURA');
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await page.locator('#mov-monto').fill('20000');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden({ timeout: 10000 });
+    await expect.poll(() => page.evaluate(() => recordatorios.length)).toBe(0);
   });
 });

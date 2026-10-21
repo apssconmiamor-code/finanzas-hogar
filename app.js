@@ -980,7 +980,6 @@ async function mostrarApp() {
   avisarSiSeActualizoSola();
   document.getElementById("user-name").textContent = currentUser.name;
   document.getElementById("user-avatar").src = currentUser.picture;
-  document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
   const mesCorriente = new Date().toISOString().slice(0, 7);
   document.getElementById("filtro-mes").value  = mesCorriente;
   // Cargar caché SIEMPRE antes de tocar la red
@@ -1064,7 +1063,6 @@ function cerrarModal(modalEl) {
     modalEl.dispatchEvent(new CustomEvent("finanzas:cerrar"));
     return;
   }
-  if (modalEl.id === "modal-movimiento" && typeof detenerMicrofonoMov === "function") detenerMicrofonoMov();
   modalEl.classList.add("hidden");
 }
 
@@ -1405,79 +1403,6 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
   document.getElementById("btn-nuevo-gasto").addEventListener("click", () => abrirNuevoMovimiento("Gasto"));
   document.getElementById("btn-nueva-transferencia").addEventListener("click", () => abrirNuevoMovimiento("Transferencia"));
 
-  document.getElementById("btn-cancelar-mov").addEventListener("click", () => {
-    document.getElementById("modal-movimiento").classList.add("hidden");
-    limpiarFormMov();
-  });
-  document.getElementById("btn-guardar-mov").addEventListener("click", guardarMovimiento);
-
-  // Cálculo de expresiones en campos de monto (ej: 4000+5000 → 9000)
-  activarCalculoMonto("mov-monto", "mov-monto-calc");
-  activarCalculoMonto("mov-monto-transferencia", "mov-monto-transf-calc");
-
-  // Repoblar gastos fijos cuando cambia la fecha (el check usa el mes de la fecha seleccionada)
-  document.getElementById("mov-fecha")?.addEventListener("change", () => {
-    if (document.getElementById("mov-categoria").value === "Gasto fijo") {
-      poblarSelectGastosFijos();
-    }
-  });
-
-  // Live validation: filtrar cajas con fondos suficientes al escribir el monto
-  document.getElementById("mov-monto")?.addEventListener("input", () => {
-    const catVal = document.getElementById("mov-categoria").value;
-    const monto  = evaluarMonto(document.getElementById("mov-monto").value) || 0;
-    const warn   = document.getElementById("mov-fondos-warn");
-
-    if (catVal !== "Ingreso" && catVal !== "Transferencia") {
-      // Repoblar select mostrando solo cajas con fondos suficientes
-      poblarSelectCajaMovimiento(monto > 0 ? monto : 0);
-    }
-
-    const cajaId = document.getElementById("mov-caja").value;
-    if (!cajaId || catVal === "Ingreso" || catVal === "Transferencia") {
-      if (warn) warn.classList.add("hidden");
-      return;
-    }
-    const saldo = Math.max(0, calcularSaldoCaja(cajaId));
-    if (warn) {
-      if (monto > saldo) {
-        warn.textContent = `⚠️ Fondos insuficientes · Disponible: ${formatMonto(saldo)}`;
-        warn.classList.remove("hidden");
-      } else {
-        warn.classList.add("hidden");
-      }
-    }
-  });
-
-  document.getElementById("mov-caja")?.addEventListener("change", () => {
-    const cajaId = document.getElementById("mov-caja").value;
-    const catVal = document.getElementById("mov-categoria").value;
-    const montoEl = document.getElementById("mov-monto");
-    const saldoEl = document.getElementById("mov-saldo-disponible");
-    const warn    = document.getElementById("mov-fondos-warn");
-    if (!cajaId || catVal === "Ingreso" || catVal === "Transferencia") {
-      if (saldoEl) saldoEl.classList.add("hidden");
-      return;
-    }
-    const saldo = Math.max(0, calcularSaldoCaja(cajaId));
-    if (saldoEl) {
-      saldoEl.textContent = `Disponible: ${formatMonto(saldo)}`;
-      saldoEl.classList.remove("hidden");
-    }
-    if (warn) warn.classList.add("hidden");
-    // Cap existing value
-    if (montoEl && parseFloat(montoEl.value) > saldo) {
-      montoEl.value = "";
-      if (warn) { warn.textContent = `⚠️ Fondos insuficientes · Disponible: ${formatMonto(saldo)}`; warn.classList.remove("hidden"); }
-    }
-  });
-
-  document.getElementById("cat-btn-group").addEventListener("click", (e) => {
-    const btn = e.target.closest(".cat-btn");
-    if (!btn) return;
-    seleccionarCategoriaMovimiento(btn.dataset.value);
-  });
-
   document.getElementById("filtro-mes").addEventListener("change", renderMovimientos);
   document.getElementById("filtro-concepto").addEventListener("change", () => {
     actualizarFiltroSubcategoria();
@@ -1493,9 +1418,7 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
     }
   });
 
-  // Fotos en nuevo movimiento
-  setupFotosListeners();
-  setupDesplegablesConcepto();
+  renderMovimientoReact();
 
   // Cerrar modal al clic fuera (misma limpieza que el gesto de deslizar,
   // ver cerrarModal)
@@ -1506,15 +1429,22 @@ document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abr
   });
 }
 
-// ---- LÓGICA CONCEPTO DINÁMICO ----
-function poblarSelectGastosFijos() {
-  const editId = document.getElementById("modal-movimiento").dataset.editId;
+// ---- NUEVO / EDITAR MOVIMIENTO ----
+// La ventana es React (react/src/movimiento/Movimiento.jsx); acá quedan los datos: qué opciones
+// ofrecer, y guardar en Sheets / Drive.
 
-  // Usar el mes de la fecha seleccionada en el formulario, no el mes de hoy
-  const fechaInput = document.getElementById("mov-fecha");
-  const mesFecha = fechaInput && fechaInput.value ? fechaInput.value.slice(0, 7) : new Date().toISOString().slice(0, 7);
+// Abre el formulario desde uno de los 3 botones de la pestaña Movimientos (Ingreso / Gasto /
+// Transferencia): el tipo ya viene elegido de afuera.
+//   - Ingreso/Transferencia: la categoría se preselecciona sola y no se ve el selector de categoría.
+//   - Gasto: la categoría NO se asume (puede ser fijo o variable) -- el selector se recorta a esas dos.
+function abrirNuevoMovimiento(tipo) {
+  document.dispatchEvent(new CustomEvent("movimiento:abrir", { detail: { modo: "nuevo", tipo } }));
+}
 
-  // Conceptos ya registrados en el mes de la fecha seleccionada
+// Gastos fijos para elegir, marcando los ya registrados en el mes de la fecha del formulario.
+// {value, label}: el label lleva "(ya registrado)" pero el valor guardado es el nombre solo.
+function opcionesGastosFijosMovimiento(fecha, editId) {
+  const mesFecha = fecha ? fecha.slice(0, 7) : new Date().toISOString().slice(0, 7);
   const pagadosEnFecha = new Set(
     movimientos
       .filter(m => {
@@ -1525,255 +1455,38 @@ function poblarSelectGastosFijos() {
       })
       .map(m => m.concepto)
   );
-
   const conceptosPrestamos = prestamos
     ? prestamos.filter(p => !p.pagado).map(p => conceptoPrestamo(p.nombre))
     : [];
+  return [...GASTOS_FIJOS, ...conceptosPrestamos].map(c => ({
+    value: c, label: pagadosEnFecha.has(c) ? `${c} (ya registrado)` : c
+  }));
+}
 
-  const todosLosFijos = [...GASTOS_FIJOS, ...conceptosPrestamos];
-
-  // {value, label}: el label lleva el indicador "(ya registrado)" pero el
-  // valor real guardado es el nombre del concepto solo, sin decorar.
-  const opciones = todosLosFijos.map(c => {
-    const yaPagado = pagadosEnFecha.has(c);
-    return { value: c, label: yaPagado ? `✓ ${c} (ya registrado)` : c };
+function renderMovimientoReact() {
+  if (!window.MovimientoReact) return;
+  window.MovimientoReact.render({
+    getCajas: () => {
+      if (cajas.length === 0) {
+        try { const cache = localStorage.getItem("cache_cajas"); if (cache) cajas = JSON.parse(cache); } catch {}
+      }
+      return cajas;
+    },
+    cajaVisible: c => cajaVisibleParaUsuario(c, currentUser?.email),
+    saldoDe: nombre => calcularSaldoCaja(nombre),
+    iconoCaja: nombre => iconoCajaImagen(nombre),
+    colorCaja: nombre => cajaColorFondo(nombre),
+    opcionesFijo: opcionesGastosFijosMovimiento,
+    gastosVariables: () => GASTOS_VARIABLES,
+    fuentesIngreso: () => FUENTES_INGRESO,
+    getMovimiento: id => movimientos.find(x => x.id === id) || null,
+    evaluarMonto: texto => evaluarMonto(texto),
+    formatMonto: (n, moneda) => formatMonto(n, moneda),
+    obtenerStream: obtenerStreamMicrofonoMov,
+    liberarMicrofono: liberarMicrofonoMov,
+    cargarMedia: cargarMediaDrive,
+    onGuardar: guardarMovimientoDatos,
   });
-
-  poblarPanelConcepto("mov-concepto-fijo", "panel-concepto-fijo", opciones);
-}
-
-// Marca "valor" como categoría activa (botón .cat-btn + input oculto
-// mov-categoria) y refresca concepto/cajas en consecuencia -- lo usa tanto
-// el click directo sobre un .cat-btn como abrirNuevoMovimiento() al
-// preseleccionar Ingreso/Transferencia.
-function seleccionarCategoriaMovimiento(valor) {
-  document.querySelectorAll(".cat-btn").forEach(b => b.classList.toggle("active", b.dataset.value === valor));
-  document.getElementById("mov-categoria").value = valor;
-  actualizarCampoConcepto();
-  // Al cambiar categoría, resetear el filtro de cajas según monto actual
-  const monto = evaluarMonto(document.getElementById("mov-monto").value) || 0;
-  if (valor === "Ingreso" || valor === "Transferencia") {
-    poblarSelectCajaMovimiento();
-  } else {
-    poblarSelectCajaMovimiento(monto > 0 ? monto : 0);
-  }
-}
-
-// Abre el modal desde uno de los 3 botones de la pestaña Movimientos
-// (Ingreso / Gasto / Transferencia) -- a diferencia del viejo botón único
-// "Nuevo Movimiento", acá el tipo ya viene elegido de afuera:
-//   - Ingreso/Transferencia: la categoría se preselecciona sola y el
-//     selector de categoría (#grupo-categoria) queda oculto -- el usuario
-//     nunca lo ve, no hay nada que elegir.
-//   - Gasto: la categoría NO se asume (puede ser fijo o variable) -- se
-//     muestra el selector, pero recortado a solo esas dos opciones.
-function abrirNuevoMovimiento(tipo) {
-  document.getElementById("modal-movimiento").classList.remove("hidden");
-  poblarSelectCajaMovimiento();
-  actualizarConceptosPrestamo();
-
-  document.getElementById("modal-movimiento-titulo").textContent =
-    tipo === "Ingreso" ? "Nuevo ingreso" : tipo === "Transferencia" ? "Nueva transferencia" : "Nuevo gasto";
-
-  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("hidden"));
-
-  if (tipo === "Gasto") {
-    document.getElementById("grupo-categoria").classList.remove("hidden");
-    document.getElementById("cat-btn-group").classList.add("grupo-2");
-    document.querySelector('.cat-btn[data-value="Ingreso"]').classList.add("hidden");
-    document.querySelector('.cat-btn[data-value="Transferencia"]').classList.add("hidden");
-    document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
-    document.getElementById("mov-categoria").value = "";
-    actualizarCampoConcepto();
-  } else {
-    document.getElementById("grupo-categoria").classList.add("hidden");
-    document.getElementById("cat-btn-group").classList.remove("grupo-2");
-    seleccionarCategoriaMovimiento(tipo);
-  }
-}
-
-function actualizarCampoConcepto() {
-  const cat = document.getElementById("mov-categoria").value;
-  const fijo         = document.getElementById("wrap-concepto-fijo");
-  const variable     = document.getElementById("wrap-concepto-variable");
-  const ingreso      = document.getElementById("wrap-concepto-ingreso");
-  const placeholder  = document.getElementById("concepto-placeholder");
-  const rowNormal    = document.getElementById("row-caja-normal");
-  const rowTransfer  = document.getElementById("row-transferencia");
-  const grupoConcept = document.getElementById("grupo-concepto");
-  const grupoMonto   = document.getElementById("grupo-monto");
-
-  fijo.classList.add("hidden");
-  variable.classList.add("hidden");
-  ingreso.classList.add("hidden");
-  placeholder.classList.add("hidden");
-
-if (cat === "Transferencia") {
-    rowNormal.classList.add("hidden");
-    grupoMonto?.classList.add("hidden");
-    rowTransfer.classList.remove("hidden");
-    grupoConcept.classList.add("hidden");
-  poblarSelectCajas("mov-caja-origen");
-poblarSelectCajas("mov-caja-destino");
-document.getElementById("row-tipo-cambio").style.display = "none";
-document.getElementById("mov-tipo-cambio").value = "";
-document.getElementById("tc-preview").textContent = "";
-setupTipoCambioListeners();
-  }
-  else {
-    rowNormal.classList.remove("hidden");
-    grupoMonto?.classList.remove("hidden");
-    rowTransfer.classList.add("hidden");
-    grupoConcept.classList.remove("hidden");
-  // Las opciones de cada campo ya NO se despliegan solas al elegir la
-  // categoría (antes hacían .focus() acá mismo, y eso abre el picker
-  // nativo / la lista del datalist de una) -- ahora el usuario las abre a
-  // propósito con doble clic en el campo o con el botón ▾ de al lado (ver
-  // abrirDesplegableConcepto más abajo).
-  if (cat === "Gasto fijo") {
-      fijo.classList.remove("hidden");
-      poblarSelectGastosFijos();
-    }
-
-else if (cat === "Gasto variable") {
-  variable.classList.remove("hidden");
-  poblarPanelConcepto("mov-concepto-variable", "panel-concepto-variable", GASTOS_VARIABLES);
-}
-
-  else if (cat === "Ingreso") {
-      ingreso.classList.remove("hidden");
-      // Incluye las fuentes agregadas desde el presupuesto vía "Nuevo
-      // concepto", no solo las fijas de fábrica.
-      poblarPanelConcepto("mov-concepto-ingreso", "panel-concepto-ingreso", FUENTES_INGRESO);
-    } else {
-      placeholder.classList.remove("hidden");
-    }
-  }
-}
-
-// mov-concepto-variable / mov-concepto-ingreso ya no usan <datalist>
-// nativo -- el de Safari en iOS es poco confiable (a veces no aparece con
-// solo enfocar el campo, a veces ni deja elegir una opción; sigue así
-// hasta iOS 26). Reemplazado por un panel propio, mismo patrón ya probado
-// acá mismo para el selector de Caja (.caja-picker-panel).
-const PANELES_CONCEPTO = {
-  "mov-concepto-fijo":     "panel-concepto-fijo",
-  "mov-concepto-variable": "panel-concepto-variable",
-  "mov-concepto-ingreso":  "panel-concepto-ingreso"
-};
-
-// "opciones" acepta un array de strings (Variable/Ingreso, donde valor y
-// texto mostrado son lo mismo) o de {value, label} (Fijos, donde el label
-// lleva el "(ya registrado)" pero el valor guardado es el nombre solo).
-function poblarPanelConcepto(inputId, panelId, opciones) {
-  const panel = document.getElementById(panelId);
-  if (!panel) return;
-  panel._opciones = opciones.map(o => typeof o === "string" ? { value: o, label: o } : o);
-  renderPanelConcepto(inputId, panelId);
-}
-
-function renderPanelConcepto(inputId, panelId) {
-  const input = document.getElementById(inputId);
-  const panel = document.getElementById(panelId);
-  if (!input || !panel) return;
-  const opciones = panel._opciones || [];
-  // Un campo de solo lectura (Fijos) siempre muestra la lista completa --
-  // filtrar por su propio valor ya elegido lo dejaría casi vacío al
-  // volver a abrirlo. Los campos que sí se pueden escribir (Variable/
-  // Ingreso) se refiltran con lo que el usuario va tipeando.
-  const filtro = input.readOnly ? "" : input.value.trim().toLowerCase();
-  const filtradas = filtro ? opciones.filter(o => o.label.toLowerCase().includes(filtro)) : opciones;
-
-  panel.innerHTML = filtradas.length > 0
-    ? filtradas.map(o => `<button type="button" class="caja-picker-option" data-value="${escapeAttr(o.value)}">${escapeHtml(o.label)}</button>`).join("")
-    : `<div class="caja-picker-empty">Sin coincidencias</div>`;
-
-  panel.querySelectorAll(".caja-picker-option").forEach(btn => {
-    btn.addEventListener("click", () => {
-      input.value = btn.dataset.value;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      panel.classList.add("hidden");
-    });
-  });
-}
-
-// Abre el picker nativo del <select>, o el panel propio del <input>, a
-// propósito -- se llama desde el botón ▾ o el doble clic en el campo
-// (listeners en setupDesplegablesConcepto más abajo).
-function abrirDesplegableConcepto(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-
-  const panelId = PANELES_CONCEPTO[id];
-  if (panelId) {
-    renderPanelConcepto(id, panelId);
-    document.querySelectorAll(".caja-picker-panel").forEach(p => {
-      if (p.id !== panelId) p.classList.add("hidden");
-    });
-    document.getElementById(panelId)?.classList.remove("hidden");
-    el.focus();
-    return;
-  }
-
-  if (el.tagName === "SELECT") {
-    el.focus();
-    if (typeof el.showPicker === "function") {
-      try { el.showPicker(); return; } catch {}
-    }
-    // Respaldo para navegadores sin showPicker(): un click sintético sobre
-    // el propio <select>, dentro del mismo gesto del usuario, suele abrir
-    // el picker nativo igual.
-    try { el.click(); } catch {}
-    return;
-  }
-
-  el.focus();
-}
-
-// Botón ▾ y doble clic en el campo abren sus opciones a propósito -- ya no
-// se despliegan solas al elegir la categoría. Escribir en los campos con
-// panel propio (variable/ingreso) lo refiltra en vivo, como un autocompletar.
-function setupDesplegablesConcepto() {
-  document.querySelectorAll(".btn-desplegar-concepto").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      abrirDesplegableConcepto(btn.dataset.target);
-    });
-  });
-  document.querySelectorAll(".campo-desplegable").forEach(wrap => {
-    wrap.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      const campo = wrap.querySelector("select, input");
-      if (campo) abrirDesplegableConcepto(campo.id);
-    });
-  });
-  Object.keys(PANELES_CONCEPTO).forEach(inputId => {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-    input.addEventListener("click", (e) => e.stopPropagation());
-    input.addEventListener("input", () => {
-      const panelId = PANELES_CONCEPTO[inputId];
-      renderPanelConcepto(inputId, panelId);
-      document.getElementById(panelId)?.classList.remove("hidden");
-    });
-  });
-}
-
-function getConceptoActivo() {
-  const cat = document.getElementById("mov-categoria").value;
-  if (cat === "Gasto fijo")     return document.getElementById("mov-concepto-fijo").value;
-  if (cat === "Gasto variable") return document.getElementById("mov-concepto-variable").value.trim();
-  if (cat === "Ingreso")        return document.getElementById("mov-concepto-ingreso").value.trim();
-  return "";
-}
-
-function setConceptoActivo(valor) {
-  const cat = document.getElementById("mov-categoria").value;
-  if (cat === "Gasto fijo")     document.getElementById("mov-concepto-fijo").value = valor;
-  if (cat === "Gasto variable") document.getElementById("mov-concepto-variable").value = valor;
-  if (cat === "Ingreso")        document.getElementById("mov-concepto-ingreso").value = valor;
 }
 
 // ---- FILTRO SUBCATEGORÍA DINÁMICO (depende de la categoría elegida) ----
@@ -2531,87 +2244,27 @@ function mostrarResumenMovimiento(id) {
 
 // ---- GUARDAR / ACTUALIZAR MOVIMIENTO ----
 
-function setupTipoCambioListeners() {
-  const rowTC   = document.getElementById("row-tipo-cambio");
-  const tcOrig  = document.getElementById("tc-moneda-origen");
-  const tcDest  = document.getElementById("tc-moneda-destino");
-  const tcInput = document.getElementById("mov-tipo-cambio");
-  const preview = document.getElementById("tc-preview");
-  const monto   = document.getElementById("mov-monto-transferencia");
-
-  // Eliminar listeners duplicados clonando los selects
-  const origenViejo  = document.getElementById("mov-caja-origen");
-  const destinoViejo = document.getElementById("mov-caja-destino");
-  const newOrigen    = origenViejo.cloneNode(true);
-  const newDestino   = destinoViejo.cloneNode(true);
-  origenViejo.parentNode.replaceChild(newOrigen, origenViejo);
-  destinoViejo.parentNode.replaceChild(newDestino, destinoViejo);
-
-  // Repoblar después de clonar
-  poblarSelectCajas("mov-caja-origen");
-  poblarSelectCajas("mov-caja-destino");
-
-  function verificarMonedas() {
-    const origenVal   = document.getElementById("mov-caja-origen").value;
-    const destinoVal  = document.getElementById("mov-caja-destino").value;
-    const cajaOrigen  = cajas.find(c => c.nombre === origenVal);
-    const cajaDestino = cajas.find(c => c.nombre === destinoVal);
-    if (!cajaOrigen || !cajaDestino) { rowTC.style.display = "none"; return; }
-    if (cajaOrigen.moneda !== cajaDestino.moneda) {
-      rowTC.style.display = "";
-      tcOrig.textContent  = cajaOrigen.moneda;
-      tcDest.textContent  = cajaDestino.moneda;
-    } else {
-      rowTC.style.display = "none";
-    }
-    actualizarPreview();
-  }
-
-  function actualizarPreview() {
-    const origenVal   = document.getElementById("mov-caja-origen").value;
-    const destinoVal  = document.getElementById("mov-caja-destino").value;
-    const cajaOrigen  = cajas.find(c => c.nombre === origenVal);
-    const cajaDestino = cajas.find(c => c.nombre === destinoVal);
-    const m  = parseFloat(monto.value);
-    const tc = parseFloat(tcInput.value);
-    if (!cajaOrigen || !cajaDestino || !m || !tc) { preview.textContent = ""; return; }
-    if (cajaOrigen.moneda === cajaDestino.moneda)  { preview.textContent = ""; return; }
-    const resultado = m * tc;
-    preview.textContent = `→ Se acreditarán ${new Intl.NumberFormat("es-CO", {
-      style: "currency", currency: cajaDestino.moneda,
-      minimumFractionDigits: 0, maximumFractionDigits: 0
-    }).format(resultado)} en ${destinoVal}`;
-  }
-
-  document.getElementById("mov-caja-origen").addEventListener("change", verificarMonedas);
-  document.getElementById("mov-caja-destino").addEventListener("change", verificarMonedas);
-  tcInput.addEventListener("input", actualizarPreview);
-  monto.addEventListener("input", actualizarPreview);
-}
-
 // Sube fotos pendientes a Drive (si hay conexión) y arma el valor final del campo "recibo".
 // reciboExistente: lo que ya tenía el movimiento (para conservarlo al editar).
 // Devuelve { recibo, mediaPendiente }:
 //   - recibo: string con los links nuevos (+ existentes) si se subieron ya, o null si no hay que tocar el recibo todavía.
 //   - mediaPendiente: si no hay conexión, las fotos quedan acá (dataURL tal cual, sin perderlas) para que
 //     sync.js las suba de verdad y complete el recibo apenas vuelva la conexión (ver ejecutarOperacion en sync.js).
-async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExistente = "") {
-  if (pendingFotos.length === 0) return { recibo: null, mediaPendiente: null };
+async function resolverReciboConNuevasFotos(fotos, fecha, concepto, caja, reciboExistente = "") {
+  if (fotos.length === 0) return { recibo: null, mediaPendiente: null };
 
   if (!navigator.onLine) {
     const slug = `${fecha}-${String(concepto).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}-${String(caja).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}`;
     const mediaPendiente = {
-      fotos: pendingFotos.map(f => ({ data: f.data, type: f.type })),
+      fotos: fotos.map(f => ({ data: f.data, type: f.type })),
       slug
     };
     SyncManager.mostrarToast("💾 Sin conexión — la foto se guardó localmente y se subirá al reconectar", "warn");
-    pendingFotos = [];
-    renderFotosPreview();
     return { recibo: reciboExistente || null, mediaPendiente };
   }
 
   try {
-    const nuevos = await subirFotosPendientesADrive(fecha, concepto, caja);
+    const nuevos = await subirFotosADrive(fotos, fecha, concepto, caja);
     return { recibo: reciboExistente ? `${reciboExistente},${nuevos}` : nuevos, mediaPendiente: null };
   } catch (err) {
     if (err.message === "DRIVE_SIN_PERMISO") {
@@ -2625,247 +2278,106 @@ async function resolverReciboConNuevasFotos(fecha, concepto, caja, reciboExisten
   }
 }
 
-// Si el usuario le da Guardar sin haber tocado "Detener", la grabación se
-// corta y se procesa acá para no perder el audio (mismo patrón que
-// detenerGrabacionYEsperar en recordatorios.js).
-function detenerGrabacionMovYEsperar() {
-  return new Promise((resolve) => {
-    if (!movGrabando || !movMediaRecorder) { resolve(); return; }
-    const recorder = movMediaRecorder;
-    const chunksFinales = movAudioChunks;
-    recorder.onstop = () => {
-      const blob = new Blob(chunksFinales, { type: recorder.mimeType || "audio/webm" });
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        pendingFotos.push({ data: e.target.result, type: blob.type });
-        renderFotosPreview();
-        resolve();
-      };
-      reader.readAsDataURL(blob);
-    };
-    movGrabando = false;
-    const btn = document.getElementById("btn-mov-audio");
-    if (btn) { btn.textContent = "🎤 Grabar"; btn.classList.remove("grabando"); }
-    recorder.stop();
-  });
-}
-
-async function guardarMovimiento() {
-  await detenerGrabacionMovYEsperar();
-  const editId = document.getElementById("modal-movimiento").dataset.editId;
+// Guarda un movimiento nuevo o editado. "d" viene ya validado de la ventana de React; si algo falla,
+// lanza (la ventana avisa y se queda abierta).
+//   d = { fecha, categoria, descripcion, concepto, caja, monto, origen, destino, montoTransf, tipoCambio, fotos }
+async function guardarMovimientoDatos(d, editId) {
+  const { fecha, categoria, descripcion, fotos } = d;
 
   if (editId) {
-    const fecha       = document.getElementById("mov-fecha").value;
-    const categoria   = document.getElementById("mov-categoria").value;
-    const descripcion = document.getElementById("mov-descripcion").value.trim();
-    const concepto    = getConceptoActivo();
-    const caja        = document.getElementById("mov-caja").value;
-    const monto       = evaluarMonto(document.getElementById("mov-monto").value);
-
-    if (!fecha || !categoria || !concepto || !caja || !monto) {
-      alert("Completa todos los campos obligatorios");
-      return;
-    }
-
-
-const btn = document.getElementById("btn-guardar-mov");
-if (!btn) return;
-btn.textContent = "Guardando..."; btn.disabled = true;
-
-    try {
-      const movActual = movimientos.find(x => x.id === editId);
-      const { recibo, mediaPendiente } = await resolverReciboConNuevasFotos(fecha, concepto, caja, movActual?.recibo || "");
-      await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
-      delete document.getElementById("modal-movimiento").dataset.editId;
-      document.getElementById("modal-movimiento").classList.add("hidden");
-      limpiarFormMov();
-
-      if (!navigator.onLine) {
-        const idx = movimientos.findIndex(m => m.id === editId);
-        if (idx !== -1) {
-          movimientos[idx] = {
-            ...movimientos[idx], fecha, concepto, categoria, caja, monto, descripcion,
-            ...(recibo !== null ? { recibo } : {})
-          };
-          localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
-          renderMovimientos();
-        }
-      } else {
-        await cargarTodo();
-      }
-    } catch (err) {
-      alert("Error actualizando: " + err.message);
-
-    }
-    return;
-  }
-
-  const fecha       = document.getElementById("mov-fecha").value;
-  const categoria   = document.getElementById("mov-categoria").value;
-  const descripcion = document.getElementById("mov-descripcion").value.trim();
-
-  if (!fecha || !categoria) { alert("Completa todos los campos obligatorios"); return; }
-
-
-const btn = document.getElementById("btn-guardar-mov");
-if (!btn) return;
-btn.textContent = "Guardando..."; btn.disabled = true;
-
-  try {
-
-    let recibo = "";
-    let mediaPendiente = null;
-    if (pendingFotos.length > 0) {
-      const fotoConc = categoria === "Transferencia"
-        ? `Transferencia-${document.getElementById("mov-caja-origen").value}`
-        : getConceptoActivo();
-      const fotoCaja = categoria === "Transferencia"
-        ? document.getElementById("mov-caja-origen").value
-        : document.getElementById("mov-caja").value;
-      const resultado = await resolverReciboConNuevasFotos(fecha, fotoConc, fotoCaja);
-      recibo = resultado.recibo || "";
-      mediaPendiente = resultado.mediaPendiente;
-    }
-
-    if (categoria === "Transferencia") {
-  const origen  = document.getElementById("mov-caja-origen").value;
-  const destino = document.getElementById("mov-caja-destino").value;
-  const monto   = evaluarMonto(document.getElementById("mov-monto-transferencia").value);
-  const rowTC   = document.getElementById("row-tipo-cambio");
-  const tipoCambio = parseFloat(document.getElementById("mov-tipo-cambio").value);
-  const cajaOrigen  = cajas.find(c => c.nombre === origen);
-  const cajaDestino = cajas.find(c => c.nombre === destino);
-
-  if (!origen || !destino || !monto) {
-    alert("Completa origen, destino y monto de la transferencia");
-    return;
-  }
-  if (origen === destino) {
-    alert("La caja origen y destino no pueden ser la misma");
-    return;
-  }
-
-  const monedasDiferentes = cajaOrigen && cajaDestino && cajaOrigen.moneda !== cajaDestino.moneda;
-  if (monedasDiferentes && (!tipoCambio || tipoCambio <= 0)) {
-    alert("Las cuentas tienen monedas diferentes. Ingresa el tipo de cambio.");
-    return;
-  }
-
-  const montoDestino = monedasDiferentes ? monto * tipoCambio : monto;
-  const descOrigen   = monedasDiferentes
-    ? `TC: 1 ${cajaOrigen.moneda} = ${tipoCambio} ${cajaDestino.moneda}${descripcion ? " — " + descripcion : ""}`
-    : descripcion;
-
-  await Sheets.agregarMovimiento(
-    currentUser.email, fecha,
-    `Transferencia → ${destino}`,
-    "Transferencia", origen, monto, descOrigen, recibo, mediaPendiente
-  );
-  await Sheets.agregarMovimientoIngreso(
-    currentUser.email, fecha,
-    `Transferencia ← ${origen}`,
-    "Transferencia", destino, montoDestino, descOrigen
-  );
-}
-
-    else {
-
-let concepto = getConceptoActivo();
-const caja   = document.getElementById("mov-caja").value;
-const monto  = evaluarMonto(document.getElementById("mov-monto").value);
-if (!concepto || !caja || !monto) {
-  alert("Completa todos los campos obligatorios");
-  return;
-}
-
-// Validar fondos suficientes para gastos y transferencias
-if (categoria !== "Ingreso") {
-  const saldoCaja = Math.max(0, calcularSaldoCaja(caja));
-  if (monto > saldoCaja) {
-    alert(`Fondos insuficientes en "${caja}"\nSaldo disponible: ${formatMonto(saldoCaja)}\nMonto solicitado: ${formatMonto(monto)}`);
-    const btn2 = document.getElementById("btn-guardar-mov");
-    if (btn2) { btn2.textContent = "Guardar"; btn2.disabled = false; }
-    return;
-  }
-}
-
-// Si es gasto variable y el concepto no está en la lista, guardar "Otros" y mover a descripción
-if (categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(concepto)) {
-  const descripcionFinal = descripcion ? concepto + " — " + descripcion : concepto;
-  await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal, recibo, mediaPendiente);
-} else {
-  await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
-}
-
-
-
-      if (!navigator.onLine) {
-        const nuevoMov = {
-          id: "M_local_" + Date.now(),
-          fecha, autor: currentUser.email, concepto, categoria, caja, monto, descripcion, recibo
-        };
-        movimientos.push(nuevoMov);
-        localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
-      }
-    }
-
-    document.getElementById("modal-movimiento").classList.add("hidden");
-    limpiarFormMov();
+    const { concepto, caja, monto } = d;
+    const movActual = movimientos.find(x => x.id === editId);
+    const { recibo, mediaPendiente } = await resolverReciboConNuevasFotos(fotos, fecha, concepto, caja, movActual?.recibo || "");
+    await Sheets.editarMovimiento(editId, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
 
     if (!navigator.onLine) {
-      renderMovimientos();
-      renderCajas();
+      const idx = movimientos.findIndex(m => m.id === editId);
+      if (idx !== -1) {
+        movimientos[idx] = {
+          ...movimientos[idx], fecha, concepto, categoria, caja, monto, descripcion,
+          ...(recibo !== null ? { recibo } : {})
+        };
+        localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
+        renderMovimientos();
+      }
     } else {
       await cargarTodo();
     }
-  } catch (err) {
-    if (err.message && !err.message.includes("Cannot set properties of null")) {
-      alert("Error guardando el movimiento: " + err.message);
+    return;
+  }
+
+  let recibo = "";
+  let mediaPendiente = null;
+  if (fotos.length > 0) {
+    const fotoConc = categoria === "Transferencia" ? `Transferencia-${d.origen}` : d.concepto;
+    const fotoCaja = categoria === "Transferencia" ? d.origen : d.caja;
+    const resultado = await resolverReciboConNuevasFotos(fotos, fecha, fotoConc, fotoCaja);
+    recibo = resultado.recibo || "";
+    mediaPendiente = resultado.mediaPendiente;
+  }
+
+  if (categoria === "Transferencia") {
+    const { origen, destino, montoTransf: monto, tipoCambio } = d;
+    const cajaOrigen  = cajas.find(c => c.nombre === origen);
+    const cajaDestino = cajas.find(c => c.nombre === destino);
+    const monedasDiferentes = cajaOrigen && cajaDestino && cajaOrigen.moneda !== cajaDestino.moneda;
+
+    const montoDestino = monedasDiferentes ? monto * tipoCambio : monto;
+    const descOrigen   = monedasDiferentes
+      ? `TC: 1 ${cajaOrigen.moneda} = ${tipoCambio} ${cajaDestino.moneda}${descripcion ? " — " + descripcion : ""}`
+      : descripcion;
+
+    await Sheets.agregarMovimiento(
+      currentUser.email, fecha,
+      `Transferencia → ${destino}`,
+      "Transferencia", origen, monto, descOrigen, recibo, mediaPendiente
+    );
+    await Sheets.agregarMovimientoIngreso(
+      currentUser.email, fecha,
+      `Transferencia ← ${origen}`,
+      "Transferencia", destino, montoDestino, descOrigen
+    );
+  } else {
+    const { concepto, caja, monto } = d;
+    // Si es gasto variable y el concepto no está en la lista, guardar "Otros" y mover a descripción
+    if (categoria === "Gasto variable" && !GASTOS_VARIABLES.includes(concepto)) {
+      const descripcionFinal = descripcion ? concepto + " — " + descripcion : concepto;
+      await Sheets.agregarMovimiento(currentUser.email, fecha, "Otros", categoria, caja, monto, descripcionFinal, recibo, mediaPendiente);
+    } else {
+      await Sheets.agregarMovimiento(currentUser.email, fecha, concepto, categoria, caja, monto, descripcion, recibo, mediaPendiente);
     }
 
+    if (!navigator.onLine) {
+      const nuevoMov = {
+        id: "M_local_" + Date.now(),
+        fecha, autor: currentUser.email, concepto, categoria, caja, monto, descripcion, recibo
+      };
+      movimientos.push(nuevoMov);
+      localStorage.setItem("cache_movimientos", JSON.stringify(movimientos));
+    }
+  }
+
+  if (!navigator.onLine) {
+    renderMovimientos();
+    renderCajas();
+  } else {
+    await cargarTodo();
   }
 }
 
-// ---- EDITAR MOVIMIENTO ----
-
+// ---- EDITAR MOVIMIENTO ---- (la ventana es React; ofrece siempre el selector de categoría completo)
 function abrirEditarMovimiento(id) {
-  const m = movimientos.find(x => x.id === id);
-  if (!m) return;
-
-  document.getElementById("modal-movimiento").classList.remove("hidden");
-  poblarSelectCajas("mov-caja");
-
-  // El selector de categoría puede haber quedado recortado/oculto por un
-  // abrirNuevoMovimiento() anterior (Ingreso/Transferencia lo ocultan del
-  // todo, Gasto oculta dos de los cuatro botones) -- al editar se muestra
-  // siempre completo, la categoría real del movimiento puede ser cualquiera.
-  document.getElementById("modal-movimiento-titulo").textContent = "Editar movimiento";
-  document.getElementById("grupo-categoria").classList.remove("hidden");
-  document.getElementById("cat-btn-group").classList.remove("grupo-2");
-  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("hidden"));
-
-  document.getElementById("mov-fecha").value       = m.fecha;
-  document.getElementById("mov-categoria").value = m.categoria;
-  document.querySelectorAll(".cat-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.value === m.categoria);
-  });
-  document.getElementById("mov-descripcion").value = m.descripcion;
-  actualizarCampoConcepto();
-  setConceptoActivo(m.concepto);
-
-  if (m.categoria !== "Transferencia") {
-    document.getElementById("mov-caja").value  = m.caja;
-    document.getElementById("mov-monto").value = Math.abs(m.monto).toLocaleString("es-CO");
-    refrescarSelectorCaja("mov-caja");
-  }
-
-  renderFotosExistentes(m.recibo);
-
-  document.getElementById("modal-movimiento").dataset.editId = id;
-  document.getElementById("btn-guardar-mov").textContent = "Actualizar";
+  if (!movimientos.find(x => x.id === id)) return;
+  document.dispatchEvent(new CustomEvent("movimiento:abrir", { detail: { modo: "editar", id } }));
 }
 
-// Muestra las fotos ya guardadas en Drive (solo lectura) al editar un movimiento
+// Una foto o audio ya guardado en Drive: el enlace + si es audio (para mostrarlo bien).
+async function cargarMediaDrive(url) {
+  const fileId = Sheets.idDesdeUrlDrive(url);
+  const [blobUrl, esAudio] = await Promise.all([Sheets.obtenerBlobUrlDrive(fileId), _esArchivoDeAudioDrive(fileId)]);
+  return { blobUrl, esAudio };
+}
+
 // Abre una foto adjunta en pestaña nueva (descarga autenticada, no el link directo de Drive)
 async function abrirFotoMovimiento(url) {
   const nuevaPestana = window.open("", "_blank");
@@ -2890,37 +2402,6 @@ async function _esArchivoDeAudioDrive(fileId) {
     const data = await res.json();
     return (data.mimeType || "").startsWith("audio/");
   } catch { return false; }
-}
-
-async function renderFotosExistentes(recibo) {
-  const cont = document.getElementById("fotos-existentes");
-  if (!cont) return;
-  const urls = (recibo || "").split(",").map(u => u.trim()).filter(Boolean);
-  if (urls.length === 0) { cont.innerHTML = ""; return; }
-
-  cont.innerHTML = urls.map(() => `<span class="foto-thumb" title="Cargando…"></span>`).join("");
-  const slots = cont.querySelectorAll(".foto-thumb");
-
-  for (let i = 0; i < urls.length; i++) {
-    const fileId = Sheets.idDesdeUrlDrive(urls[i]);
-    try {
-      const [blobUrl, esAudio] = await Promise.all([
-        Sheets.obtenerBlobUrlDrive(fileId),
-        _esArchivoDeAudioDrive(fileId)
-      ]);
-      if (esAudio) {
-        slots[i].outerHTML = `<div class="recordatorio-audio-preview"><audio controls src="${blobUrl}"></audio></div>`;
-      } else {
-        slots[i].outerHTML = `
-          <a class="foto-thumb" href="${blobUrl}" target="_blank" rel="noopener" title="Ver foto completa">
-            <img class="foto-thumb-img" alt="foto guardada" src="${blobUrl}"/>
-          </a>`;
-      }
-    } catch (err) {
-      slots[i].title = "No se pudo cargar: " + err.message;
-      slots[i].textContent = "⚠️";
-    }
-  }
 }
 
 // ---- BORRAR MOVIMIENTO ----
@@ -2993,7 +2474,7 @@ async function borrarMovimiento(id) {
 // Una caja sin usuarios_permitidos configurados (columna F en Cajas, ver
 // sheets.js) es visible para todos -- la restricción solo aplica a las que
 // sí tienen algo ahí. Se usa en Acciones rápidas y en el campo "Caja" de
-// Ingreso/Gasto en "Nuevo movimiento" (ver poblarSelectCajaMovimiento) --
+// Ingreso/Gasto en "Nuevo movimiento" (ver Movimiento.jsx) --
 // NO en Origen/Destino de Transferencia, que a propósito sigue mostrando
 // todas (pedido explícito: una transferencia puede mover plata hacia/desde
 // una caja que uno no "maneja" a diario).
@@ -3001,13 +2482,6 @@ function cajaVisibleParaUsuario(caja, email) {
   return caja.usuariosPermitidos.length === 0 || caja.usuariosPermitidos.includes(email);
 }
 
-// Wrapper de poblarSelectCajas para el único campo "Caja" del modal (el que
-// usan Ingreso/Gasto, no Origen/Destino de Transferencia) -- centraliza acá
-// el filtro por usuario para no repetirlo en cada uno de los ~7 lugares que
-// abren o refrescan ese campo (app.js, compras.js, recordatorios.js).
-function poblarSelectCajaMovimiento(montoMinimo = 0) {
-  poblarSelectCajas("mov-caja", montoMinimo, (c) => cajaVisibleParaUsuario(c, currentUser?.email));
-}
 
 // Completa sola la columna "usuarios_permitidos" (F) de las cajas que
 // todavía no la tengan, identificando el grupo por si su nombre contiene
@@ -3031,136 +2505,10 @@ async function verificarYCompletarUsuariosPermitidosCajas() {
   }
 }
 
-function poblarSelectCajas(selectId, montoMinimo = 0, filtro = null) {
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
-
-  if (cajas.length === 0) {
-    try {
-      const cacheC = localStorage.getItem("cache_cajas");
-      if (cacheC) cajas = JSON.parse(cacheC);
-    } catch {}
-  }
-
-  const valorPrevio = sel.value;
-  let cajasDisp = cajas;
-  if (montoMinimo > 0) {
-    cajasDisp = cajasDisp.filter(c => calcularSaldoCaja(c.nombre) >= montoMinimo);
-  }
-  if (filtro) {
-    cajasDisp = cajasDisp.filter(filtro);
-  }
-
-  sel.innerHTML = `<option value="">Selecciona una caja</option>` +
-    cajasDisp.map(c =>
-      `<option value="${c.nombre}" style="background-color:${cajaColorFondo(c.nombre)}">${c.nombre} (${c.moneda})</option>`
-    ).join("");
-
-  if (valorPrevio && cajasDisp.find(c => c.nombre === valorPrevio)) {
-    sel.value = valorPrevio;
-  }
-
-  // El <select> nativo no respeta el color de fondo de las <option> en iOS,
-  // así que se arma un selector propio encima para que los colores sí se vean.
-  refrescarSelectorCaja(selectId);
-}
 
 // ---- SELECTOR DE CAJA CON COLOR (reemplazo visual del <select> nativo) ----
 
-// Origen/Destino de Transferencia viven en dos columnas angostas (la mitad
-// del modal cada una, ver .transferencia-row) -- el panel desplegado hereda
-// ese mismo ancho angosto porque es position:absolute contra .caja-picker
-// (ver .caja-picker-panel en style.css), que es tan angosto como el <select>
-// que envuelve. Pedido explícito: en esos dos campos el panel debe verse al
-// 100% del ancho de la tarjeta del modal, no de su propia columna -- acá se
-// saca del flujo (position:fixed) y se calcula en vivo contra el
-// .modal-card real, así funciona igual en cualquier tamaño de pantalla. Los
-// demás campos de caja (el normal de Ingreso/Gasto, Acciones rápidas, pago
-// rápido de préstamo) no viven en columnas angostas y no necesitan esto.
-function _ensancharPanelCajaSiEsAngosto(panel, toggle) {
-  const card = toggle.closest(".modal-card");
-  const fila = toggle.closest(".transferencia-row");
-  if (!card || !fila) return;
 
-  const rectCard   = card.getBoundingClientRect();
-  const rectToggle = toggle.getBoundingClientRect();
-  const estiloCard = getComputedStyle(card);
-  const padIzq = parseFloat(estiloCard.paddingLeft) || 0;
-  const padDer = parseFloat(estiloCard.paddingRight) || 0;
-
-  panel.style.position = "fixed";
-  panel.style.left     = (rectCard.left + padIzq) + "px";
-  panel.style.width    = (rectCard.width - padIzq - padDer) + "px";
-  panel.style.right    = "auto";
-  panel.style.top      = (rectToggle.bottom + 6) + "px";
-}
-
-function refrescarSelectorCaja(selectId) {
-  const sel = document.getElementById(selectId);
-  if (!sel) return;
-
-  let picker = sel.nextElementSibling;
-  if (!picker || !picker.classList.contains("caja-picker")) {
-    sel.style.display = "none";
-    picker = document.createElement("div");
-    picker.className = "caja-picker";
-    picker.innerHTML = `
-      <button type="button" class="caja-picker-toggle input caja-picker-placeholder">Selecciona una caja</button>
-      <div class="caja-picker-panel hidden"></div>
-    `;
-    sel.insertAdjacentElement("afterend", picker);
-
-    picker.querySelector(".caja-picker-toggle").addEventListener("click", (e) => {
-      e.stopPropagation();
-      const panel = picker.querySelector(".caja-picker-panel");
-      const abierto = !panel.classList.contains("hidden");
-      document.querySelectorAll(".caja-picker-panel").forEach(p => p.classList.add("hidden"));
-      panel.classList.toggle("hidden", abierto);
-      if (!panel.classList.contains("hidden")) _ensancharPanelCajaSiEsAngosto(panel, e.currentTarget);
-    });
-  }
-
-  const toggle = picker.querySelector(".caja-picker-toggle");
-  const panel  = picker.querySelector(".caja-picker-panel");
-
-  const opciones = Array.from(sel.options).filter(o => o.value !== "");
-  panel.innerHTML = opciones.length
-    ? opciones.map(o => {
-        const icono = iconoCajaImagen(o.value);
-        return `
-        <button type="button" class="caja-picker-option" data-value="${o.value.replace(/"/g, "&quot;")}"
-          style="background-color:${cajaColorFondo(o.value)}">
-          <span class="caja-picker-option-texto">${o.textContent}</span>
-          ${icono ? (icono.startsWith("svg:") ? `<span class="caja-picker-option-icono caja-icono-svg">${window.iconoSvg(icono.slice(4))}</span>` : `<img class="caja-picker-option-icono" src="${icono}" alt="" />`) : ""}
-        </button>
-      `;
-      }).join("")
-    : `<div class="caja-picker-empty">Sin cajas disponibles</div>`;
-
-  panel.querySelectorAll(".caja-picker-option").forEach(btn => {
-    btn.addEventListener("click", () => {
-      sel.value = btn.dataset.value;
-      sel.dispatchEvent(new Event("change", { bubbles: true }));
-      toggle.textContent = btn.textContent;
-      toggle.classList.remove("caja-picker-placeholder");
-      panel.classList.add("hidden");
-    });
-  });
-
-  const opcionActual = opciones.find(o => o.value === sel.value);
-  if (opcionActual) {
-    toggle.textContent = opcionActual.textContent;
-    toggle.classList.remove("caja-picker-placeholder");
-  } else {
-    toggle.textContent = "Selecciona una caja";
-    toggle.classList.add("caja-picker-placeholder");
-  }
-}
-
-// Cierra cualquier panel de selector de caja abierto al hacer clic afuera
-document.addEventListener("click", () => {
-  document.querySelectorAll(".caja-picker-panel").forEach(p => p.classList.add("hidden"));
-});
 
 function poblarFiltrosCajas() {
   // categorias son fijas, nada que poblar dinámicamente
@@ -3187,37 +2535,6 @@ function escapeHtml(texto) {
     .replace(/'/g, "&#39;");
 }
 
-function limpiarFormMov() {
-  document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
-  document.getElementById("mov-categoria").value = "";
-  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
-  document.getElementById("mov-concepto-fijo").value = "";
-  document.getElementById("mov-concepto-variable").value = "";
-  document.getElementById("mov-concepto-ingreso").value = "";
-  document.getElementById("panel-concepto-fijo")?.classList.add("hidden");
-  document.getElementById("panel-concepto-variable")?.classList.add("hidden");
-  document.getElementById("panel-concepto-ingreso")?.classList.add("hidden");
-  document.getElementById("mov-monto").value = "";
-  document.getElementById("mov-caja").value = "";
-  document.getElementById("mov-caja-origen").value = "";
-  document.getElementById("mov-caja-destino").value = "";
-  document.getElementById("mov-monto-transferencia").value = "";
-  document.getElementById("mov-descripcion").value = "";
-  refrescarSelectorCaja("mov-caja");
-  refrescarSelectorCaja("mov-caja-origen");
-  refrescarSelectorCaja("mov-caja-destino");
-
-  // Limpiar fotos/audio pendientes
-  detenerMicrofonoMov();
-  pendingFotos = [];
-  renderFotosPreview();
-  renderFotosExistentes("");
-  const camaraFile = document.getElementById("camara-file");
-  if (camaraFile) camaraFile.value = "";
-  delete document.getElementById("modal-movimiento").dataset.editId;
-  document.getElementById("btn-guardar-mov").textContent = "Guardar";
-  actualizarCampoConcepto();
-}
 
 
 // =============================================
@@ -4950,71 +4267,17 @@ const TAB_TITLES = {
 
 
 // =============================================
-// SOPORTE EN MOVIMIENTOS (fotos + audio) -- comparten el mismo array y el
-// mismo pipeline de subida/offline; solo cambia cómo se previsualiza y
-// renderiza cada uno según pendingFotos[i].type.
+// SOPORTE EN MOVIMIENTOS (fotos + audio) -- la ventana (React) arma las fotos y los audios; acá quedan
+// la subida a Drive y el permiso del micrófono.
 // =============================================
 
-let pendingFotos = [];
-
-function setupFotosListeners() {
-  const camaraInput = document.getElementById("camara-file");
-  if (camaraInput) camaraInput.addEventListener("change", (e) => agregarFotos(e.target.files));
-  document.getElementById("btn-mov-audio")?.addEventListener("click", toggleGrabacionAudioMov);
-}
-
-function agregarFotos(files) {
-  Array.from(files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      pendingFotos.push({ data: e.target.result, type: file.type });
-      renderFotosPreview();
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function renderFotosPreview() {
-  const preview = document.getElementById("fotos-preview");
-  const status  = document.getElementById("recibo-status");
-  if (!preview) return;
-  preview.innerHTML = pendingFotos.map((f, i) => {
-    if ((f.type || "").startsWith("audio/")) {
-      return `
-        <div class="recordatorio-audio-preview">
-          <audio controls src="${f.data}"></audio>
-          <button class="foto-thumb-remove" type="button" onclick="quitarFoto(${i})">×</button>
-        </div>`;
-    }
-    return `
-      <div class="foto-thumb">
-        <img src="${f.data}" alt="foto ${i + 1}" class="foto-thumb-img"/>
-        <button class="foto-thumb-remove" type="button" onclick="quitarFoto(${i})">×</button>
-      </div>`;
-  }).join("");
-  if (status) {
-    const nFotos = pendingFotos.filter(f => !(f.type || "").startsWith("audio/")).length;
-    const nAudio = pendingFotos.length - nFotos;
-    const partes = [];
-    if (nFotos > 0) partes.push(`${nFotos} foto${nFotos !== 1 ? "s" : ""}`);
-    if (nAudio > 0) partes.push(`${nAudio} audio${nAudio !== 1 ? "s" : ""}`);
-    status.textContent = partes.length > 0 ? `${partes.join(" y ")} adjunto${pendingFotos.length !== 1 ? "s" : ""}` : "";
-  }
-}
-
-window.quitarFoto = function(idx) {
-  pendingFotos.splice(idx, 1);
-  renderFotosPreview();
-};
-
-// Guarda las fotos en IndexedDB con nombre Fecha-Concepto-Caja
-// Sube las fotos/audios pendientes a Google Drive y devuelve los links separados por coma
-async function subirFotosPendientesADrive(fecha, concepto, caja) {
-  if (pendingFotos.length === 0) return "";
+// Sube las fotos/audios a Google Drive y devuelve los links separados por coma
+async function subirFotosADrive(fotos, fecha, concepto, caja) {
+  if (fotos.length === 0) return "";
   const slug = `${fecha}-${String(concepto).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}-${String(caja).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, "_")}`;
   const urls = [];
-  for (let i = 0; i < pendingFotos.length; i++) {
-    const foto = pendingFotos[i];
+  for (let i = 0; i < fotos.length; i++) {
+    const foto = fotos[i];
     const esAudio = (foto.type || "").startsWith("audio/");
     const ext = esAudio ? "webm" : (foto.type.includes("png") ? "png" : "jpg");
     const { url } = await Sheets.subirArchivoDrive(foto.data, `${slug}-${i + 1}.${ext}`, foto.type);
@@ -5023,13 +4286,9 @@ async function subirFotosPendientesADrive(fecha, concepto, caja) {
   return urls.join(",");
 }
 
-// ---- GRABAR AUDIO COMO SOPORTE (mismo patrón que recordatorios.js, con
-// nombres propios para no pisar sus variables globales -- ambos módulos
-// cargan como scripts sueltos en el mismo scope). ----
-let movAudioStream    = null;
-let movMediaRecorder  = null;
-let movAudioChunks    = [];
-let movGrabando       = false;
+// Micrófono (mismo patrón que recordatorios.js, con nombres propios para no pisar sus variables
+// globales -- ambos módulos cargan como scripts sueltos en el mismo scope).
+let movAudioStream = null;
 
 async function obtenerStreamMicrofonoMov() {
   const activo = movAudioStream?.getAudioTracks().some(t => t.readyState === "live");
@@ -5051,67 +4310,8 @@ async function obtenerStreamMicrofonoMov() {
   return movAudioStream;
 }
 
-async function toggleGrabacionAudioMov() {
-  const btn = document.getElementById("btn-mov-audio");
-  if (!btn) return;
-
-  if (!movGrabando) {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      alert("Este navegador no soporta grabación de audio.");
-      return;
-    }
-    try {
-      await obtenerStreamMicrofonoMov();
-      movAudioChunks = [];
-      movMediaRecorder = new MediaRecorder(movAudioStream);
-      movMediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) movAudioChunks.push(e.data); };
-      movMediaRecorder.onstop = () => {
-        const blob = new Blob(movAudioChunks, { type: movMediaRecorder.mimeType || "audio/webm" });
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          pendingFotos.push({ data: e.target.result, type: blob.type });
-          renderFotosPreview();
-        };
-        reader.readAsDataURL(blob);
-      };
-      movMediaRecorder.start();
-      movGrabando = true;
-      btn.textContent = "⏹ Detener";
-      btn.classList.add("grabando");
-    } catch (err) {
-      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        alert(
-          "El navegador tiene bloqueado el micrófono para esta página.\n\n" +
-          "En iPhone: toca el ícono \"aA\" en la barra de direcciones → " +
-          "Configuración del sitio web → Micrófono → Permitir. Si no aparece esa opción, " +
-          "ve a Ajustes del iPhone → Safari → Micrófono y revisa que no esté en \"Denegar\".\n\n" +
-          "Luego vuelve a intentar."
-        );
-      } else if (err.name === "NotFoundError") {
-        alert("No se encontró un micrófono disponible en este dispositivo.");
-      } else {
-        alert("No se pudo acceder al micrófono: " + err.message);
-      }
-    }
-  } else {
-    movMediaRecorder.stop();
-    movGrabando = false;
-    btn.textContent = "🎤 Grabar";
-    btn.classList.remove("grabando");
-  }
-}
-
-// Corta el micrófono sin tocar el resto del formulario -- para cuando se
-// cierra/cancela el modal a mitad de una grabación (botón Cancelar, deslizar
-// para volver, etc.), no solo al terminar de grabar normalmente.
-function detenerMicrofonoMov() {
-  if (movGrabando && movMediaRecorder) {
-    movMediaRecorder.onstop = null; // se está cancelando a mitad de grabación -- no guardar un audio a medias
-    try { movMediaRecorder.stop(); } catch {}
-    movGrabando = false;
-    const btn = document.getElementById("btn-mov-audio");
-    if (btn) { btn.textContent = "🎤 Grabar"; btn.classList.remove("grabando"); }
-  }
+// Suelta el micrófono al cerrar la ventana.
+function liberarMicrofonoMov() {
   if (movAudioStream) {
     movAudioStream.getTracks().forEach(t => t.stop());
     movAudioStream = null;

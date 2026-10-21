@@ -137,43 +137,6 @@ async function verificarPrestamosCompletados() {
     }
   }
   renderPrestamos();
-  actualizarConceptosPrestamo();
-}
-
-// ---- Inyectar/quitar conceptos de préstamos activos en la lista de gastos variables ----
-function actualizarConceptosPrestamo() {
-  const datalist = document.getElementById("lista-variables");
-  if (!datalist) return;
-
-  // Remover opciones de préstamos anteriores
-  datalist.querySelectorAll("[data-prestamo]").forEach(o => o.remove());
-
-  // Agregar solo préstamos NO pagados
-  prestamos
-    .filter(p => !p.pagado)
-    .forEach(p => {
-      const opt = document.createElement("option");
-      opt.value = conceptoPrestamo(p.nombre);
-      opt.dataset.prestamo = "1";
-      datalist.appendChild(opt);
-    });
-
-  // También actualizar el select de gastos variables si está abierto
-
-  // Agregar préstamos activos también al select de gastos fijos
-  const selectFijo = document.getElementById("mov-concepto-fijo");
-  if (selectFijo) {
-    selectFijo.querySelectorAll("[data-prestamo]").forEach(o => o.remove());
-    prestamos
-      .filter(p => !p.pagado)
-      .forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = conceptoPrestamo(p.nombre);
-        opt.textContent = conceptoPrestamo(p.nombre);
-        opt.dataset.prestamo = "1";
-        selectFijo.appendChild(opt);
-      });
-  }
 }
 
 // ---- RENDER ----
@@ -380,8 +343,7 @@ async function borrarPrestamo(id) {
   try {
     await Sheets.borrarPrestamo(id);
     await cargarPrestamos();
-    actualizarConceptosPrestamo();
-  } catch (err) {
+    } catch (err) {
     alert("Error borrando préstamo: " + err.message);
   }
 }

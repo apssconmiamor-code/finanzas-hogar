@@ -11,6 +11,7 @@
 //   RecordatoriosReact.render(props) -> ventana de crear recordatorio (#recordatorios-root)
 //   ConceptosReact.render(props)  -> ventanas de mes, concepto y archivar de Proyección (#conceptos-root)
 //   DetallesReact.render(props)   -> resúmenes de solo lectura y el menú Editar/Eliminar (#detalles-root)
+//   MovimientoReact.render(props) -> nuevo / editar movimiento (#movimiento-root)
 //   FranjasReact.render(props)    -> franja inferior de las vistas aún en JS plano (#franjas-root)
 // app.js sigue dueño de los datos; React solo dibuja y maneja el estado de UI
 // propio de cada isla (selección de "Sumar" en Cajas, etc.).
@@ -28,6 +29,7 @@ import { Compromisos } from "./compromisos/Compromisos.jsx";
 import { Recordatorios } from "./recordatorios/Recordatorios.jsx";
 import { Conceptos } from "./conceptos/Conceptos.jsx";
 import { Detalles } from "./detalles/Detalles.jsx";
+import { Movimiento } from "./movimiento/Movimiento.jsx";
 
 function crearIsla(idContenedor, Componente, conRenderId) {
   let root = null;
@@ -55,3 +57,4 @@ window.CompromisosReact = crearIsla("compromisos-root", Compromisos, false);
 window.RecordatoriosReact = crearIsla("recordatorios-root", Recordatorios, false);
 window.ConceptosReact = crearIsla("conceptos-root", Conceptos, false);
 window.DetallesReact = crearIsla("detalles-root", Detalles, false);
+window.MovimientoReact = crearIsla("movimiento-root", Movimiento, false);

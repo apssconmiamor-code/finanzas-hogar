@@ -346,32 +346,30 @@ async function abrirRecordatorioComoMovimiento(id) {
   document.getElementById("recordatorios-panel")?.classList.add("hidden");
   if (typeof window.navegarATab === "function") window.navegarATab("movimientos");
 
-  const modal = document.getElementById("modal-movimiento");
-  modal.classList.remove("hidden");
-  modal.dataset.fromRecordatorioId = id;
-  delete modal.dataset.editId;
-
-  poblarSelectCajaMovimiento();
-  document.getElementById("mov-fecha").value = r.fecha;
-  document.getElementById("mov-descripcion").value = r.texto || "";
-
-  const titulo = modal.querySelector(".modal-title");
-  if (titulo) titulo.textContent = "Nuevo movimiento (desde recordatorio)";
-
-  await renderRecordatorioInfoEnModal(r);
+  // El formulario de movimiento (React) se abre con la fecha y el texto del recordatorio, y con un
+  // bloque que muestra el recordatorio (texto, foto, audio). Al guardarlo, el recordatorio se elimina.
+  document.dispatchEvent(new CustomEvent("movimiento:abrir", { detail: {
+    modo: "nuevo",
+    inicial: { fecha: r.fecha, descripcion: r.texto || "" },
+    titulo: "Nuevo movimiento (desde recordatorio)",
+    bloqueInfo: { html: htmlInfoRecordatorio(r), alMontar: bloque => cargarMediaInfoRecordatorio(bloque, r) },
+    despuesDeGuardar: async () => {
+      try {
+        await Sheets.borrarRecordatorio(id);
+      } catch (err) {
+        console.warn("No se pudo borrar el recordatorio de Sheets:", err);
+      }
+      await borrarMediaRecordatorio(r);
+      recordatorios = recordatorios.filter(x => x.id !== id);
+      localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
+      renderRecordatorioBadge();
+      SyncManager.mostrarToast("✅ Movimiento registrado y recordatorio eliminado");
+    },
+  } }));
 }
 
-async function renderRecordatorioInfoEnModal(r) {
-  const modal = document.getElementById("modal-movimiento");
-  if (!modal) return;
-  let bloque = modal.querySelector(".recordatorio-info-bloque");
-  if (!bloque) {
-    bloque = document.createElement("div");
-    bloque.className = "recordatorio-info-bloque";
-    modal.querySelector(".modal-card").insertBefore(bloque, modal.querySelector(".form-group"));
-  }
-
-  bloque.innerHTML = `
+function htmlInfoRecordatorio(r) {
+  return `
     <div class="recordatorio-info-titulo">📝 Recordatorio del ${escapeHtml(r.fecha)}</div>
     ${r.texto ? `<div class="recordatorio-info-texto">${escapeHtml(r.texto)}</div>` : ""}
     ${r.imageUrl ? `<img class="recordatorio-info-imagen" alt="foto del recordatorio"/>` : ""}
@@ -379,7 +377,10 @@ async function renderRecordatorioInfoEnModal(r) {
     ${r.audioUrl ? `<audio controls class="recordatorio-info-audio"></audio>` : ""}
     ${r.audioUrl ? `<div class="recordatorio-media-status" data-media="audio">Cargando audio…</div>` : ""}
   `;
+}
 
+// La foto y el audio del recordatorio se bajan de Drive una vez que el bloque ya está en pantalla.
+async function cargarMediaInfoRecordatorio(bloque, r) {
   if (r.imageUrl) {
     const img = bloque.querySelector(".recordatorio-info-imagen");
     const status = bloque.querySelector('[data-media="imagen"]');
@@ -387,7 +388,7 @@ async function renderRecordatorioInfoEnModal(r) {
       img.src = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(r.imageUrl));
       status.remove();
     } catch (err) {
-      status.textContent = "⚠️ No se pudo cargar la foto (" + err.message + ")";
+      status.textContent = "No se pudo cargar la foto (" + err.message + ")";
     }
   }
   if (r.audioUrl) {
@@ -397,66 +398,9 @@ async function renderRecordatorioInfoEnModal(r) {
       audio.src = await Sheets.obtenerBlobUrlDrive(Sheets.idDesdeUrlDrive(r.audioUrl));
       status.remove();
     } catch (err) {
-      status.textContent = "⚠️ No se pudo cargar el audio (" + err.message + ")";
+      status.textContent = "No se pudo cargar el audio (" + err.message + ")";
     }
   }
-}
-
-function _limpiarRecordatorioContexto() {
-  const modal = document.getElementById("modal-movimiento");
-  if (!modal) return;
-  delete modal.dataset.fromRecordatorioId;
-  const titulo = modal.querySelector(".modal-title");
-  if (titulo) titulo.textContent = "Nuevo movimiento";
-  const bloque = modal.querySelector(".recordatorio-info-bloque");
-  if (bloque) bloque.remove();
-}
-
-// ---- INTERCEPTAR guardarMovimiento (igual patrón que compras.js) ----
-function inicializarInterceptorRecordatorios() {
-  if (typeof guardarMovimiento === "undefined") {
-    setTimeout(inicializarInterceptorRecordatorios, 100);
-    return;
-  }
-
-  const _guardarMovimientoOriginalR = guardarMovimiento;
-
-  window.guardarMovimiento = async function () {
-    const modal = document.getElementById("modal-movimiento");
-    const fromRecordatorioId = modal.dataset.fromRecordatorioId;
-    const btn = document.getElementById("btn-guardar-mov");
-
-    try {
-      await _guardarMovimientoOriginalR();
-    } catch (err) {
-      if (!err.message.includes("Cannot set properties of null")) {
-        alert("Error guardando el movimiento: " + err.message);
-      }
-    } finally {
-      if (btn) { btn.textContent = "Guardar"; btn.disabled = false; }
-    }
-
-    if (fromRecordatorioId && modal.classList.contains("hidden")) {
-      _limpiarRecordatorioContexto();
-      const rBorrado = recordatorios.find(r => r.id === fromRecordatorioId);
-      try {
-        await Sheets.borrarRecordatorio(fromRecordatorioId);
-      } catch (err) {
-        console.warn("No se pudo borrar el recordatorio de Sheets:", err);
-      }
-      await borrarMediaRecordatorio(rBorrado);
-      recordatorios = recordatorios.filter(r => r.id !== fromRecordatorioId);
-      localStorage.setItem("cache_recordatorios", JSON.stringify(recordatorios));
-      renderRecordatorioBadge();
-      SyncManager.mostrarToast("✅ Movimiento registrado y recordatorio eliminado");
-    }
-  };
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", inicializarInterceptorRecordatorios);
-} else {
-  setTimeout(inicializarInterceptorRecordatorios, 100);
 }
 
 // =============================================
@@ -465,8 +409,6 @@ if (document.readyState === "loading") {
 
 function setupRecordatoriosListeners() {
   document.getElementById("btn-recordatorios-badge")?.addEventListener("click", toggleRecordatoriosPanel);
-
-  document.getElementById("btn-cancelar-mov")?.addEventListener("click", _limpiarRecordatorioContexto);
 
   // Las acciones rápidas (menú, usar, configurar) y la ventana de crear recordatorio son React.
   renderAccionesReact();

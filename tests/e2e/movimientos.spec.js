@@ -119,7 +119,7 @@ test.describe('Movimientos', () => {
     await expect(panel).toBeVisible();
 
     const anchoPanel = await panel.evaluate(el => el.getBoundingClientRect().width);
-    const anchoCard  = await page.locator('#modal-movimiento .modal-card').evaluate(el => el.getBoundingClientRect().width);
+    const anchoCard  = await page.locator('#modal-movimiento .hoja').evaluate(el => el.getBoundingClientRect().width);
     const anchoColumna = await page.locator('#mov-caja-origen').evaluate(el => el.getBoundingClientRect().width);
 
     // El panel debe acercarse al ancho de la tarjeta del modal (menos el
@@ -187,6 +187,135 @@ test.describe('Movimientos', () => {
     await expect(page.locator('#cat-btn-group .cat-btn[data-value="Gasto fijo"]')).toBeVisible();
     await expect(page.locator('#cat-btn-group .cat-btn[data-value="Transferencia"]')).toBeVisible();
     await expect(page.locator('#cat-btn-group .cat-btn[data-value="Ingreso"]')).toHaveClass(/active/);
+  });
+});
+
+test.describe('Movimientos — formulario (hoja)', () => {
+  async function abrir(page, cajas, movs) {
+    await mockGoogleApis(page, { Cajas: cajas, ...(movs ? { 'Movimiento de Caja': movs } : {}) });
+    await iniciarSesionFalsa(page);
+    await page.goto('/index.html');
+    await esperarAppLista(page);
+    await irATab(page, 'movimientos');
+  }
+  const hoy = () => new Date().toISOString().slice(0, 10);
+
+  test('el monto se formatea con puntos de miles y calcula expresiones ("4000+5000" = 9.000)', async ({ page }) => {
+    await abrir(page, [['C1', 'prueba@example.com', 'Efectivo', 'COP']]);
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
+    await page.locator('#mov-monto').fill('1500000');
+    await expect(page.locator('#mov-monto')).toHaveValue('1.500.000');
+    await page.locator('#mov-monto').fill('4000+5000');
+    await expect(page.locator('#mov-monto-calc')).toHaveText('= 9.000');
+    await page.locator('#mov-monto').blur();
+    await expect(page.locator('#mov-monto')).toHaveValue('9.000');
+  });
+
+  test('un gasto con monto mayor al saldo de la caja avisa y no se guarda', async ({ page }) => {
+    await abrir(page, [['C1', 'prueba@example.com', 'Efectivo', 'COP']], [
+      ['M1', hoy(), 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 100000, '', ''],
+    ]);
+    await usarAccionVista(page, 'btn-nuevo-gasto');
+    await page.locator('#cat-btn-group .cat-btn[data-value="Gasto variable"]').click();
+    await page.locator('#mov-concepto-variable').fill('Mercado');
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await expect(page.locator('#mov-saldo-disponible')).toContainText('100.000');
+    await page.locator('#mov-monto').fill('250000');
+    await expect(page.locator('#mov-fondos-warn')).toContainText('Fondos insuficientes');
+
+    let dialogo = null;
+    page.once('dialog', async (d) => { dialogo = d.message(); await d.accept(); });
+    await page.locator('#btn-guardar-mov').click();
+    await expect.poll(() => dialogo).toContain('Fondos insuficientes en "Efectivo"');
+    await expect(page.locator('#modal-movimiento')).toBeVisible();
+  });
+
+  test('un gasto variable con un concepto escrito a mano se guarda como "Otros" con el texto en la descripción', async ({ page }) => {
+    await abrir(page, [['C1', 'prueba@example.com', 'Efectivo', 'COP']], [
+      ['M1', hoy(), 'prueba@example.com', 'SURA', 'Ingreso', 'Efectivo', 500000, '', ''],
+    ]);
+    await usarAccionVista(page, 'btn-nuevo-gasto');
+    await page.locator('#cat-btn-group .cat-btn[data-value="Gasto variable"]').click();
+    await page.locator('#mov-concepto-variable').fill('Regalo para Juli');
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await page.locator('#mov-monto').fill('30000');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden();
+
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    const gasto = movs.find(m => m.categoria === 'Gasto variable');
+    expect(gasto.concepto).toBe('Otros');
+    expect(gasto.descripcion).toBe('Regalo para Juli');
+  });
+
+  test('las opciones de concepto se despliegan con ▾ y elegir una llena el campo', async ({ page }) => {
+    await abrir(page, [['C1', 'prueba@example.com', 'Efectivo', 'COP']]);
+    await usarAccionVista(page, 'btn-nuevo-gasto');
+    await page.locator('#cat-btn-group .cat-btn[data-value="Gasto fijo"]').click();
+    await expect(page.locator('#panel-concepto-fijo')).toBeHidden();
+    await page.locator('#wrap-concepto-fijo .btn-desplegar-concepto').click();
+    await expect(page.locator('#panel-concepto-fijo')).toBeVisible();
+    await page.locator('#panel-concepto-fijo .caja-picker-option', { hasText: 'Alquiler' }).click();
+    await expect(page.locator('#mov-concepto-fijo')).toHaveValue('Alquiler');
+    await expect(page.locator('#panel-concepto-fijo')).toBeHidden();
+  });
+
+  test('una transferencia entre monedas distintas pide el tipo de cambio y guarda las dos patas', async ({ page }) => {
+    await abrir(page, [
+      ['C1', 'prueba@example.com', 'Efectivo', 'COP'],
+      ['C2', 'prueba@example.com', 'Dólares', 'USD'],
+    ], [
+      ['M1', hoy(), 'prueba@example.com', 'Ahorro', 'Ingreso', 'Dólares', 1000, '', ''],
+    ]);
+    await usarAccionVista(page, 'btn-nueva-transferencia');
+    await expect(page.locator('#row-tipo-cambio')).toHaveCount(0);
+
+    await seleccionarCaja(page, 'mov-caja-origen', 'Dólares (USD)');
+    await seleccionarCaja(page, 'mov-caja-destino', 'Efectivo (COP)');
+    await expect(page.locator('#row-tipo-cambio')).toBeVisible();
+    await page.locator('#mov-monto-transferencia').fill('100');
+
+    let aviso = null;
+    page.once('dialog', async (d) => { aviso = d.message(); await d.accept(); });
+    await page.locator('#btn-guardar-mov').click();
+    await expect.poll(() => aviso).toContain('monedas diferentes');
+    await expect(page.locator('#modal-movimiento')).toBeVisible();
+
+    await page.locator('#mov-tipo-cambio').fill('4000');
+    await expect(page.locator('#tc-preview')).toContainText('Se acreditarán');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden();
+
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    const salida = movs.find(m => m.categoria === 'Transferencia' && m.caja === 'Dólares');
+    const entrada = movs.find(m => m.categoria === 'Transferencia' && m.caja === 'Efectivo');
+    expect(Math.abs(salida.monto)).toBe(100);
+    expect(Math.abs(entrada.monto)).toBe(400000);
+  });
+
+  test('editar un movimiento cambia su monto y su descripción', async ({ page }) => {
+    await abrir(page, [['C1', 'prueba@example.com', 'Efectivo', 'COP']]);
+    await usarAccionVista(page, 'btn-nuevo-ingreso');
+    await page.locator('#mov-concepto-ingreso').fill('SURA');
+    await seleccionarCaja(page, 'mov-caja', 'Efectivo (COP)');
+    await page.locator('#mov-monto').fill('50000');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden();
+
+    await page.evaluate(() => abrirEditarMovimiento(movimientos.find(m => m.concepto === 'SURA').id));
+    await expect(page.locator('#modal-movimiento-titulo')).toHaveText('Editar movimiento');
+    await expect(page.locator('#mov-concepto-ingreso')).toHaveValue('SURA');
+    await expect(page.locator('#mov-monto')).toHaveValue('50.000');
+    await expect(page.locator('#btn-guardar-mov')).toHaveText('Actualizar');
+    await page.locator('#mov-monto').fill('75000');
+    await page.locator('#mov-descripcion').fill('Quincena corregida');
+    await page.locator('#btn-guardar-mov').click();
+    await expect(page.locator('#modal-movimiento')).toBeHidden();
+
+    const movs = await page.evaluate(() => Sheets.getMovimientos());
+    const m = movs.find(x => x.concepto === 'SURA');
+    expect(m.monto).toBe(75000);
+    expect(m.descripcion).toBe('Quincena corregida');
   });
 });
 

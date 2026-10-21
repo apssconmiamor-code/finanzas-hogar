@@ -200,98 +200,23 @@ function abrirComprarAhora(id) {
   document.querySelectorAll(".tab-section").forEach(s => s.classList.add("hidden"));
   document.getElementById("tab-movimientos").classList.remove("hidden");
 
-  // Abrir el modal de movimiento
-  const modal = document.getElementById("modal-movimiento");
-  modal.classList.remove("hidden");
-  modal.dataset.fromCompraId = id;
-
-  // Pre-llenar campos
-  poblarSelectCajaMovimiento();
-  actualizarConceptosPrestamo();
-
-  // Fecha hoy
-  document.getElementById("mov-fecha").value = new Date().toISOString().split("T")[0];
-
-  // Categoría: Gasto variable
-  document.getElementById("mov-categoria").value = "Gasto variable";
-  document.querySelectorAll(".cat-btn").forEach(b =>
-    b.classList.toggle("active", b.dataset.value === "Gasto variable"));
-  actualizarCampoConcepto();
-
-  // Concepto: nombre de la compra
-const categoriaValida = GASTOS_VARIABLES.includes(compra.categoria);
-if (categoriaValida) {
-  document.getElementById("mov-concepto-variable").value = compra.categoria;
-} else {
-  document.getElementById("mov-concepto-variable").value = "Otros";
-}
-document.getElementById("mov-descripcion").value = compra.concepto;
-  
-
-  // Monto si tiene destinado
-  if (compra.montoDestinado > 0) {
-    document.getElementById("mov-monto").value = compra.montoDestinado.toLocaleString("es-CO");
-  }
-
-  // Actualizar título del modal para dar contexto
-  const titulo = modal.querySelector(".modal-title");
-  if (titulo) titulo.textContent = `Comprar: ${compra.concepto}`;
-
-  // Mostrar nota informativa si no existe ya
-  let nota = modal.querySelector(".compra-nota");
-  if (!nota) {
-    nota = document.createElement("p");
-    nota.className = "compra-nota modal-subtitle";
-    modal.querySelector(".modal-card").insertBefore(nota, modal.querySelector(".form-row"));
-  }
-  nota.textContent = `Al guardar, se registrará como Gasto variable y se eliminará de tu lista de compras.`;
-}
-
-// ---- LIMPIAR CONTEXTO DE COMPRA ----
-function _limpiarCompraContexto() {
-  const modal = document.getElementById("modal-movimiento");
-  if (!modal) return;
-  delete modal.dataset.fromCompraId;
-  const titulo = modal.querySelector(".modal-title");
-  if (titulo) titulo.textContent = "Nuevo movimiento";
-  const nota = modal.querySelector(".compra-nota");
-  if (nota) nota.remove();
-}
-
-// ---- INTERCEPTAR guardarMovimiento ----
-function inicializarInterceptorCompras() {
-  if (typeof guardarMovimiento === "undefined") {
-    setTimeout(inicializarInterceptorCompras, 100);
-    return;
-  }
-
-  const _guardarMovimientoOriginal = guardarMovimiento;
-
-  window.guardarMovimiento = async function () {
-    const modal        = document.getElementById("modal-movimiento");
-    const fromCompraId = modal.dataset.fromCompraId;
-    const btn          = document.getElementById("btn-guardar-mov");
-
-    try {
-      await _guardarMovimientoOriginal();
-    } catch (err) {
-      if (!err.message.includes("Cannot set properties of null")) {
-        alert("Error guardando el movimiento: " + err.message);
-      }
-    } finally {
-      if (btn) { btn.textContent = "Guardar"; btn.disabled = false; }
-    }
-
-    if (fromCompraId && modal.classList.contains("hidden")) {
-      delete modal.dataset.fromCompraId;
-      const titulo = modal.querySelector(".modal-title");
-      if (titulo) titulo.textContent = "Nuevo movimiento";
-      const nota = modal.querySelector(".compra-nota");
-      if (nota) nota.remove();
-
+  // El formulario de movimiento (React) se abre ya armado como Gasto variable con los datos de la
+  // compra; al guardarlo se elimina la compra de la lista.
+  const categoriaValida = GASTOS_VARIABLES.includes(compra.categoria);
+  document.dispatchEvent(new CustomEvent("movimiento:abrir", { detail: {
+    modo: "nuevo",
+    inicial: {
+      categoria: "Gasto variable",
+      concepto: categoriaValida ? compra.categoria : "Otros",
+      descripcion: compra.concepto,
+      monto: compra.montoDestinado > 0 ? compra.montoDestinado : 0,
+    },
+    titulo: `Comprar: ${compra.concepto}`,
+    nota: "Al guardar, se registrará como Gasto variable y se eliminará de tu lista de compras.",
+    despuesDeGuardar: async () => {
       try {
-        await Sheets.borrarCompra(fromCompraId);
-        window.compras = window.compras.filter(c => c.id !== fromCompraId);
+        await Sheets.borrarCompra(id);
+        window.compras = window.compras.filter(c => c.id !== id);
         localStorage.setItem("cache_compras", JSON.stringify(window.compras));
         renderCompras();
         SyncManager.mostrarToast("✅ Movimiento registrado y compra eliminada de la lista");
@@ -299,15 +224,8 @@ function inicializarInterceptorCompras() {
         console.warn("No se pudo borrar la compra de Sheets:", err);
         SyncManager.mostrarToast("✅ Movimiento registrado — borra la compra manualmente si quieres");
       }
-    }
-  };
-}
-
-// Arrancar el interceptor cuando el DOM esté listo
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", inicializarInterceptorCompras);
-} else {
-  setTimeout(inicializarInterceptorCompras, 100);
+    },
+  } }));
 }
 
 // ---- GUARDAR NUEVA COMPRA ---- (la ventana es React, ver react/src/compromisos/Compromisos.jsx;
@@ -352,9 +270,6 @@ function setupComprasListeners() {
     ?.addEventListener("click", () => {
       document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "compra" } }));
     });
-
-  document.getElementById("btn-cancelar-mov")
-    .addEventListener("click", _limpiarCompraContexto, { capture: false });
 
 }
 
