@@ -12,6 +12,7 @@
 //   ConceptosReact.render(props)  -> ventanas de mes, concepto y archivar de Proyección (#conceptos-root)
 //   DetallesReact.render(props)   -> resúmenes de solo lectura y el menú Editar/Eliminar (#detalles-root)
 //   MovimientoReact.render(props) -> nuevo / editar movimiento (#movimiento-root)
+//   PantallaCompromisosReact.render(props) -> pantalla de Compromisos: préstamos y lista de compras
 //   FranjasReact.render(props)    -> franja inferior de las vistas aún en JS plano (#franjas-root)
 // app.js sigue dueño de los datos; React solo dibuja y maneja el estado de UI
 // propio de cada isla (selección de "Sumar" en Cajas, etc.).
@@ -26,6 +27,7 @@ import { Alertas } from "./alertas/Alertas.jsx";
 import { Mercado } from "./mercado/Mercado.jsx";
 import { Planes } from "./planes/Planes.jsx";
 import { Compromisos } from "./compromisos/Compromisos.jsx";
+import { PantallaCompromisos } from "./compromisos/PantallaCompromisos.jsx";
 import { Recordatorios } from "./recordatorios/Recordatorios.jsx";
 import { Conceptos } from "./conceptos/Conceptos.jsx";
 import { Detalles } from "./detalles/Detalles.jsx";
@@ -54,6 +56,7 @@ window.AlertasReact = crearIsla("alertas-root", Alertas, false);
 window.MercadoReact = crearIsla("mercado-root", Mercado, false);
 window.PlanesReact = crearIsla("planes-root", Planes, false);
 window.CompromisosReact = crearIsla("compromisos-root", Compromisos, false);
+window.PantallaCompromisosReact = crearIsla("compromisos-pantalla-root", PantallaCompromisos, true);
 window.RecordatoriosReact = crearIsla("recordatorios-root", Recordatorios, false);
 window.ConceptosReact = crearIsla("conceptos-root", Conceptos, false);
 window.DetallesReact = crearIsla("detalles-root", Detalles, false);

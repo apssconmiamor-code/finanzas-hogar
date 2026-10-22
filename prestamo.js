@@ -140,102 +140,54 @@ async function verificarPrestamosCompletados() {
 }
 
 // ---- RENDER ----
+// La pantalla de Compromisos (Préstamos + Lista de compras) es React (PantallaCompromisos.jsx); acá se
+// arma lo que muestra a partir de los datos de los dos módulos.
 function renderPrestamos() {
-  const grid = document.getElementById("prestamos-grid");
-  if (!grid) return;
+  renderCompromisosPantalla();
+}
 
-  const activos  = prestamos.filter(p => !p.pagado);
-  const pagados  = prestamos.filter(p => p.pagado);
+function renderCompromisosPantalla() {
+  if (!window.PantallaCompromisosReact) return;
+  const activos = prestamos.filter(p => !p.pagado);
+  const vmPrestamos = prestamos.map(p => {
+    const pagadoMonto = p.pagado ? p.monto : calcularPagadoPrestamo(p.nombre);
+    return {
+      id: p.id, nombre: p.nombre, pagado: p.pagado, monto: p.monto, pagadoMonto,
+      pendiente: Math.max(p.monto - pagadoMonto, 0), pct: pctPrestamo(p),
+      cuotas: p.cuotas, fechaInicio: p.fechaInicio, descripcion: p.descripcion,
+    };
+  });
+  const deuda = activos.reduce((s, p) => s + p.monto, 0);
+  const pagado = activos.reduce((s, p) => s + calcularPagadoPrestamo(p.nombre), 0);
 
-  if (prestamos.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-state" style="grid-column:1/-1">
-        <div class="empty-state-icon">🏦</div>
-        <div class="empty-state-text">No tienes préstamos registrados. Crea uno para empezar a hacer seguimiento.</div>
-      </div>`;
-    return;
-  }
+  // Compras: de la más urgente a la menos, y luego por fecha (la más reciente primero)
+  const orden = { "Alta": 0, "Media": 1, "Baja": 2 };
+  const vmCompras = [...(window.compras || [])].sort((a, b) => {
+    const diff = (orden[a.urgencia] ?? 1) - (orden[b.urgencia] ?? 1);
+    return diff !== 0 ? diff : b.fecha.localeCompare(a.fecha);
+  });
 
-  const renderCard = (p) => {
-    const pagado    = p.pagado ? p.monto : calcularPagadoPrestamo(p.nombre);
-    const pendiente = Math.max(p.monto - pagado, 0);
-    const pct       = pctPrestamo(p);
-    const barColor  = pct >= 100 ? "var(--green)" : "var(--blue)";
-
-    return `
-      <div class="prestamo-card ${p.pagado ? "prestamo-pagado" : ""}" data-id="${p.id}" onpointerup="tapPrestamo('${p.id}', event)">
-        <div class="prest-left-bar" style="background:${p.pagado ? "var(--green)" : "var(--red)"}"></div>
-        <div class="prest-body">
-          <div class="prest-header">
-            <span class="prestamo-nombre">${escapeHtml(p.nombre)}</span>
-            ${p.pagado
-              ? `<span class="prestamo-badge pagado-badge">✅ Pagado</span>`
-              : `<span class="prestamo-badge activo-badge">En curso</span>`}
-          </div>
-
-          <div class="prest-progress-row">
-            <div class="prest-bar-bg">
-              <div class="prest-bar-fill" style="width:${pct}%;background:${barColor}"></div>
-            </div>
-            <span class="prest-pct">${pct}%</span>
-          </div>
-
-          <div class="prest-montos">
-            <div class="prest-monto-item">
-              <span class="prest-monto-label">Total</span>
-              <span class="prest-monto-val">${formatMonto(p.monto)}</span>
-            </div>
-            <div class="prest-monto-item">
-              <span class="prest-monto-label">Pagado</span>
-              <span class="prest-monto-val" style="color:var(--green)">${formatMonto(pagado)}</span>
-            </div>
-            <div class="prest-monto-item">
-              <span class="prest-monto-label">Por pagar</span>
-              <span class="prest-monto-val" style="color:var(--red)">${formatMonto(pendiente)}</span>
-            </div>
-          </div>
-
-          ${p.cuotas > 0 ? `<div class="prest-meta-row">🗓️ ${p.cuotas} cuota${p.cuotas > 1 ? "s" : ""} · Inicio: ${p.fechaInicio || "—"}</div>` : ""}
-          ${p.descripcion ? `<div class="prest-meta-row prest-desc">${p.descripcion}</div>` : ""}
-
-          <div class="prestamo-acciones">
-            ${!p.pagado ? `
-              <button class="btn-primary btn-prest-pago"
-                onclick="event.stopPropagation();abrirPagoRapido('${p.id}', '${escapeAttr(p.nombre)}', ${pendiente})"
-                onpointerup="event.stopPropagation()">
-                💳 Registrar pago
-              </button>` : ""}
-          </div>
-        </div>
-      </div>`;
-  };
-
-  let html = "";
-
-  if (activos.length > 0) {
-    html += `<div class="prestamos-seccion-title">En curso (${activos.length})</div>`;
-    html += activos.map(renderCard).join("");
-  }
-
-  if (pagados.length > 0) {
-    html += `<div class="prestamos-seccion-title pagados-title">Pagados (${pagados.length})</div>`;
-    html += pagados.map(renderCard).join("");
-  }
-
-  grid.innerHTML = html;
-
-  // Actualizar resumen
-  renderResumenPrestamos(activos);
-
-  _conectarLargoPresionPrestamos(grid);
+  window.PantallaCompromisosReact.render({
+    prestamos: vmPrestamos,
+    totales: { deuda, pagado, pendiente: Math.max(deuda - pagado, 0) },
+    compras: vmCompras,
+    urgencias: URGENCIA_CONFIG,
+    formatMonto: n => formatMonto(n),
+    onNuevoPrestamo: () => document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "prestamo" } })),
+    onNuevaCompra: () => document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "compra" } })),
+    onPago: p => abrirPagoRapido(p.id, p.nombre, p.pendiente),
+    onResumenPrestamo: abrirResumenPrestamo,
+    onBorrarPrestamo: borrarPrestamo,
+    onComprar: abrirComprarAhora,
+    onResumenCompra: abrirResumenCompra,
+    onBorrarCompra: borrarCompra,
+  });
 }
 
 // Doble toque abre un resumen de solo lectura; mantener presionada abre
 // Eliminar (no hay "Editar" para un préstamo -- nunca existió esa
 // función, solo crear/borrar/registrar pago). Mismo criterio único de
 // gestos que el resto de la app, ver gestos.js.
-const tapPrestamo = crearManejadorDobleToque(id => id, id => abrirResumenPrestamo(id));
-
 function abrirResumenPrestamo(id) {
   const p = prestamos.find(x => x.id === id);
   if (!p) return;
@@ -258,34 +210,6 @@ function abrirResumenPrestamo(id) {
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
       </div>`).join("") }],
   });
-}
-
-function _conectarLargoPresionPrestamos(contenedor) {
-  contenedor.querySelectorAll(".prestamo-card[data-id]").forEach(card => {
-    const id = card.dataset.id;
-    const p = prestamos.find(x => x.id === id);
-    if (!p) return;
-    crearManejadorPresionSostenida(card, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: p.nombre,
-        onBorrar: () => borrarPrestamo(id)
-      })
-    });
-  });
-}
-
-function renderResumenPrestamos(activos) {
-  const totalDeuda  = activos.reduce((s, p) => s + p.monto, 0);
-  const totalPagado = activos.reduce((s, p) => s + calcularPagadoPrestamo(p.nombre), 0);
-  const totalPend   = Math.max(totalDeuda - totalPagado, 0);
-
-  const elDeuda  = document.getElementById("prest-total-deuda");
-  const elPagado = document.getElementById("prest-total-pagado");
-  const elPend   = document.getElementById("prest-total-pendiente");
-
-  if (elDeuda)  elDeuda.textContent  = formatMonto(totalDeuda);
-  if (elPagado) elPagado.textContent = formatMonto(totalPagado);
-  if (elPend)   elPend.textContent   = formatMonto(totalPend);
 }
 
 function escapeAttr(str) {
@@ -351,10 +275,7 @@ async function borrarPrestamo(id) {
 // ---- SETUP LISTENERS PRÉSTAMOS ----
 function setupPrestamoListeners() {
   renderCompromisosReact();
-  document.getElementById("btn-nuevo-prestamo")
-    ?.addEventListener("click", () => {
-      document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "prestamo" } }));
-    });
+  renderCompromisosPantalla();
 }
 
 if (document.readyState === "loading") {

@@ -277,22 +277,8 @@
 
       <!-- ══ TAB: COMPROMISOS (Préstamos + Lista de compras) ══ -->
       <section id="tab-compromisos" class="tab-section hidden">
-        <div class="resumen-bloque-titulo"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg></span> Préstamos</div>
-        <div id="planes-panel-prestamos" class="planes-panel">
-          <button class="btn-secondary btn-franja" id="btn-nuevo-prestamo">+ Nuevo</button>
-          <div class="prestamos-resumen">
-            <div class="resumen-item deuda"><span class="resumen-label">Deuda activa</span><span id="prest-total-deuda" class="resumen-valor">$0</span></div>
-            <div class="resumen-item pagado"><span class="resumen-label">Total pagado</span><span id="prest-total-pagado" class="resumen-valor">$0</span></div>
-            <div class="resumen-item pendiente"><span class="resumen-label">Por pagar</span><span id="prest-total-pendiente" class="resumen-valor">$0</span></div>
-          </div>
-          <div id="prestamos-grid" class="prestamos-grid"><div class="loading-state">Cargando…</div></div>
-        </div>
-
-        <div class="resumen-bloque-titulo" style="margin-top:24px"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg></span> Lista de compras</div>
-        <div id="planes-panel-compras" class="planes-panel">
-          <button class="btn-secondary btn-franja" id="btn-nueva-compra">+ Nuevo</button>
-          <div id="compras-list"></div>
-        </div>
+        <!-- Préstamos y lista de compras: pantalla en React (react/src/compromisos/PantallaCompromisos.jsx) -->
+        <div id="compromisos-pantalla-root"></div>
       </section>
 
       <!-- ══ TAB: NOTIFICACIONES ══ -->

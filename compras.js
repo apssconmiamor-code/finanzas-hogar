@@ -67,9 +67,9 @@ Sheets.borrarCompra = async function (id) {
 window.compras = window.compras || [];
 
 const URGENCIA_CONFIG = {
-  "Alta":  { color: "var(--red)",    bg: "var(--red-bg)",    icon: "🔴" },
-  "Media": { color: "var(--yellow)", bg: "#fef3c7",          icon: "🟡" },
-  "Baja":  { color: "var(--green)",  bg: "var(--green-bg)",  icon: "🟢" }
+  "Alta":  { color: "var(--red)",    bg: "var(--red-bg)",    icon: "🔴", clase: "ic-rojo" },
+  "Media": { color: "var(--yellow)", bg: "#fef3c7",          icon: "🟡", clase: "ic-amarillo" },
+  "Baja":  { color: "var(--green)",  bg: "var(--green-bg)",  icon: "🟢", clase: "ic-verde" }
 };
 
 // ---- CARGA ----
@@ -86,75 +86,16 @@ async function cargarCompras() {
 }
 
 // ---- RENDER LISTA ----
+// La pantalla de Compromisos (Préstamos + Lista de compras) es React: ver renderCompromisosPantalla en
+// prestamo.js, que dibuja las dos listas juntas.
 function renderCompras() {
-  const lista = document.getElementById("compras-list");
-  if (!lista) return;
-
-  // Ordenar: Alta → Media → Baja, luego por fecha desc
-  const orden = { "Alta": 0, "Media": 1, "Baja": 2 };
-  const filtradas = [...compras].sort((a, b) => {
-    const diff = (orden[a.urgencia] ?? 1) - (orden[b.urgencia] ?? 1);
-    if (diff !== 0) return diff;
-    return b.fecha.localeCompare(a.fecha);
-  });
-
-  // Resumen de monto total
-  const totalDestinado = filtradas.reduce((s, c) => s + c.montoDestinado, 0);
-  const elTotal = document.getElementById("compras-total-destinado");
-  if (elTotal) elTotal.textContent = formatMonto(totalDestinado);
-  const elCount = document.getElementById("compras-count");
-  if (elCount) elCount.textContent = filtradas.length;
-
-  if (filtradas.length === 0) {
-    lista.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🛍️</div>
-        <div class="empty-state-text">No hay compras pendientes. ¡Agrega lo que quieres comprar!</div>
-      </div>`;
-    return;
-  }
-
-  lista.innerHTML = filtradas.map(c => {
-    const urg = URGENCIA_CONFIG[c.urgencia] || URGENCIA_CONFIG["Media"];
-    const tienePresupuesto = c.montoDestinado > 0;
-
-    return `
-      <div class="compra-item" data-id="${c.id}" onpointerup="tapCompra('${c.id}', event)">
-        <div class="compra-urg-bar" style="background:${urg.color}"></div>
-        <div class="compra-body">
-          <div class="compra-top">
-            <div class="compra-info">
-              <span class="compra-concepto">${escapeHtml(c.concepto)}</span>
-              <span class="compra-urgencia-badge" style="background:${urg.bg};color:${urg.color}">
-                ${urg.icon} ${escapeHtml(c.urgencia)}
-              </span>
-              ${c.categoria ? `<span class="compra-cat-badge">${escapeHtml(c.categoria)}</span>` : ""}
-            </div>
-            <div class="compra-monto-wrap">
-              ${tienePresupuesto
-                ? `<span class="compra-monto">${formatMonto(c.montoDestinado)}</span>`
-                : `<span class="compra-monto-vacio">Sin monto</span>`}
-            </div>
-          </div>
-          <div class="compra-acciones">
-            <button class="btn-comprar btn-primary"
-              onclick="event.stopPropagation();abrirComprarAhora('${c.id}')" onpointerup="event.stopPropagation()">
-              🛒 Comprar ahora
-            </button>
-          </div>
-        </div>
-      </div>`;
-  }).join("");
-
-  _conectarLargoPresionCompras(lista, filtradas);
+  renderCompromisosPantalla();
 }
 
 // Doble toque abre un resumen de solo lectura; mantener presionada abre
 // Eliminar (no hay "Editar" para una compra -- nunca existió esa
 // función, solo crear/borrar). Mismo criterio único de gestos que el
-// resto de la app, ver gestos.js.
-const tapCompra = crearManejadorDobleToque(id => id, id => abrirResumenCompra(id));
-
+// resto de la app, ver gestos.js (los conecta PantallaCompromisos.jsx).
 function abrirResumenCompra(id) {
   const c = compras.find(x => x.id === id);
   if (!c) return;
@@ -172,20 +113,6 @@ function abrirResumenCompra(id) {
         <span class="detalle-notif-label">${label}</span>
         <span class="detalle-notif-valor">${escapeHtml(String(valor))}</span>
       </div>`).join("") }],
-  });
-}
-
-function _conectarLargoPresionCompras(contenedor, lista) {
-  contenedor.querySelectorAll(".compra-item").forEach(item => {
-    const id = item.dataset.id;
-    const c = lista.find(x => x.id === id);
-    if (!c) return;
-    crearManejadorPresionSostenida(item, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: c.concepto,
-        onBorrar: () => borrarCompra(id)
-      })
-    });
   });
 }
 
@@ -266,11 +193,6 @@ async function borrarCompra(id) {
 
 // ---- SETUP LISTENERS ----
 function setupComprasListeners() {
-  document.getElementById("btn-nueva-compra")
-    ?.addEventListener("click", () => {
-      document.dispatchEvent(new CustomEvent("compromisos:abrir", { detail: { t: "compra" } }));
-    });
-
 }
 
 if (document.readyState === "loading") {
