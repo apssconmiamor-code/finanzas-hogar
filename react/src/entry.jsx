@@ -13,6 +13,10 @@
 //   DetallesReact.render(props)   -> resúmenes de solo lectura y el menú Editar/Eliminar (#detalles-root)
 //   MovimientoReact.render(props) -> nuevo / editar movimiento (#movimiento-root)
 //   PantallaCompromisosReact.render(props) -> pantalla de Compromisos: préstamos y lista de compras
+//   PantallaAnalisisReact.render(props)    -> pantalla de Análisis: salud del mes, deudas y cronología
+//   PantallaMercadoReact.render(props)     -> pantalla de Mercado: categorías y productos
+//   PantallaPlanesReact.render(props)      -> pantalla de Planes: categorías y planes
+//   PantallaAlertasReact.render(props)     -> pantalla de Alertas: bloques y alertas
 //   FranjasReact.render(props)    -> franja inferior de las vistas aún en JS plano (#franjas-root)
 // app.js sigue dueño de los datos; React solo dibuja y maneja el estado de UI
 // propio de cada isla (selección de "Sumar" en Cajas, etc.).
@@ -28,6 +32,10 @@ import { Mercado } from "./mercado/Mercado.jsx";
 import { Planes } from "./planes/Planes.jsx";
 import { Compromisos } from "./compromisos/Compromisos.jsx";
 import { PantallaCompromisos } from "./compromisos/PantallaCompromisos.jsx";
+import { PantallaAnalisis } from "./analisis/PantallaAnalisis.jsx";
+import { PantallaMercado } from "./mercado/PantallaMercado.jsx";
+import { PantallaPlanes } from "./planes/PantallaPlanes.jsx";
+import { PantallaAlertas } from "./alertas/PantallaAlertas.jsx";
 import { Recordatorios } from "./recordatorios/Recordatorios.jsx";
 import { Conceptos } from "./conceptos/Conceptos.jsx";
 import { Detalles } from "./detalles/Detalles.jsx";
@@ -57,6 +65,10 @@ window.MercadoReact = crearIsla("mercado-root", Mercado, false);
 window.PlanesReact = crearIsla("planes-root", Planes, false);
 window.CompromisosReact = crearIsla("compromisos-root", Compromisos, false);
 window.PantallaCompromisosReact = crearIsla("compromisos-pantalla-root", PantallaCompromisos, true);
+window.PantallaAnalisisReact = crearIsla("analisis-pantalla-root", PantallaAnalisis, false);
+window.PantallaMercadoReact = crearIsla("mercado-pantalla-root", PantallaMercado, true);
+window.PantallaPlanesReact = crearIsla("planes-pantalla-root", PantallaPlanes, true);
+window.PantallaAlertasReact = crearIsla("alertas-pantalla-root", PantallaAlertas, true);
 window.RecordatoriosReact = crearIsla("recordatorios-root", Recordatorios, false);
 window.ConceptosReact = crearIsla("conceptos-root", Conceptos, false);
 window.DetallesReact = crearIsla("detalles-root", Detalles, false);

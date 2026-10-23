@@ -326,9 +326,10 @@ function _reordenarBloquesPlanesDesdeGrid(grid) {
 // lista se repinte entera cada vez que llegan datos nuevos.
 let bloquePlanAbierto = null;
 
+// La pantalla de Planes (cuadrícula de categorías + detalle de una categoría) es React
+// (react/src/planes/PantallaPlanes.jsx); acá se arma lo que muestra y las acciones de siempre.
 function renderPlanes() {
-  const lista = document.getElementById("planes-list");
-  if (!lista) return;
+  if (!window.PantallaPlanesReact) return;
 
   const bloquesPersonalizados = obtenerBloquesPlanes();
   const porBloque = {};
@@ -347,57 +348,43 @@ function renderPlanes() {
 
   if (bloquePlanAbierto && !grupos[bloquePlanAbierto]) bloquePlanAbierto = null; // se borró el bloque que estaba abierto
 
+  let detalle = null;
   if (bloquePlanAbierto) {
-    renderBloquePlanDetalle(lista, grupos[bloquePlanAbierto], bloquePlanAbierto);
-  } else {
-    renderBloquesPlanGrid(lista, grupos);
+    const g = grupos[bloquePlanAbierto];
+    // De más próximo a más lejano (por fecha de inicio, o la de fin si el plan solo tiene esa) -- los
+    // sin ninguna fecha (todavía solo una idea) van al final.
+    const ordenados = [...g.items].sort((a, b) => {
+      const fa = a.fechaInicio || a.fechaFin;
+      const fb = b.fechaInicio || b.fechaFin;
+      if (!fa && !fb) return 0;
+      if (!fa) return 1;
+      if (!fb) return -1;
+      return fa.localeCompare(fb);
+    });
+    detalle = {
+      titulo: g.titulo, icono: g.icono, total: g.items.length, eliminable: g.eliminable,
+      nombreBloque: g.nombreBloque, valorBloque: g.valorBloque,
+      items: ordenados.map(p => ({
+        id: p.id, nombre: p.nombre, esPago: p.tipo === "pago", ubicacion: p.ubicacion || "",
+        fechaTexto: _formatoRangoFechaPlan(p), inversion: p.inversion, reserva: p.reserva === "si",
+      })),
+    };
   }
-}
 
-// ---- Cuadrícula de categorías (2 columnas, estilo Acciones rápidas/Alertas) ----
-function renderBloquesPlanGrid(lista, grupos) {
-  const tarjetas = Object.entries(grupos).map(([clave, g]) => `
-    <button type="button" class="alerta-bloque-card" data-clave="${clave}">
-      ${g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
-      <span class="alerta-bloque-icono">${g.icono}</span>
-      <span class="alerta-bloque-nombre">${escapeHtml(g.titulo)}</span>
-    </button>`).join("");
-
-  lista.innerHTML = `
-    <div class="alertas-bloques-grid">
-      ${tarjetas}
-      <button type="button" class="alerta-bloque-card alerta-bloque-agregar" id="btn-nueva-categoria-plan">
-        <span class="alerta-bloque-icono">➕</span>
-        <span class="alerta-bloque-nombre">Agregar categoría</span>
-      </button>
-    </div>`;
-
-  const grid = lista.querySelector(".alertas-bloques-grid");
-  const abrir = (clave) => { bloquePlanAbierto = clave; renderPlanes(); };
-
-  lista.querySelectorAll(".alerta-bloque-card[data-clave]").forEach(btn => {
-    const clave = btn.dataset.clave;
-    // Solo las categorías que el usuario creó (bloque_N) se pueden
-    // arrastrar para reordenar -- "Otros" siempre va primero.
-    if (clave.startsWith("bloque_")) {
-      const bloque = obtenerBloquesPlanes()[parseInt(clave.slice("bloque_".length), 10)];
-      crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-clave^="bloque_"]', {
-        onCorto: () => abrir(clave),
-        // Mantener presionado (sin arrastrar) ofrece Editar / Eliminar; arrastrar reordena.
-        onLargo: () => bloque && abrirMenuEditarBorrar({
-          titulo: bloque.nombre,
-          onEditar: () => abrirEditarBloquePlan(bloque.nombre),
-          onBorrar: () => confirmarBorrarBloquePlan(bloque.nombre)
-        }),
-        onReordenar: () => _reordenarBloquesPlanesDesdeGrid(grid)
-      });
-    } else {
-      btn.addEventListener("click", () => abrir(clave));
-    }
-  });
-
-  document.getElementById("btn-nueva-categoria-plan")?.addEventListener("click", () => {
-    document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "bloque" } }));
+  window.PantallaPlanesReact.render({
+    bloqueAbierto: bloquePlanAbierto,
+    grupos: Object.entries(grupos).map(([clave, g]) => ({ clave, titulo: g.titulo, icono: g.icono, cantidad: g.items.length })),
+    detalle,
+    onAbrir: clave => { bloquePlanAbierto = clave; renderPlanes(); },
+    onVolver: () => cerrarPantallaActual(),
+    onNuevaCategoria: () => document.dispatchEvent(new CustomEvent("planes:abrir", { detail: { t: "bloque" } })),
+    onReordenar: grid => _reordenarBloquesPlanesDesdeGrid(grid),
+    onEditarBloque: nombre => abrirEditarBloquePlan(nombre),
+    onBorrarBloque: nombre => confirmarBorrarBloquePlan(nombre),
+    onNuevoPlan: valorBloque => abrirNuevoPlanEnBloque(valorBloque),
+    onResumenPlan: id => abrirResumenPlan(id),
+    onEditarPlan: id => abrirEditarPlan(id),
+    onBorrarPlan: id => borrarPlan(id),
   });
 }
 
@@ -421,84 +408,6 @@ function _formatoRangoFechaPlan(p) {
   if (fin) return `Hasta ${fin}`;
   return "";
 }
-
-// ---- Tarjeta de un plan (nombre + tag arriba, ubicación/fecha/inversión abajo) ----
-function renderItemPlan(p) {
-  const esPago = p.tipo === "pago";
-  const tagClase = esPago ? "plan-tag-pago" : "plan-tag-gratis";
-  const tagTexto = esPago ? "💰 Pago" : "🆓 Gratis";
-  const fechaTexto = _formatoRangoFechaPlan(p);
-  const detalles = [
-    p.ubicacion ? `<span>📍 ${escapeHtml(p.ubicacion)}</span>` : "",
-    fechaTexto ? `<span>🗓️ ${fechaTexto}</span>` : "",
-    esPago && p.inversion ? `<span>💵 $${Number(p.inversion).toLocaleString("es-CO")}</span>` : "",
-    p.reserva === "si" ? `<span>🎫 Con reserva</span>` : ""
-  ].filter(Boolean).join("");
-
-  return `
-    <div class="notificacion-item" data-id="${p.id}" onpointerup="tapPlan('${p.id}', event)">
-      <div class="notif-card-grid">
-        <div class="notif-card-fila-superior">
-          <span class="notif-card-nombre">${escapeHtml(p.nombre)}</span>
-          <span class="plan-tag ${tagClase}">${tagTexto}</span>
-        </div>
-        ${detalles ? `<div class="plan-card-detalle">${detalles}</div>` : ""}
-      </div>
-    </div>`;
-}
-
-// ---- Pantalla de detalle de una categoría (se abre al tocar su tarjeta) ----
-function renderBloquePlanDetalle(lista, grupo, clave) {
-  // De más próximo a más lejano (por fecha de inicio, o la de fin si el
-  // plan solo tiene esa) -- los sin ninguna fecha (todavía solo una idea)
-  // van al final.
-  const itemsOrdenados = [...grupo.items].sort((a, b) => {
-    const fa = a.fechaInicio || a.fechaFin;
-    const fb = b.fechaInicio || b.fechaFin;
-    if (!fa && !fb) return 0;
-    if (!fa) return 1;
-    if (!fb) return -1;
-    return fa.localeCompare(fb);
-  });
-  const itemsHTML = itemsOrdenados.length > 0
-    ? itemsOrdenados.map(p => renderItemPlan(p)).join("")
-    : `<div class="notif-bloque-vacio">No hay planes acá todavía.</div>`;
-
-  lista.innerHTML = `
-    <div class="alerta-bloque-detalle-header">
-      <button type="button" class="btn-volver" id="btn-volver-bloque-plan" title="Volver" aria-label="Volver">‹</button>
-      <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
-      ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar categoría">🗑️</button>` : ""}
-    </div>
-    <button type="button" class="btn-primary btn-franja" id="btn-nuevo-plan-bloque">+ Nuevo plan</button>
-    ${itemsHTML}`;
-
-  document.getElementById("btn-volver-bloque-plan")?.addEventListener("click", () => cerrarPantallaActual());
-
-  document.getElementById("btn-nuevo-plan-bloque")?.addEventListener("click", () => {
-    abrirNuevoPlanEnBloque(grupo.valorBloque);
-  });
-
-  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => confirmarBorrarBloquePlan(grupo.nombreBloque));
-
-  lista.querySelectorAll(".notificacion-item[data-id]").forEach(item => {
-    const id = item.dataset.id;
-    const p = itemsOrdenados.find(x => x.id === id);
-    if (!p) return;
-    crearManejadorPresionSostenida(item, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: p.nombre,
-        onEditar: () => abrirEditarPlan(id),
-        onBorrar: () => borrarPlan(id)
-      })
-    });
-  });
-}
-
-// Doble tap/clic manual -- mismo patrón que tapNotificacion en
-// notificaciones.js (onpointerup, no ondblclick/onclick: ver ese
-// comentario para el porqué, bug real ya resuelto ahí).
-const tapPlan = crearManejadorDobleToque(id => id, id => abrirResumenPlan(id));
 
 // ---- Resumen de un plan (doble toque sobre su tarjeta) ----
 function abrirResumenPlan(id) {

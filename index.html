@@ -289,42 +289,27 @@
             <button class="btn-secondary btn-franja" id="btn-suscribir-calendario"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span> Ver en el Calendario</button>
           </div>
           <p class="notif-header-nota" id="notif-header-nota">Cada dispositivo (teléfono, computador) necesita activarlas por su cuenta una sola vez.</p>
-          <div id="notificaciones-list"><div class="loading-state">Cargando…</div></div>
+          <!-- Bloques y alertas: pantalla en React (react/src/alertas/PantallaAlertas.jsx) -->
+          <div id="alertas-pantalla-root"></div>
         </div>
       </section>
 
       <!-- ══ TAB: PLANES ══ -->
       <section id="tab-planes" class="tab-section hidden">
-        <div id="planes-list"><div class="loading-state">Cargando…</div></div>
+        <!-- Categorías y planes: pantalla en React (react/src/planes/PantallaPlanes.jsx) -->
+        <div id="planes-pantalla-root"></div>
       </section>
 
       <!-- ══ TAB: MERCADO ══ -->
       <section id="tab-mercado" class="tab-section hidden">
-        <div id="mercado-list"><div class="loading-state">Cargando…</div></div>
+        <!-- Categorías y productos: pantalla en React (react/src/mercado/PantallaMercado.jsx) -->
+        <div id="mercado-pantalla-root"></div>
       </section>
 
       <!-- ══ TAB: RESUMEN ══ -->
       <section id="tab-resumen" class="tab-section hidden">
-        <div class="resumen-bloque-titulo" id="salud-mes-titulo"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg></span> Salud del mes</div>
-        <div class="kpi-grid kpi-grid-2col">
-          <div class="kpi-card" id="kpi-asertividad"><div class="kpi-body"><div class="kpi-label">Asertividad</div><div class="kpi-valor" id="kpi-asertividad-val">—</div><div class="kpi-meta" id="kpi-asertividad-meta"></div></div><div class="kpi-estado" id="kpi-asertividad-estado"></div></div>
-          <div class="kpi-card" id="kpi-balance-neto"><div class="kpi-body"><div class="kpi-label">Balance</div><div class="kpi-valor" id="kpi-balance-neto-val">—</div><div class="kpi-meta" id="kpi-balance-neto-meta"></div></div><div class="kpi-estado" id="kpi-balance-neto-estado"></div></div>
-          <div class="kpi-card"><div class="kpi-body"><div class="kpi-label">Gasto fijo</div><div class="kpi-valor" id="kpi-gasto-fijo-val">—</div><div class="kpi-meta" id="kpi-gasto-fijo-meta"></div></div></div>
-          <div class="kpi-card"><div class="kpi-body"><div class="kpi-label">Gasto variable</div><div class="kpi-valor" id="kpi-gasto-var-val">—</div><div class="kpi-meta" id="kpi-gasto-var-meta"></div></div></div>
-          <div class="kpi-card"><div class="kpi-body"><div class="kpi-label">Pago de préstamo</div><div class="kpi-valor" id="kpi-pago-prestamo-val">—</div><div class="kpi-meta" id="kpi-pago-prestamo-meta"></div></div></div>
-          <div class="kpi-card"><div class="kpi-body"><div class="kpi-label">Desvío mayor</div><div class="kpi-valor" id="kpi-desvio-val">—</div><div class="kpi-meta" id="kpi-desvio-meta"></div></div><div class="kpi-estado" id="kpi-desvio-estado"></div></div>
-        </div>
-        <div class="resumen-bloque-titulo"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span> Deudas</div>
-        <div class="kpi-grid">
-          <div class="kpi-card"><div class="kpi-icon"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 17-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/></svg></span></div><div class="kpi-body"><div class="kpi-label">% pagado préstamos</div><div class="kpi-valor" id="kpi-deuda-pct-val">—</div><div class="kpi-meta" id="kpi-deuda-pct-meta"></div></div><div class="kpi-estado" id="kpi-deuda-pct-estado"></div></div>
-        </div>
-        <!-- Cronología -->
-        <div class="card-section" style="margin-top:20px">
-          <div class="card-section-header">
-            <span class="card-section-title"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg></span> Cronología mensual</span>
-          </div>
-          <div id="cronologia-wrap"><div class="loading-state">Cargando cronología…</div></div>
-        </div>
+        <!-- Salud del mes, deudas y cronología: pantalla en React (react/src/analisis/PantallaAnalisis.jsx) -->
+        <div id="analisis-pantalla-root"></div>
       </section>
 
     </main>

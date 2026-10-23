@@ -3748,140 +3748,100 @@ async function cargarYRenderCronologia() {
 // "Salud del mes" muestra el MES YA CERRADO (el último con fila en
 // Cronología) -- no el mes en curso, que puede estar todavía sin cerrar.
 // Por eso se llena una sola vez acá, aparte de renderResumen().
+// La pantalla de Análisis es React (react/src/analisis/PantallaAnalisis.jsx); acá se arma lo que muestra.
+let cronologiaAnalisis = null;   // null = todavía no cargó
+
 function renderSaludMesCerrado(cronologia) {
-  const ordenados = (cronologia || []).slice().sort((a, b) => b.mes.localeCompare(a.mes));
+  cronologiaAnalisis = cronologia || [];
+  renderAnalisisReact();
+}
+
+function renderCronologia(datos) {
+  cronologiaAnalisis = datos || [];
+  renderAnalisisReact();
+}
+
+function renderAnalisisReact() {
+  if (!window.PantallaAnalisisReact) return;
+  const verdeRojo = ok => ok ? "verde" : "rojo";
+
+  // ---- Salud del mes: el último mes CERRADO (el último con fila en Cronología) ----
+  const ordenados = (cronologiaAnalisis || []).slice().sort((a, b) => b.mes.localeCompare(a.mes));
   const ultimo = ordenados[0] || null;
   const mesLabel = ultimo
     ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { year: "numeric", month: "long" })
     : "Todavía no hay un mes cerrado";
+  // Solo el nombre del mes (sin año) para el título del bloque, ej. "Salud del mes (Julio)" -- el año
+  // sigue apareciendo abajo, en el detalle de cada tarjeta.
+  const nombreMes = ultimo ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { month: "long" }) : null;
+  const saludTitulo = `Salud del mes${nombreMes ? ` (${nombreMes[0].toUpperCase() + nombreMes.slice(1)})` : ""}`;
 
-  const tituloEl = document.getElementById("salud-mes-titulo");
-  if (tituloEl) {
-    // Solo el nombre del mes (sin año) para el título del bloque, ej.
-    // "Salud del mes (Julio)" -- el año sigue apareciendo abajo, en el
-    // detalle de cada tarjeta.
-    const nombreMes = ultimo
-      ? new Date(ultimo.mes + "-15").toLocaleDateString("es-CO", { month: "long" })
-      : null;
-    const nombreMesCapitalizado = nombreMes ? nombreMes[0].toUpperCase() + nombreMes.slice(1) : null;
-    tituloEl.textContent = `💚 Salud del mes${nombreMesCapitalizado ? ` (${nombreMesCapitalizado})` : ""}`;
-  }
-
-  const asEl     = document.getElementById("kpi-asertividad-val");
-  const asMeta   = document.getElementById("kpi-asertividad-meta");
-  const asEstado = document.getElementById("kpi-asertividad-estado");
-  const bnEl     = document.getElementById("kpi-balance-neto-val");
-  const bnMeta   = document.getElementById("kpi-balance-neto-meta");
-  const bnEstado = document.getElementById("kpi-balance-neto-estado");
-  const gfEl     = document.getElementById("kpi-gasto-fijo-val");
-  const gfMeta   = document.getElementById("kpi-gasto-fijo-meta");
-  const gvEl     = document.getElementById("kpi-gasto-var-val");
-  const gvMeta   = document.getElementById("kpi-gasto-var-meta");
-  const ppEl     = document.getElementById("kpi-pago-prestamo-val");
-  const ppMeta   = document.getElementById("kpi-pago-prestamo-meta");
-  const dvEl     = document.getElementById("kpi-desvio-val");
-  const dvMeta   = document.getElementById("kpi-desvio-meta");
-  const dvEstado = document.getElementById("kpi-desvio-estado");
-
+  let salud;
   if (!ultimo) {
-    [[asEl, asEstado], [bnEl, bnEstado], [dvEl, dvEstado]].forEach(([el, estado]) => {
-      if (el) el.textContent = "—";
-      if (estado) estado.textContent = "⚪";
-    });
-    [asMeta, bnMeta, gfMeta, gvMeta, ppMeta, dvMeta].forEach(m => { if (m) m.textContent = mesLabel; });
-    if (gfEl) gfEl.textContent = "—";
-    if (gvEl) gvEl.textContent = "—";
-    if (ppEl) ppEl.textContent = "—";
-    return;
-  }
-
-  if (asEl) {
-    // Solo verde/rojo (sin amarillo intermedio): verde = no se excedió el
-    // presupuesto, y el número es directamente "% de lo estimado que se
-    // usó" (ej. 22% = usó el 22% de lo presupuestado). Rojo = se excedió,
-    // y ahí el número le resta 100 para que diga cuánto de MÁS gastó (ej.
-    // asertividadMensual=125 -> "25%" = gastó un 25% más de lo estimado),
-    // en vez del 125% crudo que confundía (ver conversación con el usuario).
+    salud = {
+      asertividad: { valor: "—", meta: mesLabel, estado: "gris" },
+      balance: { valor: "—", meta: mesLabel, estado: "gris" },
+      gastoFijo: { valor: "—", meta: mesLabel },
+      gastoVar: { valor: "—", meta: mesLabel },
+      pagoPrestamo: { valor: "—", meta: mesLabel },
+      desvio: { valor: "—", meta: mesLabel, estado: "gris" },
+    };
+  } else {
+    // Solo verde/rojo (sin amarillo intermedio): verde = no se excedió el presupuesto, y el número es
+    // directamente "% de lo estimado que se usó" (ej. 22% = usó el 22% de lo presupuestado). Rojo = se
+    // excedió, y ahí el número le resta 100 para que diga cuánto de MÁS gastó (ej. asertividadMensual=125
+    // -> "25%" = gastó un 25% más de lo estimado), en vez del 125% crudo que confundía.
     const seExcedio = ultimo.asertividadMensual > 100;
-    const valorMostrado = seExcedio ? ultimo.asertividadMensual - 100 : ultimo.asertividadMensual;
-    asEl.textContent = valorMostrado + "%";
-    asEl.style.color = seExcedio ? "var(--red)" : "var(--green)";
-    asMeta.textContent = mesLabel;
-    asEstado.textContent = seExcedio ? "🔴" : "🟢";
+    salud = {
+      asertividad: {
+        valor: (seExcedio ? ultimo.asertividadMensual - 100 : ultimo.asertividadMensual) + "%",
+        color: seExcedio ? "var(--red)" : "var(--green)", meta: mesLabel, estado: verdeRojo(!seExcedio),
+      },
+      balance: {
+        valor: formatMonto(ultimo.balanceCierre), color: ultimo.balanceCierre >= 0 ? "var(--green)" : "var(--red)",
+        meta: mesLabel, estado: verdeRojo(ultimo.balanceCierre >= 0),
+      },
+      gastoFijo: { valor: formatMonto(ultimo.gastoFijo), meta: mesLabel },
+      gastoVar: { valor: formatMonto(ultimo.gastoVariable), meta: mesLabel },
+      pagoPrestamo: { valor: formatMonto(ultimo.gastoPrestamos), meta: mesLabel },
+      desvio: ultimo.mayorDesvioConcepto
+        ? { valor: ultimo.mayorDesvioConcepto, color: "var(--red)", estado: "rojo",
+            meta: `+${formatMonto(ultimo.mayorDesvioMonto)} sobre lo estimado (${mesLabel})` }
+        : { valor: "Ninguno", color: "var(--green)", estado: "verde", meta: `Todo dentro del presupuesto (${mesLabel})` },
+    };
   }
-  if (bnEl) {
-    bnEl.textContent = formatMonto(ultimo.balanceCierre);
-    bnEl.style.color = ultimo.balanceCierre >= 0 ? "var(--green)" : "var(--red)";
-    bnMeta.textContent = mesLabel;
-    bnEstado.textContent = ultimo.balanceCierre >= 0 ? "🟢" : "🔴";
-  }
-  if (gfEl) { gfEl.textContent = formatMonto(ultimo.gastoFijo); gfMeta.textContent = mesLabel; }
-  if (gvEl) { gvEl.textContent = formatMonto(ultimo.gastoVariable); gvMeta.textContent = mesLabel; }
-  if (ppEl) { ppEl.textContent = formatMonto(ultimo.gastoPrestamos); ppMeta.textContent = mesLabel; }
-  if (dvEl) {
-    if (ultimo.mayorDesvioConcepto) {
-      dvEl.textContent = ultimo.mayorDesvioConcepto;
-      dvMeta.textContent = `+${formatMonto(ultimo.mayorDesvioMonto)} sobre lo estimado (${mesLabel})`;
-      dvEstado.textContent = "🔴";
-      dvEl.style.color = "var(--red)";
-    } else {
-      dvEl.textContent = "Ninguno";
-      dvMeta.textContent = `Todo dentro del presupuesto (${mesLabel})`;
-      dvEstado.textContent = "🟢";
-      dvEl.style.color = "var(--green)";
-    }
-  }
-}
 
-function renderCronologia(datos) {
-  const container = document.getElementById("cronologia-wrap");
-  if (!container) return;
+  // ---- Deudas: qué parte de los préstamos en curso ya está pagada ----
+  const activos = (prestamos || []).filter(p => !p.pagado);
+  const totalDeuda = activos.reduce((s, p) => s + p.monto, 0);
+  const totalPagado = activos.reduce((s, p) => s + calcularPagadoPrestamo(p.nombre), 0);
+  const pct = totalDeuda > 0 ? Math.round((totalPagado / totalDeuda) * 100) : null;
+  const deuda = pct === null
+    ? { valor: "Sin deudas", meta: "¡Excelente!", estado: "verde" }
+    : {
+        valor: pct + "%", meta: `${formatMonto(totalPagado)} de ${formatMonto(totalDeuda)}`,
+        estado: pct >= 75 ? "verde" : pct >= 40 ? "amarillo" : "rojo",
+        color: pct >= 75 ? "var(--green)" : pct >= 40 ? "var(--yellow)" : "var(--red)",
+      };
 
-  const ordenados = datos && datos.length > 0
-    ? [...datos].sort((a, b) => b.mes.localeCompare(a.mes))
-    : [];
+  // ---- Cronología mensual ----
+  const cronologia = cronologiaAnalisis === null ? null : [...cronologiaAnalisis]
+    .sort((a, b) => b.mes.localeCompare(a.mes))
+    .map(d => {
+      // Mismo criterio que "Salud del mes": rojo = se excedió el presupuesto y el número le resta 100
+      // (cuánto de MÁS gastó), verde = no se excedió y el número es directo (% de lo estimado que usó).
+      const excedida = d.asertividadMensual > 100;
+      const nombre = new Date(d.mes + "-15").toLocaleDateString("es-CO", { month: "long" });
+      return {
+        id: d.id, mes: nombre[0].toUpperCase() + nombre.slice(1),
+        ingreso: formatMonto(d.ingresoTotal), fijo: formatMonto(d.gastoFijo), variable: formatMonto(d.gastoVariable),
+        asertividad: (excedida ? d.asertividadMensual - 100 : d.asertividadMensual) + "%",
+        asertividadColor: excedida ? "var(--red)" : "var(--green)",
+        balance: formatMonto(d.balanceCierre), balanceColor: d.balanceCierre >= 0 ? "var(--green)" : "var(--red)",
+      };
+    });
 
-  const filasCuerpo = ordenados.length === 0
-    ? `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-light);font-style:italic">
-        Aún no hay registros. El primer día de cada mes se guarda automáticamente el cierre del mes anterior.
-       </td></tr>`
-    : ordenados.map(d => {
-        // Mismo criterio que "Salud del mes": rojo = se excedió el
-        // presupuesto y el número le resta 100 (cuánto de MÁS gastó),
-        // verde = no se excedió y el número es directo (% de lo estimado
-        // que usó).
-        const aserExcedida = d.asertividadMensual > 100;
-        const aserValor = aserExcedida ? d.asertividadMensual - 100 : d.asertividadMensual;
-        const aserColor = aserExcedida ? "var(--red)" : "var(--green)";
-        const nombreMes = new Date(d.mes + "-15").toLocaleDateString("es-CO", { month: "long" });
-        const mesLabel  = nombreMes[0].toUpperCase() + nombreMes.slice(1);
-        return `<tr class="proy-fila">
-          <td class="proy-concepto" style="font-weight:600">${mesLabel}</td>
-          <td class="proy-num">${formatMonto(d.ingresoTotal)}</td>
-          <td class="proy-num">${formatMonto(d.gastoFijo)}</td>
-          <td class="proy-num">${formatMonto(d.gastoVariable)}</td>
-          <td class="proy-num" style="color:${aserColor}">${aserValor}%</td>
-          <td class="proy-num" style="color:${d.balanceCierre >= 0 ? "var(--green)" : "var(--red)"}">${formatMonto(d.balanceCierre)}</td>
-        </tr>`;
-      }).join("");
-
-  container.innerHTML = `
-    <div style="overflow-x:auto">
-      <table class="proy-tabla cronologia-tabla">
-        <thead>
-          <tr>
-            <th>Mes</th>
-            <th style="text-align:right">Ingreso total</th>
-            <th style="text-align:right">Gasto fijo</th>
-            <th style="text-align:right">Gasto variable</th>
-            <th style="text-align:right">Asertividad mensual</th>
-            <th style="text-align:right">Balance de cierre</th>
-          </tr>
-        </thead>
-        <tbody>${filasCuerpo}</tbody>
-      </table>
-    </div>
-  `;
+  window.PantallaAnalisisReact.render({ saludTitulo, salud, deuda, cronologia });
 }
 
 // ---- NUEVO CONCEPTO (agregar fila al presupuesto) ----
@@ -4070,189 +4030,7 @@ if (document.readyState === "loading") {
 // pestaña depende del mes elegido, ver renderSaludMesCerrado() para lo que
 // sí varía por mes). Lo que queda acá (Deudas) es global, no por mes.
 function renderResumen() {
-  const mes = new Date().toISOString().slice(0, 7);
-
-  const movsDelMes = movimientos.filter(m =>
-    m.fecha.startsWith(mes) && m.categoria !== "Transferencia"
-  );
-
-  const ingresos = movsDelMes
-    .filter(m => m.categoria === "Ingreso")
-    .reduce((s, m) => s + m.monto, 0);
-
-  const gastoFijo = movsDelMes
-    .filter(m => m.categoria === "Gasto fijo")
-    .reduce((s, m) => s + Math.abs(m.monto), 0);
-
-  const gastoVar = movsDelMes
-    .filter(m => m.categoria === "Gasto variable")
-    .reduce((s, m) => s + Math.abs(m.monto), 0);
-
-  const gastoTotal = gastoFijo + gastoVar;
-
-  // ── KPI 1: Potencial de ahorro ──
-  const tasaAhorro = ingresos > 0 ? ((ingresos - gastoTotal) / ingresos) * 100 : null;
-  const taEl = document.getElementById("kpi-tasa-ahorro-val");
-  const taMeta = document.getElementById("kpi-tasa-ahorro-meta");
-  const taEstado = document.getElementById("kpi-tasa-ahorro-estado");
-  if (taEl) {
-    if (tasaAhorro === null) {
-      taEl.textContent = "Sin ingresos";
-      taEstado.textContent = "⚪";
-    } else {
-      taEl.textContent = Math.round(tasaAhorro) + "%";
-      taEl.style.color = tasaAhorro >= 20
-        ? "var(--green)" : tasaAhorro >= 0
-        ? "var(--yellow)" : "var(--red)";
-      taMeta.textContent = tasaAhorro >= 20
-        ? "✅ Buen potencial de ahorro"
-        : tasaAhorro >= 0
-        ? "⚠️ Margen ajustado — meta: 20% de potencial"
-        : "🚨 Gastos superan ingresos";
-      taEstado.textContent = tasaAhorro >= 20 ? "🟢" : tasaAhorro >= 0 ? "🟡" : "🔴";
-    }
-  }
-
-  // ── KPI 2: Ratio deuda/ingreso ──
-  const activosConCuota = (prestamos || []).filter(p => !p.pagado);
-  const cuotasMes = activosConCuota.reduce((s, p) => {
-    const concepto = conceptoPrestamo(p.nombre);
-    const pagosMes = movsDelMes
-      .filter(m => m.concepto === concepto)
-      .reduce((x, m) => x + Math.abs(m.monto), 0);
-    return s + pagosMes;
-  }, 0);
-  const ratioDeuda = ingresos > 0 ? (cuotasMes / ingresos) * 100 : null;
-  const rdEl    = document.getElementById("kpi-ratio-deuda-val");
-  const rdMeta  = document.getElementById("kpi-ratio-deuda-meta");
-  const rdEstado = document.getElementById("kpi-ratio-deuda-estado");
-  if (rdEl) {
-    if (ratioDeuda === null) {
-      rdEl.textContent = "Sin ingresos";
-      rdEstado.textContent = "⚪";
-    } else {
-      rdEl.textContent = Math.round(ratioDeuda) + "%";
-      rdEl.style.color = ratioDeuda <= 35
-        ? "var(--green)" : ratioDeuda <= 50
-        ? "var(--yellow)" : "var(--red)";
-      rdMeta.textContent = `${formatMonto(cuotasMes)} en cuotas este mes`;
-      rdEstado.textContent = ratioDeuda <= 35 ? "🟢" : ratioDeuda <= 50 ? "🟡" : "🔴";
-    }
-  }
-
-  // Asertividad/Balance de cierre/Gasto fijo/Gasto variable del "mes
-  // cerrado" ya NO se calculan acá en vivo -- ver renderSaludMesCerrado(),
-  // que los toma directo de la Cronología (el mes recién cerrado).
-
-  // ── KPI 7 & 8: Gestión de deudas ──
-  const totalDeudaActiva = activosConCuota.reduce((s, p) => s + p.monto, 0);
-  const totalPagadoDeuda = activosConCuota.reduce((s, p) => s + calcularPagadoPrestamo(p.nombre), 0);
-  const pctPagadoTotal   = totalDeudaActiva > 0
-    ? Math.round((totalPagadoDeuda / totalDeudaActiva) * 100) : null;
-  const dpEl    = document.getElementById("kpi-deuda-pct-val");
-  const dpMeta  = document.getElementById("kpi-deuda-pct-meta");
-  const dpEstado = document.getElementById("kpi-deuda-pct-estado");
-  if (dpEl) {
-    if (pctPagadoTotal === null) {
-      dpEl.textContent = "Sin deudas";
-      dpMeta.textContent = "¡Excelente!";
-      dpEstado.textContent = "🟢";
-    } else {
-      dpEl.textContent   = pctPagadoTotal + "%";
-      dpMeta.textContent = `${formatMonto(totalPagadoDeuda)} de ${formatMonto(totalDeudaActiva)}`;
-      dpEstado.textContent = pctPagadoTotal >= 75 ? "🟢" : pctPagadoTotal >= 40 ? "🟡" : "🔴";
-      dpEl.style.color = pctPagadoTotal >= 75 ? "var(--green)" : pctPagadoTotal >= 40 ? "var(--yellow)" : "var(--red)";
-    }
-  }
-  const cmEl    = document.getElementById("kpi-cuotas-mes-val");
-  const cmMeta  = document.getElementById("kpi-cuotas-mes-meta");
-  const cmEstado = document.getElementById("kpi-cuotas-mes-estado");
-  if (cmEl) {
-    const cuotasPagadas = activosConCuota.filter(p => {
-      const concepto = conceptoPrestamo(p.nombre);
-      return movsDelMes.some(m => m.concepto === concepto);
-    }).length;
-    cmEl.textContent   = `${cuotasPagadas} / ${activosConCuota.length}`;
-    cmMeta.textContent = cuotasPagadas === activosConCuota.length
-      ? "Todas al día" : `${activosConCuota.length - cuotasPagadas} préstamo(s) sin pago este mes`;
-    cmEstado.textContent = cuotasPagadas === activosConCuota.length ? "🟢" : "🟡";
-    cmEl.style.color = cuotasPagadas === activosConCuota.length ? "var(--green)" : "var(--yellow)";
-  }
-
-  // Tendencia de ahorro: eliminada -- ya no se muestra.
-  // Mayor desvío del presupuesto: ver renderSaludMesCerrado() (viene del
-  // mes cerrado en Cronología).
-
-  // ── ALERTAS ──
-  const alertasWrap = document.getElementById("resumen-alertas");
-  if (alertasWrap) {
-    const alertas = [];
-
-    const pagadosEsteMes = new Set(
-      movsDelMes.filter(m => m.categoria === "Gasto fijo").map(m => m.concepto)
-    );
-    const fijosFaltantes = GASTOS_FIJOS.filter(f => !pagadosEsteMes.has(f));
-    if (fijosFaltantes.length > 0) {
-      alertas.push({
-        tipo: "warn",
-        icono: "📌",
-        titulo: `${fijosFaltantes.length} gasto(s) fijo(s) sin registrar`,
-        detalle: fijosFaltantes.join(", ")
-      });
-    }
-
-    const prestamosSinPago = activosConCuota.filter(p => {
-      const concepto = conceptoPrestamo(p.nombre);
-      return !movsDelMes.some(m => m.concepto === concepto);
-    });
-    if (prestamosSinPago.length > 0) {
-      alertas.push({
-        tipo: "warn",
-        icono: "💳",
-        titulo: `${prestamosSinPago.length} préstamo(s) sin cuota este mes`,
-        detalle: prestamosSinPago.map(p => p.nombre).join(", ")
-      });
-    }
-
-    const totalCompras = (window.compras || []).reduce((s, c) => s + c.montoDestinado, 0);
-    if (totalCompras > 0) {
-      alertas.push({
-        tipo: "info",
-        icono: "🛍️",
-        titulo: `${formatMonto(totalCompras)} comprometidos en lista de compras`,
-        detalle: `${(window.compras || []).length} item(s) pendiente(s)`
-      });
-    }
-
-    if (balanceNeto < 0) {
-      alertas.push({
-        tipo: "danger",
-        icono: "🚨",
-        titulo: "Balance neto negativo",
-        detalle: `Debes ${formatMonto(Math.abs(balanceNeto))} en total`
-      });
-    }
-
-    if (alertas.length === 0) {
-      alertasWrap.innerHTML = `
-        <div class="alerta-item alerta-ok">
-          <span class="alerta-icono">✅</span>
-          <div>
-            <div class="alerta-titulo">Todo en orden</div>
-            <div class="alerta-detalle">No hay alertas activas este mes</div>
-          </div>
-        </div>`;
-    } else {
-      alertasWrap.innerHTML = alertas.map(a => `
-        <div class="alerta-item alerta-${a.tipo}">
-          <span class="alerta-icono">${a.icono}</span>
-          <div>
-            <div class="alerta-titulo">${a.titulo}</div>
-            <div class="alerta-detalle">${a.detalle}</div>
-          </div>
-        </div>`).join("");
-    }
-  }
+  renderAnalisisReact();
 }
 
 

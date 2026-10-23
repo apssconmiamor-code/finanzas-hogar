@@ -74,7 +74,7 @@ test.describe('Mercado', () => {
     const tarjeta = page.locator('#mercado-list .alerta-bloque-card', { hasText: 'Alimentos' });
     await expect(tarjeta).toBeVisible();
     // El ícono se ve como SVG (nunca como emoji).
-    await expect(tarjeta.locator('.alerta-bloque-icono .ic')).toHaveCount(1);
+    await expect(tarjeta.locator('.alerta-bloque-icono svg')).toHaveCount(1);
     await expect(tarjeta.locator('.alerta-bloque-icono')).toHaveText('');
 
     await abrirCategoria(page, 'Alimentos');

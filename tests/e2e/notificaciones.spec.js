@@ -484,7 +484,7 @@ test.describe('Notificaciones (Web Push)', () => {
     const tarjeta = page.locator('.notificacion-item');
     await expect(tarjeta).toContainText('Pagar internet');
     // Mismo emoji que el bloque "Gastos fijos" (grupos.gastosFijos.icono en notificaciones.js).
-    await expect(tarjeta.locator('.notif-card-icon .ic')).toHaveCount(1);
+    await expect(tarjeta.locator('.notif-card-icon svg')).toHaveCount(1);
 
     await tarjeta.dblclick();
     await expect(page.locator('#modal-resumen-notificacion')).toBeVisible();
@@ -689,7 +689,7 @@ test.describe('Notificaciones (Web Push)', () => {
     await page.locator('#btn-guardar-bloque-alerta').click();
     const tarjetaServicios = page.locator('.alerta-bloque-card', { hasText: 'Servicios' });
     await expect(tarjetaServicios).toBeVisible();
-    await expect(tarjetaServicios.locator('.alerta-bloque-icono .ic')).toHaveCount(1);
+    await expect(tarjetaServicios.locator('.alerta-bloque-icono svg')).toHaveCount(1);
     await expect(page.locator('.alerta-bloque-card')).toHaveCount(6);
 
     // Crea una alerta DESDE ese bloque (no hace falta elegirlo, ya viene puesto).

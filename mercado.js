@@ -351,99 +351,60 @@ async function cargarMercado() {
   renderMercado();
 }
 
-// ---- RENDER: despacha entre la cuadrícula y el detalle de una categoría ----
+// ---- RENDER ----
+// La pantalla de Mercado (cuadrícula de categorías + detalle de una categoría) es React
+// (react/src/mercado/PantallaMercado.jsx); acá se arma lo que muestra y las acciones de siempre.
 function renderMercado() {
-  const cont = document.getElementById("mercado-list");
-  if (!cont) return;
+  if (!window.PantallaMercadoReact) return;
 
   // Si la categoría abierta se borró mientras tanto, vuelve sola a la cuadrícula.
   if (categoriaMercadoAbierta && !mercadoCategorias.some(c => c.nombre === categoriaMercadoAbierta)) {
     categoriaMercadoAbierta = null;
   }
 
-  if (categoriaMercadoAbierta !== null) {
-    renderMercadoCategoriaDetalle(cont, categoriaMercadoAbierta);
-  } else {
-    renderMercadoGrid(cont);
-  }
-}
-
-// No hay una acción propia si se toca justo después de mantener
-// presionado la misma tarjeta (ver _vieneDePresionLarga en gestos.js) --
-// mismo criterio que evita que el resumen se abra encima de Editar/
-// Eliminar en el resto de la app, aplicado acá a la navegación.
-function tapCategoriaMercado(nombre, event) {
-  if (typeof _vieneDePresionLarga === "function" && _vieneDePresionLarga([event])) return;
-  categoriaMercadoAbierta = nombre;
-  renderMercado();
-}
-
-// ---- Cuadrícula de categorías (2 columnas, mismo componente que los
-// bloques de Alertas -- ver renderBloquesAlertaGrid en notificaciones.js) ----
-function renderMercadoGrid(cont) {
   const cantidadPorCategoria = {};
-  let sinCategoria = [];
+  const sinCategoria = [];
   productosMercado.forEach(p => {
     if (!p.categoria) { sinCategoria.push(p); return; }
     if (p.hayQueComprar) cantidadPorCategoria[p.categoria] = (cantidadPorCategoria[p.categoria] || 0) + 1;
   });
-  const cantidadSinCategoria = sinCategoria.filter(p => p.hayQueComprar).length;
 
-  const tarjetasCategorias = mercadoCategorias.map(c => `
-    <button type="button" class="alerta-bloque-card" data-categoria="${escapeAttr(c.nombre)}">
-      ${cantidadPorCategoria[c.nombre] ? `<span class="alerta-bloque-cantidad">${cantidadPorCategoria[c.nombre]}</span>` : ""}
-      <span class="alerta-bloque-icono">${escapeHtml(c.icono)}</span>
-      <span class="alerta-bloque-nombre">${escapeHtml(c.nombre)}</span>
-    </button>`).join("");
+  let detalle = null;
+  if (categoriaMercadoAbierta !== null) {
+    const categoria = categoriaMercadoAbierta;
+    const cat = categoria ? mercadoCategorias.find(c => c.nombre === categoria) : null;
+    const items = productosMercado
+      .filter(p => (p.categoria || "") === categoria)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    // Pantalla dividida en dos: arriba los productos normales, abajo los marcados "hay que comprarlo"
+    // (pedido explícito) -- el doble toque los pasa de una sección a la otra, en cualquier sentido.
+    detalle = {
+      titulo: categoria ? (cat ? cat.nombre : categoria) : "Sin categoría",
+      icono: categoria ? (cat ? cat.icono : "🗂️") : "🔖",
+      total: items.length,
+      pendientes: items.filter(p => !p.hayQueComprar).map(p => ({ id: p.id, nombre: p.nombre })),
+      paraComprar: items.filter(p => p.hayQueComprar).map(p => ({ id: p.id, nombre: p.nombre })),
+    };
+  }
 
-  const tarjetaSinCategoria = sinCategoria.length > 0 ? `
-    <button type="button" class="alerta-bloque-card" data-categoria="" onpointerup="tapCategoriaMercado('', event)">
-      ${cantidadSinCategoria ? `<span class="alerta-bloque-cantidad">${cantidadSinCategoria}</span>` : ""}
-      <span class="alerta-bloque-icono">🔖</span>
-      <span class="alerta-bloque-nombre">Sin categoría</span>
-    </button>` : "";
-
-  const totalParaComprar = productosMercado.filter(p => p.hayQueComprar).length;
-
-  cont.innerHTML = `
-    ${totalParaComprar > 0 ? `
-      <div class="cajas-header">
-        <button type="button" class="btn-sutil" id="btn-whatsapp-mercado">
-          💬 Enviar lista por WhatsApp (${totalParaComprar})
-        </button>
-      </div>` : ""}
-    <div class="alertas-bloques-grid">
-      ${tarjetasCategorias}
-      ${tarjetaSinCategoria}
-      <button type="button" class="alerta-bloque-card alerta-bloque-agregar" id="btn-nueva-categoria-mercado">
-        <span class="alerta-bloque-icono">➕</span>
-        <span class="alerta-bloque-nombre">Agregar categoría</span>
-      </button>
-    </div>`;
-
-  document.getElementById("btn-nueva-categoria-mercado")?.addEventListener("click", abrirNuevaCategoriaMercado);
-  document.getElementById("btn-whatsapp-mercado")?.addEventListener("click", enviarListaMercadoPorWhatsapp);
-
-  // Mantener presionada una tarjeta de categoría ofrece Editar/Eliminar, y
-  // arrastrarla desde ahí la reordena (ver crearManejadorArrastrable en
-  // gestos.js) -- "Sin categoría" no es una categoría real (no se puede
-  // editar/borrar/reordenar), así que se salta y sigue con su onpointerup
-  // inline de siempre (tapCategoriaMercado, ver el template más arriba).
-  const grid = cont.querySelector(".alertas-bloques-grid");
-  cont.querySelectorAll(".alerta-bloque-card[data-categoria]").forEach(btn => {
-    const nombre = btn.dataset.categoria;
-    if (!nombre) return;
-    const cat = mercadoCategorias.find(c => c.nombre === nombre);
-    if (!cat) return;
-    crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-categoria]:not([data-categoria=""])', {
-      onCorto: () => { categoriaMercadoAbierta = nombre; renderMercado(); },
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: cat.nombre,
-        onEditar: () => abrirEditarCategoriaMercado(cat.id),
-        onBorrar: () => confirmarBorrarCategoriaMercado(cat)
-      }),
-      onReordenar: () => _reordenarCategoriasMercadoDesdeGrid(grid)
-    });
+  window.PantallaMercadoReact.render({
+    categoriaAbierta: categoriaMercadoAbierta,
+    categorias: mercadoCategorias.map(c => ({ id: c.id, nombre: c.nombre, icono: c.icono, cantidad: cantidadPorCategoria[c.nombre] || 0 })),
+    sinCategoria: { existe: sinCategoria.length > 0, cantidad: sinCategoria.filter(p => p.hayQueComprar).length },
+    totalParaComprar: productosMercado.filter(p => p.hayQueComprar).length,
+    detalle,
+    onAbrirCategoria: nombre => { categoriaMercadoAbierta = nombre; renderMercado(); },
+    onVolver: () => cerrarPantallaActual(),
+    onNuevaCategoria: abrirNuevaCategoriaMercado,
+    onWhatsapp: enviarListaMercadoPorWhatsapp,
+    onEditarCategoria: cat => abrirEditarCategoriaMercado(cat.id),
+    onBorrarCategoria: cat => confirmarBorrarCategoriaMercado(cat),
+    onReordenar: grid => _reordenarCategoriasMercadoDesdeGrid(grid),
+    onNuevoProducto: categoria => abrirNuevoProductoMercado(categoria),
+    onCompraRealizada: categoria => confirmarCompraRealizadaMercado(categoria),
+    onAlternarProducto: id => alternarHayQueComprarMercado(id),
+    onEditarProducto: id => abrirEditarProductoMercado(id),
+    onBorrarProducto: id => borrarProductoMercado(id),
   });
 }
 
@@ -483,59 +444,6 @@ function enviarListaMercadoPorWhatsapp() {
   window.open(`https://wa.me/${MERCADO_WHATSAPP_NUMERO}?text=${encodeURIComponent(texto)}`, "_blank");
 }
 
-// ---- Detalle de una categoría (o "Sin categoría") ----
-// Pantalla dividida en dos: arriba los productos normales, abajo los
-// marcados "hay que comprarlo" (pedido explícito) -- doble toque los pasa
-// de una sección a la otra, en cualquier sentido.
-function _chipProductoMercado(p) {
-  return `<div class="mercado-item${p.hayQueComprar ? " mercado-item-comprar" : ""}" data-id="${p.id}" onpointerup="tapProductoMercado('${p.id}', event)">${escapeHtml(p.nombre)}</div>`;
-}
-
-function renderMercadoCategoriaDetalle(cont, categoria) {
-  const cat = categoria ? mercadoCategorias.find(c => c.nombre === categoria) : null;
-  const titulo = categoria ? (cat ? cat.nombre : categoria) : "Sin categoría";
-  const icono = categoria ? (cat ? cat.icono : "🗂️") : "🔖";
-  const items = productosMercado
-    .filter(p => (p.categoria || "") === categoria)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-  const pendientes   = items.filter(p => !p.hayQueComprar);
-  const paraComprar  = items.filter(p => p.hayQueComprar);
-
-  const seccionPendientes = items.length > 0
-    ? `<div class="mercado-productos-grid">${pendientes.map(_chipProductoMercado).join("")}</div>`
-    : `<div class="notif-bloque-vacio">No hay productos acá todavía.</div>`;
-
-  const seccionParaComprar = paraComprar.length > 0
-    ? `<div class="mercado-seccion-comprar">
-        <div class="mercado-seccion-comprar-header">
-          <span class="mercado-seccion-comprar-titulo">🛒 Para comprar (${paraComprar.length})</span>
-          <button type="button" class="btn-secondary mercado-btn-compra-realizada" id="btn-compra-realizada-mercado">✅ Compra realizada</button>
-        </div>
-        <div class="mercado-productos-grid">${paraComprar.map(_chipProductoMercado).join("")}</div>
-      </div>`
-    : "";
-
-  cont.innerHTML = `
-    <div class="alerta-bloque-detalle-header">
-      <button type="button" class="btn-volver" id="btn-volver-mercado-categoria" title="Volver" aria-label="Volver">‹</button>
-      <span class="alerta-bloque-detalle-titulo">${icono} ${escapeHtml(titulo)} (${items.length})</span>
-      <button type="button" class="btn-sutil" id="btn-nuevo-producto-mercado-categoria">+ Nuevo producto</button>
-    </div>
-    ${seccionPendientes}
-    ${seccionParaComprar}`;
-
-  document.getElementById("btn-volver-mercado-categoria")?.addEventListener("click", () => cerrarPantallaActual());
-
-  document.getElementById("btn-nuevo-producto-mercado-categoria")
-    ?.addEventListener("click", () => abrirNuevoProductoMercado(categoria));
-
-  document.getElementById("btn-compra-realizada-mercado")
-    ?.addEventListener("click", () => confirmarCompraRealizadaMercado(categoria));
-
-  _conectarLargoPresionMercado(cont);
-}
-
 // "Compra realizada": marca de un toque TODOS los productos "para
 // comprar" de esta categoría como ya no pendientes (vuelven arriba) --
 // pedido explícito, con confirmación antes de aplicarlo porque no se
@@ -564,9 +472,7 @@ async function confirmarCompraRealizadaMercado(categoria) {
 
 // Doble toque = alternar "hay que comprarlo" (ver cabecera del archivo --
 // único módulo donde el doble toque muta algo en vez de solo mostrar un
-// resumen de solo lectura).
-const tapProductoMercado = crearManejadorDobleToque(id => id, id => alternarHayQueComprarMercado(id));
-
+// resumen de solo lectura). Lo conecta PantallaMercado.jsx.
 // Optimista: se ve al toque, antes de que Sheets confirme -- se revierte
 // solo si falla, para no dejar mostrando algo que no se guardó.
 async function alternarHayQueComprarMercado(id) {
@@ -588,20 +494,6 @@ async function alternarHayQueComprarMercado(id) {
   }
 }
 
-function _conectarLargoPresionMercado(cont) {
-  cont.querySelectorAll(".mercado-item[data-id]").forEach(item => {
-    const id = item.dataset.id;
-    const p = productosMercado.find(x => x.id === id);
-    if (!p) return;
-    crearManejadorPresionSostenida(item, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: p.nombre,
-        onEditar: () => abrirEditarProductoMercado(id),
-        onBorrar: () => borrarProductoMercado(id)
-      })
-    });
-  });
-}
 
 // ---- NUEVO/EDITAR PRODUCTO: la ventana es React (react/src/mercado/Mercado.jsx). "categoriaInicial"
 // pre-selecciona la categoría desde la que se abrió "+ Nuevo producto", pero se puede cambiar. ----

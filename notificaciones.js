@@ -643,65 +643,11 @@ function _fechaReferenciaTarjeta(n) {
   return _proximaOcurrencia(n);
 }
 
-// Tarjeta de una alerta (usada dentro de la pantalla de detalle de un
-// bloque) -- primera fila nombre + fecha, segunda fila los botones (pedido
-// explícito de diseño). Editar/Eliminar ya no van sueltos acá: viven en el
-// resumen del segundo toque (abrirResumenNotificacion) y en mantener
-// presionado, igual que en Proyección y Movimientos. El color y la fecha
-// mostrada usan _fechaReferenciaTarjeta (ver ese comentario), no el ancla
-// cruda -- si no, una recurrente creada hace tiempo se ve "pasada" para
-// siempre aunque esté funcionando bien.
-// conBotonesRevisar: true dentro de "Activos"/"Pasados" -- ahí, además de
-// la fecha, se ve una segunda fila con "👀 Revisada"/"✅ Realizada", con el
-// mismo estilo (.btn-secondary/.btn-primary) que Editar/Eliminar en
-// cualquier otro módulo -- pedido explícito, nada de un tamaño de botón
-// aparte solo para estas tarjetas.
-// icono: el mismo emoji del bloque (grupo.icono) -- pedido explícito, cada
-// fila de la lista se lee "icono - texto - próximo vencimiento".
-function renderItemNotificacion(n, conBotonesRevisar = false, icono = "🔔") {
-  const proxima = _fechaReferenciaTarjeta(n);
-  const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
-  const claseDia = estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "";
-  // onpointerdown (no solo onpointerup) frena la propagación -- en
-  // "Pasados" la tarjeta tiene mantener-presionado (ver crearManejador
-  // PresionSostenida más abajo, "salvo en Activos"): su temporizador de
-  // 500ms arranca con el pointerdown que burbujea desde este botón, y solo
-  // se cancela con el pointerup que llega a LA TARJETA -- si acá solo se
-  // frena el pointerup (como antes), ese pointerup nunca llega a la
-  // tarjeta y el temporizador queda vivo, abriendo Editar/Eliminar solo
-  // porque se tocó "Revisada"/"Realizada" (bug real encontrado al agregar
-  // el diálogo de reprogramar: confirm() bloquea el hilo el tiempo
-  // suficiente para que ese temporizador ya vencido dispare justo después).
-  const botones = conBotonesRevisar
-    ? `<div class="notif-card-botones">
-        <button class="btn-secondary" onclick="event.stopPropagation(); marcarNotificacionVista('${n.id}')" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()">👀 Revisada</button>
-        <button class="btn-primary" onclick="event.stopPropagation(); marcarNotificacionRevisada('${n.id}')" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()">✅ Realizada</button>
-      </div>`
-    : "";
-  return `
-    <div class="notificacion-item${claseDia}" data-id="${n.id}" onpointerup="tapNotificacion('${n.id}', event)">
-      <div class="notif-card-grid">
-        <div class="notif-card-fila-superior">
-          <span class="notif-card-nombre"><span class="notif-card-icon">${icono}</span>${escapeHtml(n.titulo)}</span>
-          <span class="notif-card-proximo">🗓️ ${proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—"}</span>
-        </div>
-        ${botones}
-      </div>
-    </div>`;
-}
-
-// Doble tap/clic manual (mismo patrón que tapMovimiento en app.js): no se
-// puede usar ondblclick acá -- el bloqueo de zoom (touchend ->
-// preventDefault en index.html) suprime la síntesis nativa de dblclick en
-// iOS Safari real, aunque funcione con .dblclick() de Playwright (que no
-// pasa por ese camino táctil). Tampoco alcanza con onclick: ese mismo
-// preventDefault() en el touchend del SEGUNDO toque también suprime la
-// síntesis del click de ESE toque puntual (no solo dblclick) -- por eso
-// el div usa onpointerup, no onclick: pointerup sí llega siempre, porque
-// preventDefault() no cancela el evento en sí, solo la acción por defecto
-// del navegador que dispara (bug real reportado: con onclick, "al darle
-// doble clic no me da el resumen" seguía pasando en el celular real).
-const tapNotificacion = crearManejadorDobleToque(id => id, id => abrirResumenNotificacion(id));
+// La tarjeta de una alerta (nombre + fecha, y en "Activos"/"Pasados" los botones Revisada / Realizada) la
+// dibuja PantallaAlertas.jsx, que también conecta sus gestos: doble toque = resumen
+// (abrirResumenNotificacion), mantener presionado = Editar / Eliminar. El color y la fecha mostrada usan
+// _fechaReferenciaTarjeta (ver ese comentario), no el ancla cruda -- si no, una recurrente creada hace
+// tiempo se ve "pasada" para siempre aunque esté funcionando bien.
 
 async function _copiarUrlAlAportapapeles(url) {
   if (!url) return;
@@ -781,8 +727,7 @@ function abrirResumenNotificacion(id) {
 let bloqueAlertaAbierto = null;
 
 function renderNotificaciones() {
-  const lista = document.getElementById("notificaciones-list");
-  if (!lista) return;
+  if (!window.PantallaAlertasReact) return;
 
   const bloquesPersonalizados = obtenerBloquesAlertas();
 
@@ -790,29 +735,18 @@ function renderNotificaciones() {
   //  - Agrupaciones (Activos/Pasados): por ESTADO, cruzan todos los bloques.
   //  - Bloques (Gastos fijos/Otros/los del usuario): por CATEGORÍA -- acá
   //    (y solo acá) se puede crear una alerta nueva.
-  // "Activos" en particular solo cuenta las de HOY (no todo lo pendiente
-  // sin importar la fecha) -- las demás siguen viéndose igual, adentro de
-  // su bloque de categoría (Gastos fijos/Otros/uno propio).
+  // "Activos" en particular solo cuenta las de HOY (no todo lo pendiente sin importar la fecha) -- las
+  // demás siguen viéndose igual, adentro de su bloque de categoría (Gastos fijos/Otros/uno propio).
   const todasActivas = notificaciones.filter(n => n.estado === "activa");
-  // "Activos" = todo lo de HOY, sin importar la hora ni si ya se disparó
-  // (activa o enviada) -- pedido explícito. Usa _fechaReferenciaTarjeta
-  // (próxima ocurrencia para "activa", ultimoEnvio para "enviada" -- ver
-  // ese comentario), no el ancla cruda, así que una "enviada" que sonó hoy
-  // mismo también cuenta acá (antes solo aparecía en "Pasados", aunque
-  // fuera de hoy). Excluye las ya vistas hoy (ver _yaVistaHoy) -- si no,
-  // revisar una recurrente ANTES de su hora no la sacaba de acá en todo el
-  // día (bug real reportado). Sigue viéndose igual dentro de su bloque de
-  // categoría (esa es otra dimensión, ver comentario de arriba).
+  // "Activos" = todo lo de HOY, sin importar la hora ni si ya se disparó (activa o enviada) -- pedido
+  // explícito. Usa _fechaReferenciaTarjeta (próxima ocurrencia para "activa", ultimoEnvio para
+  // "enviada" -- ver ese comentario), no el ancla cruda. Excluye las ya vistas hoy (ver _yaVistaHoy):
+  // si no, revisar una recurrente ANTES de su hora no la sacaba de acá en todo el día (bug real).
   const activosHoy = notificaciones.filter(n => _esActivaHoy(n));
-  // "Pasados" = lo de ANTES de hoy que sigue sin aprobar (revisada) --
-  // mismo criterio de fecha que "Activos" (_fechaReferenciaTarjeta), así
-  // que lo de hoy nunca queda en las dos secciones a la vez. Una "activa"
-  // no depende de que el Worker ya haya alcanzado a mandar el push: si por
-  // lo que sea el Cron todavía no corrió, igual cuenta acá con tal de que
-  // la fecha ya haya pasado (pedido explícito del usuario). Ya no existe
-  // un bloque "Canceladas" -- al aprobar una alerta de una sola vez se
-  // borra directo (ver marcarNotificacionRevisada), así que nunca queda
-  // una fila huérfana que mostrar ahí.
+  // "Pasados" = lo de ANTES de hoy que sigue sin aprobar (revisada) -- mismo criterio de fecha que
+  // "Activos", así que lo de hoy nunca queda en las dos secciones a la vez. Una "activa" no depende de
+  // que el Worker ya haya alcanzado a mandar el push (pedido explícito). Ya no existe un bloque
+  // "Canceladas": al aprobar una alerta de una sola vez se borra directo (ver marcarNotificacionRevisada).
   const pasados = notificaciones.filter(n => _esPasada(n));
 
   const gastosFijos = todasActivas.filter(n => n.gastoFijo);
@@ -826,9 +760,8 @@ function renderNotificaciones() {
       else otros.push(n);
     });
 
-  // Mapa clave -> tarjeta. El orden de inserción define el orden en la
-  // cuadrícula: Activos/Pasados van primero (primera fila), después los
-  // bloques (Gastos fijos y Otros fijos, los del usuario después).
+  // Mapa clave -> tarjeta. El orden de inserción define el orden en la cuadrícula: Activos/Pasados van
+  // primero (primera fila), después los bloques (Gastos fijos y Otros fijos, los del usuario después).
   const grupos = {};
   grupos.activos = { titulo: "Activos", icono: "🔔", items: activosHoy, esBloque: false, eliminable: false, esAgrupacion: true };
   grupos.pasados = { titulo: "Pasados", icono: "⏰", items: pasados, esBloque: false, eliminable: false, esAgrupacion: true };
@@ -840,58 +773,58 @@ function renderNotificaciones() {
 
   if (bloqueAlertaAbierto && !grupos[bloqueAlertaAbierto]) bloqueAlertaAbierto = null; // se borró el bloque que estaba abierto
 
+  let detalle = null;
   if (bloqueAlertaAbierto) {
-    renderBloqueAlertaDetalle(lista, grupos[bloqueAlertaAbierto], bloqueAlertaAbierto);
-  } else {
-    renderBloquesAlertaGrid(lista, grupos);
+    const g = grupos[bloqueAlertaAbierto];
+    // "Activos" es la lista de lo que le toca justo hoy -- ahí no tiene sentido editar/eliminar la alerta,
+    // solo confirmar que ya se atendió. Activos Y Pasados muestran los botones "Revisada"/"Realizada" en
+    // la tarjeta (pedido explícito: las dos agrupaciones "por estado", a diferencia de los bloques por
+    // categoría, donde solo se ve la fecha).
+    const esActivos = bloqueAlertaAbierto === "activos";
+    // De la que se activa más pronto a la que se activa más tarde -- misma fecha que se ve en la tarjeta
+    // (ver _fechaReferenciaTarjeta), no el ancla cruda.
+    const ordenadas = [...g.items].sort((a, b) => {
+      const fa = _fechaReferenciaTarjeta(a);
+      const fb = _fechaReferenciaTarjeta(b);
+      if (!fa && !fb) return 0;
+      if (!fa) return 1;
+      if (!fb) return -1;
+      return fa.getTime() - fb.getTime();
+    });
+    detalle = {
+      titulo: g.titulo, icono: g.icono, total: g.items.length, esBloque: g.esBloque, eliminable: g.eliminable,
+      nombreBloque: g.nombreBloque, valorBloque: g.valorBloque, esActivos,
+      conBotonesRevisar: esActivos || bloqueAlertaAbierto === "pasados",
+      items: ordenadas.map(n => {
+        const proxima = _fechaReferenciaTarjeta(n);
+        const estadoDia = proxima ? _estadoDiaAlarma(proxima) : null;
+        return {
+          id: n.id, titulo: n.titulo,
+          claseDia: estadoDia === "hoy" ? " notificacion-item-hoy" : estadoDia === "pasado" ? " notificacion-item-pasada" : "",
+          proximaTexto: proxima ? _formatoFechaHoraLocal(proxima.toISOString()) : "—",
+        };
+      }),
+    };
   }
-}
 
-// ---- Cuadrícula de bloques (2 columnas, estilo Acciones rápidas) ----
-function renderBloquesAlertaGrid(lista, grupos) {
-  const tarjetas = Object.entries(grupos).map(([clave, g]) => `
-    <button type="button" class="alerta-bloque-card${g.esAgrupacion ? " alerta-bloque-card-agrupacion" : ""}" data-clave="${clave}">
-      ${g.esAgrupacion && g.items.length > 0 ? `<span class="alerta-bloque-cantidad">${g.items.length}</span>` : ""}
-      <span class="alerta-bloque-icono">${g.icono}</span>
-      <span class="alerta-bloque-nombre">${escapeHtml(g.titulo)}</span>
-    </button>`).join("");
-
-  lista.innerHTML = `
-    <div class="alertas-bloques-grid">
-      ${tarjetas}
-      <button type="button" class="alerta-bloque-card alerta-bloque-agregar" id="btn-nuevo-bloque">
-        <span class="alerta-bloque-icono">➕</span>
-        <span class="alerta-bloque-nombre">Agregar bloque</span>
-      </button>
-    </div>`;
-
-  const grid = lista.querySelector(".alertas-bloques-grid");
-  const abrir = (clave) => { bloqueAlertaAbierto = clave; renderNotificaciones(); };
-
-  lista.querySelectorAll(".alerta-bloque-card[data-clave]").forEach(btn => {
-    const clave = btn.dataset.clave;
-    // Solo los bloques que el usuario creó (bloque_N) se pueden arrastrar
-    // para reordenar -- los fijos (Activos/Pasados/Gastos fijos/Otros)
-    // siempre van primero, en ese orden (pedido explícito: no mezclarlos).
-    if (clave.startsWith("bloque_")) {
-      const bloque = obtenerBloquesAlertas()[parseInt(clave.slice("bloque_".length), 10)];
-      crearManejadorArrastrable(btn, grid, '.alerta-bloque-card[data-clave^="bloque_"]', {
-        onCorto: () => abrir(clave),
-        // Mantener presionado (sin arrastrar) ofrece Editar / Eliminar; arrastrar reordena.
-        onLargo: () => bloque && abrirMenuEditarBorrar({
-          titulo: bloque.nombre,
-          onEditar: () => abrirEditarBloqueAlerta(bloque.nombre),
-          onBorrar: () => confirmarBorrarBloqueAlerta(bloque.nombre)
-        }),
-        onReordenar: () => _reordenarBloquesAlertaDesdeGrid(grid)
-      });
-    } else {
-      btn.addEventListener("click", () => abrir(clave));
-    }
-  });
-
-  document.getElementById("btn-nuevo-bloque")?.addEventListener("click", () => {
-    document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "bloque" } }));
+  window.PantallaAlertasReact.render({
+    bloqueAbierto: bloqueAlertaAbierto,
+    grupos: Object.entries(grupos).map(([clave, g]) => ({
+      clave, titulo: g.titulo, icono: g.icono, cantidad: g.items.length, esAgrupacion: !!g.esAgrupacion,
+    })),
+    detalle,
+    onAbrir: clave => { bloqueAlertaAbierto = clave; renderNotificaciones(); },
+    onVolver: () => cerrarPantallaActual(),
+    onNuevoBloque: () => document.dispatchEvent(new CustomEvent("alertas:abrir", { detail: { t: "bloque" } })),
+    onReordenar: grid => _reordenarBloquesAlertaDesdeGrid(grid),
+    onEditarBloque: nombre => abrirEditarBloqueAlerta(nombre),
+    onBorrarBloque: nombre => confirmarBorrarBloqueAlerta(nombre),
+    onNuevaAlerta: valorBloque => abrirNuevaNotificacionEnBloque(valorBloque),
+    onResumen: id => abrirResumenNotificacion(id),
+    onEditar: id => abrirEditarNotificacion(id),
+    onBorrar: id => borrarNotificacion(id),
+    onVista: id => marcarNotificacionVista(id),
+    onRealizada: id => marcarNotificacionRevisada(id),
   });
 }
 
@@ -924,67 +857,6 @@ async function editarBloqueAlerta(nombreViejo, nombre, icono) {
   await _guardarBloquesAlertas(bloques.map(b => b.nombre === nombreViejo ? { nombre, icono: icono || b.icono || "🗂️" } : b));
   await cargarNotificaciones();
   return true;
-}
-
-// ---- Pantalla de detalle de un bloque (se abre al tocar su tarjeta) ----
-function renderBloqueAlertaDetalle(lista, grupo, clave) {
-  // "Activos" es la lista de lo que le toca justo hoy -- ahí no tiene
-  // sentido editar/eliminar la alerta, solo confirmar que ya se atendió.
-  const esActivos = clave === "activos";
-  // Activos Y Pasados muestran los botones "👀 Revisada"/"✅ Realizada" en
-  // la tarjeta (pedido explícito: mismo estilo/comportamiento en las dos
-  // -- son las dos agrupaciones "por estado", a diferencia de los bloques
-  // por categoría, donde solo se ve la fecha).
-  const conBotonesRevisar = esActivos || clave === "pasados";
-  // De la que se activa más pronto a la que se activa más tarde -- misma
-  // fecha que se ve en la tarjeta (ver _fechaReferenciaTarjeta), no el
-  // ancla cruda.
-  const itemsOrdenados = [...grupo.items].sort((a, b) => {
-    const fa = _fechaReferenciaTarjeta(a);
-    const fb = _fechaReferenciaTarjeta(b);
-    if (!fa && !fb) return 0;
-    if (!fa) return 1;
-    if (!fb) return -1;
-    return fa.getTime() - fb.getTime();
-  });
-  const itemsHTML = itemsOrdenados.length > 0
-    ? itemsOrdenados.map(n => renderItemNotificacion(n, conBotonesRevisar, grupo.icono)).join("")
-    : `<div class="notif-bloque-vacio">No hay alertas acá todavía.</div>`;
-
-  lista.innerHTML = `
-    <div class="alerta-bloque-detalle-header">
-      <button type="button" class="btn-volver" id="btn-volver-bloque-alerta" title="Volver" aria-label="Volver">‹</button>
-      <span class="alerta-bloque-detalle-titulo">${grupo.icono} ${escapeHtml(grupo.titulo)} (${grupo.items.length})</span>
-      ${grupo.eliminable ? `<button type="button" class="notif-btn-borrar-bloque" title="Eliminar bloque">🗑️</button>` : ""}
-    </div>
-    ${grupo.esBloque ? `<button type="button" class="btn-primary btn-franja" id="btn-nueva-notificacion-bloque">+ Nueva</button>` : ""}
-    ${itemsHTML}`;
-
-  document.getElementById("btn-volver-bloque-alerta")?.addEventListener("click", () => cerrarPantallaActual());
-
-  document.getElementById("btn-nueva-notificacion-bloque")?.addEventListener("click", () => {
-    abrirNuevaNotificacionEnBloque(grupo.valorBloque);
-  });
-
-  lista.querySelector(".notif-btn-borrar-bloque")?.addEventListener("click", () => confirmarBorrarBloqueAlerta(grupo.nombreBloque));
-
-  // Mantener presionada abre Editar/Eliminar (ver abrirMenuEditarBorrar en
-  // gestos.js) -- salvo en "Activos", donde no aplica (ver comentario
-  // arriba: ahí solo se puede confirmar que ya se atendió).
-  if (!esActivos) {
-    lista.querySelectorAll(".notificacion-item[data-id]").forEach(item => {
-      const id = item.dataset.id;
-      const n = itemsOrdenados.find(x => x.id === id);
-      if (!n) return;
-      crearManejadorPresionSostenida(item, {
-        onLargo: () => abrirMenuEditarBorrar({
-          titulo: n.titulo,
-          onEditar: () => abrirEditarNotificacion(id),
-          onBorrar: () => borrarNotificacion(id)
-        })
-      });
-    });
-  }
 }
 
 // Notificaciones de una sola vez no se cancelan solas al dispararse (ver
