@@ -2,6 +2,7 @@
 // (react-dist/react-app.js) con una "isla" por módulo migrado:
 //   CajasReact.render(props)      -> pestaña Inicio (#cajas-root)
 //   ProyeccionReact.render(props) -> fila de arriba de Proyección (#proy-menu-root)
+//   LoginReact.render(props) / SidebarReact.render(props) -> marco de la app (#login-screen, #sidebar-root)
 //   PantallaProyeccionReact.render(props) -> detalle por concepto de Proyección (#proy-tabla-root)
 //   MesesProyeccionReact.render(props) -> tarjetas de meses (#proy-4meses-grid)
 //   AccionesReact.render(props)   -> ventanas de acciones rápidas (#acciones-root)
@@ -28,6 +29,8 @@ import { Cajas } from "./cajas/Cajas.jsx";
 import { ProyeccionBarra } from "./proyeccion/Proyeccion.jsx";
 import { MesesProyeccion } from "./proyeccion/MesesProyeccion.jsx";
 import { PantallaProyeccion } from "./proyeccion/PantallaProyeccion.jsx";
+import { Login } from "./marco/Login.jsx";
+import { Sidebar } from "./marco/Sidebar.jsx";
 import { Acciones } from "./acciones/Acciones.jsx";
 import { FranjasVistas } from "./franjas/FranjasVistas.jsx";
 import { Alertas } from "./alertas/Alertas.jsx";
@@ -63,6 +66,8 @@ window.CajasReact = crearIsla("cajas-root", Cajas, true);
 window.ProyeccionReact = crearIsla("proy-menu-root", ProyeccionBarra, false);
 window.MesesProyeccionReact = crearIsla("proy-4meses-grid", MesesProyeccion, true);
 window.PantallaProyeccionReact = crearIsla("proy-tabla-root", PantallaProyeccion, true);
+window.LoginReact = crearIsla("login-screen", Login, false);
+window.SidebarReact = crearIsla("sidebar-root", Sidebar, false);
 window.AccionesReact = crearIsla("acciones-root", Acciones, true);
 window.FranjasReact = crearIsla("franjas-root", FranjasVistas, false);
 window.AlertasReact = crearIsla("alertas-root", Alertas, false);

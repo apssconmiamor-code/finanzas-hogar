@@ -840,16 +840,26 @@ function _ofrecerInstalacionBlindadaSiHaceFalta() {
   document.getElementById("instalar-blindado-bar")?.classList.remove("hidden");
 }
 
-document.getElementById("btn-login").addEventListener("click", async () => {
-  const btn = document.getElementById("btn-login");
-  btn.disabled = true;
+// La pantalla de entrada y la barra lateral son React (react/src/marco); acá se les pasan las acciones.
+async function iniciarSesionConGoogle() {
+  window.LoginReact.render({ cargando: true, onLogin: iniciarSesionConGoogle });
   const resultado = await conectarConGooglePopup();
-  btn.disabled = false;
+  window.LoginReact.render({ cargando: false, onLogin: iniciarSesionConGoogle });
   if (!completarConexionGoogle(resultado)) return;
   mostrarApp();
-});
+}
+window.LoginReact.render({ cargando: false, onLogin: iniciarSesionConGoogle });
 
-document.getElementById("btn-logout").addEventListener("click", () => {
+function renderSidebar() {
+  window.SidebarReact.render({
+    nombre: currentUser?.name || "",
+    foto: currentUser?.picture || "",
+    onCerrarSesion: cerrarSesion,
+  });
+}
+renderSidebar();
+
+function cerrarSesion() {
   // Al cerrar sesión limpiamos auth, NO el caché de datos
   _borrarSesionGuardada("gtoken");
   _borrarSesionGuardada("guser");
@@ -870,7 +880,7 @@ document.getElementById("btn-logout").addEventListener("click", () => {
   if (location.search) {
     try { history.replaceState(null, "", location.pathname); } catch (e) {}
   }
-});
+}
 
 // ---- BARRA "CONECTANDO…" (mientras se cargan los datos reales tras abrir la app) ----
 
@@ -978,8 +988,7 @@ async function mostrarApp() {
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
   avisarSiSeActualizoSola();
-  document.getElementById("user-name").textContent = currentUser.name;
-  document.getElementById("user-avatar").src = currentUser.picture;
+  renderSidebar();
   const mesCorriente = new Date().toISOString().slice(0, 7);
   filtrosMovimientos.mes = mesCorriente;
   // Cargar caché SIEMPRE antes de tocar la red
@@ -1689,7 +1698,7 @@ function renderCajas() {
     version: CONFIG.VERSION,
     onBuscarActualizacion: buscarActualizacionManual,
     onMostrarAyudaVersion: () => SyncManager.mostrarToast("Mantén presionada la versión para buscar una actualización"),
-    onCerrarSesion: () => document.getElementById("btn-logout")?.click(),
+    onCerrarSesion: cerrarSesion,
   });
 }
 
