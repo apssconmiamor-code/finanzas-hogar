@@ -2786,13 +2786,6 @@ function renderProyeccion() {
   sincronizarListasConceptos();
   const mes = proyMesActivo;
   document.getElementById("proyeccion-mes").value = mes;
-
-  const label = document.getElementById("proy-detalle-mes-label");
-  if (label) {
-    const mesLabel = new Date(mes + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
-    label.textContent = mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
-  }
-
   const movsDelMes = movimientos.filter(m => m.fecha.startsWith(mes));
   renderTablaComparacion(movsDelMes);
   render4MesesResumen();
@@ -2958,9 +2951,10 @@ function guardarModificarConceptoDatos(concepto, categoria, nuevoValor) {
 
 // ---- TABLA COMPARACIÓN ----
 
+// La tabla la dibuja React (react/src/proyeccion/PantallaProyeccion.jsx); acá se arman las filas y los
+// totales por grupo, y se le pasan las acciones de siempre.
 function renderTablaComparacion(movsDelMes) {
-  const tbody = document.getElementById("proy-tabla-body");
-  if (!tbody) return;
+  if (!window.PantallaProyeccionReact) return;
 
   // Se acumula con signo (ingreso resta, gasto suma) para poder mezclar
   // ambos correctamente en la fila "Otros" más abajo. Para las filas de un
@@ -3043,9 +3037,26 @@ function renderTablaComparacion(movsDelMes) {
     filas.push({ categoria: "Gasto variable", concepto: "Otros", estimado: 0, real: otrosGastoNeto, esOtros: true });
   }
 
+  const mesLabel = new Date(proyMesActivo + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const props = {
+    mesLabel: mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1),
+    modoSuma: modoSumaProyActivo,
+    grupos: [],
+    onToggleFila: concepto => {
+      if (conceptosSeleccionadosParaSumar.has(concepto)) conceptosSeleccionadosParaSumar.delete(concepto);
+      else conceptosSeleccionadosParaSumar.add(concepto);
+      renderProyBarra();
+    },
+    onResumen: (concepto, categoria, esOtros, e) => tapConcepto(concepto, categoria, esOtros, e),
+    onEditar: (concepto, categoria) => abrirModificarConcepto(concepto, categoria),
+    // Gastos: por defecto solo se quitan de ESTE mes (ver quitarConceptoDelMes); el borrado definitivo queda
+    // detrás de una segunda confirmación. Ingresos: siempre definitivo, como antes.
+    onBorrar: (concepto, categoria) => categoria === "Ingreso"
+      ? eliminarConceptoPresupuesto(concepto, categoria)
+      : quitarConceptoDelMes(concepto, categoria),
+  };
   if (filas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text-light)">
-      No hay datos — agrega un presupuesto para ver la comparación.</td></tr>`;
+    window.PantallaProyeccionReact.render(props);
     return;
   }
 
@@ -3075,49 +3086,42 @@ function renderTablaComparacion(movsDelMes) {
     t.real     += f.real;
   });
 
-  let categoriaAnterior = null;
-  tbody.innerHTML = filas.map(f => {
+  filas.forEach(f => {
     // Gastos: rojo si te pasaste de lo estimado. Ingresos: al revés — rojo
     // si no llegaste a lo estimado (la meta de ingreso no se cumplió).
     // "Ajuste" nunca se marca así -- no tiene estimado que "excederse",
     // es una corrección de saldo, no un gasto de más.
-    const excedido = f.concepto === "Ajuste"
+    const excedida = f.concepto === "Ajuste"
       ? false
       : (f.categoria === "Ingreso" ? f.real < f.estimado : f.real > f.estimado);
-
-    // Separador sutil entre Ingresos/Fijos/Variables -- solo el nombre del
-    // grupo, sin línea ni fondo fuerte (pedido explícito: "la separación
-    // debe ser sutil").
-    const cabeceraGrupo = f.categoria !== categoriaAnterior
-      ? `<tr class="proy-grupo-row"><td>${ETIQUETA_GRUPO[f.categoria] || f.categoria}</td>
-          <td class="proy-grupo-total">${totalesGrupo[f.categoria].estimado !== 0 ? formatMonto(totalesGrupo[f.categoria].estimado) : "—"}</td>
-          <td class="proy-grupo-total">${totalesGrupo[f.categoria].real !== 0 ? formatMonto(totalesGrupo[f.categoria].real) : "—"}</td></tr>`
-      : "";
-    categoriaAnterior = f.categoria;
-
-    // Sin botones sueltos -- un toque abre los movimientos reales (como
-    // siempre), un segundo toque rápido abre el resumen de solo lectura
-    // (ver tapConcepto más abajo), y mantener presionada abre Editar/
-    // Eliminar (ver conexión después de armar la tabla).
-    const conceptoJs  = f.concepto.replace(/'/g, "\\'");
-    const categoriaJs = f.categoria.replace(/'/g, "\\'");
-    const conceptoAttr  = f.concepto.replace(/"/g, "&quot;");
-    const categoriaAttr = f.categoria.replace(/"/g, "&quot;");
-    const seleccionada = modoSumaProyActivo && conceptosSeleccionadosParaSumar.has(f.concepto);
-    const tapNormal = modoSumaProyActivo ? "" : ` onpointerup="tapConcepto('${conceptoJs}', '${categoriaJs}', ${f.esOtros ? "true" : "false"}, event)"`;
-    return cabeceraGrupo + `<tr class="proy-tabla-row${excedido ? " fila-excedida" : ""}${seleccionada ? " proy-tabla-row-seleccionada" : ""}" data-concepto="${conceptoAttr}" data-categoria="${categoriaAttr}" data-es-otros="${f.esOtros ? "true" : "false"}" data-estimado="${f.estimado}" data-real="${f.real}"${tapNormal}>
-      <td>
-        <div class="proy-cell-concepto">
-          <span class="proy-concepto-nombre">${iconoDeConcepto(f.concepto)} ${f.concepto}</span>
-        </div>
-      </td>
-      <td class="proy-cell-num proy-cell-estimado">${f.estimado > 0 ? formatMonto(f.estimado) : "—"}</td>
-      <td class="proy-cell-num proy-cell-real">${f.real !== 0 ? formatMonto(f.real) : "—"}</td>
-    </tr>`;
-  }).join("");
-
-  if (modoSumaProyActivo) _conectarSeleccionTablaProy();
-  else _conectarLargoPresionTablaComparacion();
+    let grupo = props.grupos[props.grupos.length - 1];
+    if (!grupo || grupo.categoria !== f.categoria) {
+      // Separador sutil entre Ingresos/Fijos/Variables -- solo el nombre del grupo y sus totales.
+      const tot = totalesGrupo[f.categoria];
+      grupo = {
+        categoria: f.categoria, etiqueta: ETIQUETA_GRUPO[f.categoria] || f.categoria,
+        estimado: tot.estimado !== 0 ? formatMonto(tot.estimado) : "—",
+        real: tot.real !== 0 ? formatMonto(tot.real) : "—",
+        filas: [],
+      };
+      props.grupos.push(grupo);
+    }
+    grupo.filas.push({
+      concepto: f.concepto, categoria: f.categoria, esOtros: !!f.esOtros,
+      icono: iconoDeConcepto(f.concepto),
+      estimadoNum: f.estimado, realNum: f.real,
+      estimadoTxt: f.estimado > 0 ? formatMonto(f.estimado) : "—",
+      realTxt: f.real !== 0 ? formatMonto(f.real) : "—",
+      excedida,
+      seleccionada: modoSumaProyActivo && conceptosSeleccionadosParaSumar.has(f.concepto),
+      // Modificar no aplica a "Otros" (agregado, no un concepto con estimado propio) ni a "Ajuste"
+      // (automático, nunca tiene estimado editable); Eliminar solo aplica a las tres categorías
+      // presupuestables, y tampoco a "Ajuste".
+      puedeModificar: !f.esOtros && f.concepto !== "Ajuste",
+      puedeEliminar: f.concepto !== "Ajuste" && ["Gasto fijo", "Gasto variable", "Ingreso"].includes(f.categoria),
+    });
+  });
+  window.PantallaProyeccionReact.render(props);
 }
 
 // ---- Sumar conceptos (Proyección) ----
@@ -3131,18 +3135,6 @@ function toggleModoSumaProy() {
   modoSumaProyActivo = !modoSumaProyActivo;
   conceptosSeleccionadosParaSumar = new Set();
   renderProyeccion();
-}
-
-function _conectarSeleccionTablaProy() {
-  document.querySelectorAll("#proy-tabla-body .proy-tabla-row[data-concepto]").forEach(row => {
-    row.addEventListener("pointerup", () => {
-      const concepto = row.dataset.concepto;
-      if (conceptosSeleccionadosParaSumar.has(concepto)) conceptosSeleccionadosParaSumar.delete(concepto);
-      else conceptosSeleccionadosParaSumar.add(concepto);
-      row.classList.toggle("proy-tabla-row-seleccionada");
-      renderProyBarra();
-    });
-  });
 }
 
 // Fila de arriba de Proyección (menú ⋯ y, en modo Sumar, "Listo" + el total).
@@ -3164,39 +3156,6 @@ function renderProyBarra() {
     onToggleSuma: toggleModoSumaProy,
     onAgregarMes: agregarMesProyeccion,
     onArchivar: abrirModalArchivar,
-  });
-}
-
-// Mantener presionada una fila abre Editar/Eliminar (ver abrirMenuEditarBorrar
-// en gestos.js) -- mismo criterio que ya usaban los botones sueltos que
-// existían antes: Modificar no aplica a "Otros" (agregado, no un concepto
-// con estimado propio) ni a "Ajuste" (automático, nunca tiene estimado
-// editable); Eliminar solo aplica a las tres categorías presupuestables, y
-// tampoco a "Ajuste".
-function _conectarLargoPresionTablaComparacion() {
-  document.querySelectorAll("#proy-tabla-body .proy-tabla-row[data-concepto]").forEach(row => {
-    const concepto  = row.dataset.concepto;
-    const categoria = row.dataset.categoria;
-    const esOtros   = row.dataset.esOtros === "true";
-    const puedeModificar = !esOtros && concepto !== "Ajuste";
-    const puedeEliminar  = concepto !== "Ajuste" &&
-      (categoria === "Gasto fijo" || categoria === "Gasto variable" || categoria === "Ingreso");
-    if (!puedeModificar && !puedeEliminar) return;
-    crearManejadorPresionSostenida(row, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: `${iconoDeConcepto(concepto)} ${concepto}`,
-        onEditar: puedeModificar ? () => abrirModificarConcepto(concepto, categoria) : null,
-        // Gastos: por defecto solo se quitan de ESTE mes (ver
-        // quitarConceptoDelMes); el borrado definitivo queda detrás de una
-        // segunda confirmación. Ingresos: siempre definitivo, como antes.
-        onBorrar: puedeEliminar
-          ? () => categoria === "Ingreso"
-              ? eliminarConceptoPresupuesto(concepto, categoria)
-              : quitarConceptoDelMes(concepto, categoria)
-          : null,
-        labelBorrar: categoria === "Ingreso" ? undefined : "➖ Quitar de este mes"
-      })
-    });
   });
 }
 

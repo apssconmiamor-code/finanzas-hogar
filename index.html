@@ -207,27 +207,8 @@
 <!-- donuts removed -->
         <div id="proy-donuts" style="display:none"></div>
         <div id="proy-toggles" style="display:none"></div>
-        <!-- Tabla comparativa -->
-        <div class="card-section">
-          <div class="card-section-header">
-            <span class="card-section-title" id="proy-detalle-mes-label"></span>
-            <div class="proy-leyenda">
-              <span class="leyenda-item"><span class="leyenda-dot estado-mal"></span>Excedido</span>
-            </div>
-          </div>
-          <table class="proy-tabla proy-tabla-detalle">
-            <thead>
-              <tr>
-                <th>Concepto</th>
-                <th>Estimado</th>
-                <th>Real</th>
-              </tr>
-            </thead>
-            <tbody id="proy-tabla-body">
-              <tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-light)">Cargando…</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <!-- Detalle por concepto: pantalla en React (react/src/proyeccion/PantallaProyeccion.jsx) -->
+        <div id="proy-tabla-root"></div>
         <!-- Hidden input for compat -->
         <input id="proyeccion-mes" type="month" style="display:none"/>
         <!-- Modal presupuesto -->
