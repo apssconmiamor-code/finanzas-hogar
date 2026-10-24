@@ -186,48 +186,8 @@
 
       <!-- ══ TAB: MOVIMIENTOS ══ -->
       <section id="tab-movimientos" class="tab-section hidden">
-        <div class="tipo-mov-btn-group" id="tipo-mov-btn-group">
-          <button type="button" class="tipo-mov-btn" id="btn-nuevo-ingreso">Ingreso</button>
-          <button type="button" class="tipo-mov-btn" id="btn-nuevo-gasto">Gasto</button>
-          <button type="button" class="tipo-mov-btn" id="btn-nueva-transferencia">Transferencia</button>
-        </div>
-        <div class="filtros-bar">
-          <span class="filtros-icono" title="Filtros" aria-hidden="true"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg></span></span>
-          <input id="filtro-mes" type="month" class="input-sm"/>
-          <select id="filtro-concepto" class="input-sm">
-            <option value="">Todas las categorías</option>
-            <option value="Ingreso">Ingreso</option>
-            <option value="Gasto fijo">Gasto fijo</option>
-            <option value="Gasto variable">Gasto variable</option>
-            <option value="Transferencia">Transferencia</option>
-          </select>
-          <select id="filtro-subcategoria" class="input-sm">
-            <option value="">Todas</option>
-          </select>
-          <!-- hidden compat -->
-          <select id="filtro-caja" class="hidden"></select>
-        </div>
-        <div id="resumen-bar" class="resumen-bar">
-          <div class="resumen-item ingreso">
-            <span class="resumen-label">Ingresos</span>
-            <span id="total-ingresos" class="resumen-valor">$0</span>
-          </div>
-          <div class="resumen-item gasto">
-            <span class="resumen-label">Gastos</span>
-            <span id="total-gastos" class="resumen-valor">$0</span>
-          </div>
-          <div class="resumen-item balance">
-            <span class="resumen-label">Balance</span>
-            <span id="total-balance" class="resumen-valor">$0</span>
-          </div>
-        </div>
-        <div id="movimientos-franja" class="movimientos-franja">Movimientos de <span id="movimientos-franja-mes"></span></div>
-        <div class="cajas-header">
-          <button type="button" class="btn-sutil" id="btn-sumar-mov" onclick="toggleModoSumaMov()">Sumar</button>
-        </div>
-        <div id="movimientos-list" class="movimientos-list">
-          <div class="loading-state">Cargando…</div>
-        </div>
+        <!-- Filtros, resumen y lista: pantalla en React (react/src/movimientos/PantallaMovimientos.jsx) -->
+        <div id="movimientos-pantalla-root"></div>
         <!-- Nuevo / editar movimiento: es React (react/src/movimiento/Movimiento.jsx). -->
         <div id="movimiento-root"></div>
       </section>

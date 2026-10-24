@@ -981,7 +981,7 @@ async function mostrarApp() {
   document.getElementById("user-name").textContent = currentUser.name;
   document.getElementById("user-avatar").src = currentUser.picture;
   const mesCorriente = new Date().toISOString().slice(0, 7);
-  document.getElementById("filtro-mes").value  = mesCorriente;
+  filtrosMovimientos.mes = mesCorriente;
   // Cargar caché SIEMPRE antes de tocar la red
   const cacheC    = localStorage.getItem("cache_cajas");
   const cacheM    = localStorage.getItem("cache_movimientos");
@@ -1397,19 +1397,8 @@ document.getElementById("btn-refrescar")?.addEventListener("click", cargarTodo);
     );
   }
 
-  // Movimientos
-
-document.getElementById("btn-nuevo-ingreso").addEventListener("click", () => abrirNuevoMovimiento("Ingreso"));
-  document.getElementById("btn-nuevo-gasto").addEventListener("click", () => abrirNuevoMovimiento("Gasto"));
-  document.getElementById("btn-nueva-transferencia").addEventListener("click", () => abrirNuevoMovimiento("Transferencia"));
-
-  document.getElementById("filtro-mes").addEventListener("change", renderMovimientos);
-  document.getElementById("filtro-concepto").addEventListener("change", () => {
-    actualizarFiltroSubcategoria();
-    renderMovimientos();
-  });
-  document.getElementById("filtro-subcategoria")?.addEventListener("change", renderMovimientos);
-  actualizarFiltroSubcategoria();
+  // Movimientos: la pantalla (filtros, resumen y lista) es React; se dibuja desde renderMovimientos.
+  renderMovimientos();
 
   // Separadores de miles: delegación para inputs de presupuesto/proyección (dinámicos)
   document.addEventListener("input", (e) => {
@@ -1491,32 +1480,18 @@ function renderMovimientoReact() {
 
 // ---- FILTRO SUBCATEGORÍA DINÁMICO (depende de la categoría elegida) ----
 
-function actualizarFiltroSubcategoria() {
-  const categoria = document.getElementById("filtro-concepto").value;
-  const sel = document.getElementById("filtro-subcategoria");
-  if (!sel) return;
+// Los filtros de Movimientos (mes, categoría y subcategoría) viven acá; la pantalla React los muestra.
+let filtrosMovimientos = { mes: "", categoria: "", subcategoria: "" };
 
-  let lista = [];
-  if (categoria === "Gasto fijo") {
-    lista = GASTOS_FIJOS;
-  } else if (categoria === "Gasto variable") {
-    lista = GASTOS_VARIABLES;
-  } else if (categoria === "Ingreso") {
-    lista = FUENTES_INGRESO;
-  } else if (categoria === "Transferencia") {
-    lista = [...new Set(
-      movimientos.filter(m => m.categoria === "Transferencia").map(m => m.concepto)
-    )].sort();
-  } else {
-    lista = [...new Set([...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO])].sort();
+// Conceptos entre los que se puede filtrar, según la categoría elegida.
+function opcionesSubcategoria(categoria) {
+  if (categoria === "Gasto fijo") return GASTOS_FIJOS;
+  if (categoria === "Gasto variable") return GASTOS_VARIABLES;
+  if (categoria === "Ingreso") return FUENTES_INGRESO;
+  if (categoria === "Transferencia") {
+    return [...new Set(movimientos.filter(m => m.categoria === "Transferencia").map(m => m.concepto))].sort();
   }
-
-  const valorAnterior = sel.value;
-  sel.innerHTML = `<option value="">Todas</option>` +
-    lista.map(c => `<option value="${c}">${c}</option>`).join("");
-  // Conserva la subcategoría elegida si sigue siendo válida para la nueva categoría
-  if (lista.includes(valorAnterior)) sel.value = valorAnterior;
-  sel.disabled = lista.length === 0;
+  return [...new Set([...GASTOS_FIJOS, ...GASTOS_VARIABLES, ...FUENTES_INGRESO])].sort();
 }
 
 // ---- CARGA DE DATOS ----
@@ -1853,12 +1828,17 @@ function calcularSaldoCaja(nombreCaja) {
 
 // ---- RENDER MOVIMIENTOS ----
 
+// La pantalla de Movimientos es React (react/src/movimientos/PantallaMovimientos.jsx); acá se arma lo que
+// muestra y las acciones de siempre.
 function renderMovimientos() {
-  const filtroM = document.getElementById("filtro-mes")?.value || "";
-  const filtroK = document.getElementById("filtro-concepto")?.value || "";
-  const filtroS = document.getElementById("filtro-subcategoria")?.value || "";
+  if (!window.PantallaMovimientosReact) return;
+  const { mes: filtroM, categoria: filtroK } = filtrosMovimientos;
+  const subOpciones = opcionesSubcategoria(filtroK);
+  // Conserva la subcategoría elegida solo si sigue siendo válida para la categoría.
+  if (filtrosMovimientos.subcategoria && !subOpciones.includes(filtrosMovimientos.subcategoria)) filtrosMovimientos.subcategoria = "";
+  const filtroS = filtrosMovimientos.subcategoria;
 
-  let filtrados = movimientos.filter(m => {
+  const filtrados = movimientos.filter(m => {
     if (filtroK && m.categoria !== filtroK) return false;
     if (filtroS && m.concepto !== filtroS) return false;
     if (filtroM && !m.fecha.startsWith(filtroM)) return false;
@@ -1874,52 +1854,87 @@ function renderMovimientos() {
     return idB - idA;
   });
 
-  // Franja gris entre el resumen y la lista: de qué mes son los movimientos que se están viendo.
-  const franjaMes = document.getElementById("movimientos-franja-mes");
-  if (franjaMes) {
-    franjaMes.textContent = filtroM
-      ? new Date(filtroM + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" })
-      : "todos los meses";
-  }
+  const totalesDe = lista => {
+    let ingresos = 0, gastos = 0;
+    lista.forEach(m => {
+      const cja = cajas.find(c => c.nombre === m.caja);
+      if (cja && cja.moneda !== "COP") return;
+      if (m.categoria === "Ingreso") ingresos += m.monto;
+      else if (m.categoria !== "Transferencia") gastos += Math.abs(m.monto);
+    });
+    return { ingresos, gastos };
+  };
 
-  const subEl = document.getElementById("mov-section-sub");
-  if (subEl) subEl.textContent = `${filtrados.length} movimiento${filtrados.length !== 1 ? "s" : ""}`;
-
-  let ingresos = 0, gastos = 0;
-  filtrados.forEach(m => {
-    const cja = cajas.find(c => c.nombre === m.caja);
-    if (cja && cja.moneda !== "COP") return;
-    if (m.categoria === "Ingreso") ingresos += m.monto;
-    else if (m.categoria !== "Transferencia") gastos += Math.abs(m.monto);
-  });
-  document.getElementById("total-ingresos").textContent = formatMonto(ingresos);
-  document.getElementById("total-gastos").textContent   = formatMonto(gastos);
-  const balance = ingresos - gastos;
-  const balEl = document.getElementById("total-balance");
-  balEl.textContent = formatMonto(balance);
-  balEl.style.color = balance >= 0 ? "var(--green)" : "var(--red)";
-
-  const list = document.getElementById("movimientos-list");
-  if (filtrados.length === 0) {
-    // El mes elegido no tiene movimientos activos -- puede ser que
-    // simplemente no haya, o que ya se haya archivado (más de 3 meses,
-    // ver worker/src/archivo.js). Solo vale la pena revisar el archivo si
-    // es un mes pasado real, no uno futuro vacío.
+  let listaVm, totales = totalesDe(filtrados);
+  if (filtrados.length > 0) {
+    listaVm = { tipo: "tarjetas", tarjetas: filtrados.map(m => tarjetaMovimientoVm(m, true)) };
+  } else {
+    // El mes elegido no tiene movimientos activos -- puede ser que simplemente no haya, o que ya se haya
+    // archivado (más de 3 meses, ver worker/src/archivo.js). Solo vale la pena revisar el archivo si es
+    // un mes pasado real, no uno futuro vacío.
     const mesActual = new Date().toISOString().slice(0, 7);
     if (filtroM && filtroM < mesActual && !movimientos.some(m => m.fecha.startsWith(filtroM))) {
-      renderMesArchivado(filtroM);
-      return;
+      if (mesArchivado && mesArchivado.mes === filtroM) {
+        const movs = mesArchivado.movs;
+        totales = totalesDe(movs);
+        listaVm = movs.length === 0
+          ? { tipo: "vacio" }
+          : { tipo: "archivado", cantidad: movs.length, tarjetas: movs.map(m => tarjetaMovimientoVm(m, false)) };
+      } else {
+        listaVm = { tipo: "buscando" };
+        cargarMesArchivado(filtroM);
+      }
+    } else {
+      listaVm = { tipo: "vacio" };
     }
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">📋</div>
-      <div class="empty-state-text">No hay movimientos para este período.</div></div>`;
-    return;
   }
 
-  list.innerHTML = filtrados.map(m => renderTarjetaMovimiento(m, true)).join("");
-  if (modoSumaMovActivo) _conectarSeleccionMovimientos(list);
-  else _conectarLargoPresionListaMovimientos(list, filtrados);
-  renderSumarMovBarra();
+  const balance = totales.ingresos - totales.gastos;
+  window.PantallaMovimientosReact.render({
+    filtros: { ...filtrosMovimientos },
+    subOpciones,
+    resumen: {
+      ingresos: formatMonto(totales.ingresos), gastos: formatMonto(totales.gastos), balance: formatMonto(balance),
+      balanceColor: balance >= 0 ? "var(--green)" : "var(--red)",
+    },
+    // Franja gris entre el resumen y la lista: de qué mes son los movimientos que se están viendo.
+    franjaMes: filtroM
+      ? new Date(filtroM + "-15").toLocaleDateString("es-CO", { month: "long", year: "numeric" })
+      : "todos los meses",
+    modoSuma: modoSumaMovActivo,
+    lista: listaVm,
+    onFiltro: (campo, valor) => {
+      filtrosMovimientos[campo] = valor;
+      if (campo === "categoria") filtrosMovimientos.subcategoria = "";
+      renderMovimientos();
+    },
+    onNuevo: tipo => abrirNuevoMovimiento(tipo),
+    onToggleSuma: toggleModoSumaMov,
+    onSeleccionar: id => {
+      if (movimientosSeleccionadosParaSumar.has(id)) movimientosSeleccionadosParaSumar.delete(id);
+      else movimientosSeleccionadosParaSumar.add(id);
+      renderFranjas();
+    },
+    onResumen: id => mostrarResumenMovimiento(id),
+    onEditar: id => abrirEditarMovimiento(id),
+    onBorrar: id => borrarMovimiento(id),
+    onFoto: url => abrirFotoMovimiento(url),
+  });
+}
+
+// Lo que la pantalla muestra de un movimiento (la tarjeta). Un movimiento archivado se ve de solo lectura.
+function tarjetaMovimientoVm(m, sumable) {
+  const esIngreso  = m.categoria === "Ingreso";
+  const esEntrada  = esIngreso || (m.categoria === "Transferencia" && m.concepto.startsWith("Transferencia ←"));
+  return {
+    id: m.id, caja: m.caja, concepto: m.concepto, descripcion: m.descripcion || "",
+    fecha: new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" }),
+    monto: (esEntrada ? "+" : "-") + formatMonto(Math.abs(m.monto)),
+    cls: esEntrada ? "ingreso" : "gasto",
+    icono: iconoDeConcepto(m.concepto, esIngreso),
+    foto: m.recibo ? m.recibo.split(",")[0].trim() : "",
+    seleccionada: !!(sumable && modoSumaMovActivo && movimientosSeleccionadosParaSumar.has(m.id)),
+  };
 }
 
 // ---- Sumar movimientos ----
@@ -1933,26 +1948,7 @@ function toggleModoSumaMov() {
   modoSumaMovActivo = !modoSumaMovActivo;
   movimientosSeleccionadosParaSumar = new Set();
   renderMovimientos();
-  renderFranjas();   // renderMovimientos no siempre llega a repintar la franja (mes archivado, lista vacía)
-}
-
-function renderBotonSumarMov() {
-  const btn = document.getElementById("btn-sumar-mov");
-  if (!btn) return;
-  btn.textContent = modoSumaMovActivo ? "Listo" : "Sumar";
-  btn.classList.toggle("active", modoSumaMovActivo);
-}
-
-function _conectarSeleccionMovimientos(list) {
-  list.querySelectorAll(".mov-card[data-id]").forEach(card => {
-    card.addEventListener("pointerup", () => {
-      const id = card.dataset.id;
-      if (movimientosSeleccionadosParaSumar.has(id)) movimientosSeleccionadosParaSumar.delete(id);
-      else movimientosSeleccionadosParaSumar.add(id);
-      card.classList.toggle("mov-card-seleccionada");
-      renderSumarMovBarra();
-    });
-  });
+  renderFranjas();
 }
 
 // Estado del modo Sumar para la franja inferior de Movimientos (ver renderFranjas).
@@ -1976,7 +1972,6 @@ function _estadoSumaMov() {
 }
 
 function renderSumarMovBarra() {
-  renderBotonSumarMov();
   renderFranjas();
 }
 
@@ -2041,149 +2036,39 @@ function renderFranjas() {
   });
 }
 
-// Mantener presionada una tarjeta de movimiento abre Editar/Eliminar (ver
-// abrirMenuEditarBorrar en gestos.js) -- SOLO para la lista activa. Un mes
-// archivado reusa renderTarjetaMovimiento pero de solo lectura (no está
-// en la hoja activa, abrirEditarMovimiento/borrarMovimiento no lo
-// encontrarían), así que renderMesArchivado nunca llama a esto.
-function _conectarLargoPresionListaMovimientos(contenedor, lista) {
-  contenedor.querySelectorAll(".mov-card").forEach(card => {
-    const id = card.dataset.id;
-    const m = lista.find(x => x.id === id);
-    if (!m) return;
-    crearManejadorPresionSostenida(card, {
-      onLargo: () => abrirMenuEditarBorrar({
-        titulo: m.concepto || "Movimiento",
-        onEditar: () => abrirEditarMovimiento(id),
-        onBorrar: () => borrarMovimiento(id)
-      })
-    });
-  });
-}
-
-// Editar/Borrar ya no van sueltos en la tarjeta -- se ven en el resumen del
-// doble toque (mostrarResumenMovimiento), igual que en Alertas y Proyección.
-function renderTarjetaMovimiento(m, sumable = false) {
-  const esIngreso  = m.categoria === "Ingreso";
-  const esTransfer = m.categoria === "Transferencia";
-  const esEntrada  = esIngreso || (esTransfer && m.concepto.startsWith("Transferencia ←"));
-  const cls   = esEntrada ? "ingreso" : "gasto";
-  const signo = esEntrada ? "+" : "-";
-  const icono = iconoDeConcepto(m.concepto, esIngreso);
-  const fechaFmt = new Date(m.fecha + "T12:00:00").toLocaleDateString("es-CO",
-    { day: "2-digit", month: "short", year: "numeric" });
-  const catCls = m.categoria.toLowerCase().replace(/ /g,"");
-  const descHTML = m.descripcion
-    ? `<span class="mov-desc-inline">· ${escapeHtml(m.descripcion)}</span>` : "";
-  const primeraFoto = m.recibo ? m.recibo.split(",")[0].trim() : "";
-  const fotoHTML = primeraFoto
-    ? `<span class="mov-card-foto-icono" title="Tiene foto o audio adjunto" onclick="event.stopPropagation();abrirFotoMovimiento('${primeraFoto}')" onpointerup="event.stopPropagation()">📎</span>`
-    : "";
-
-  const seleccionada = sumable && modoSumaMovActivo && movimientosSeleccionadosParaSumar.has(m.id);
-  const tapNormal = sumable && modoSumaMovActivo ? "" : ` onpointerup="tapMovimiento('${m.id}', event)"`;
-  return `<div class="mov-card${seleccionada ? " mov-card-seleccionada" : ""}" data-id="${m.id}"${tapNormal}>
-      <div class="mov-card-row1">
-        <span class="mov-card-caja">${escapeHtml(m.caja)}</span>
-        <span class="mov-card-fecha">${fechaFmt}</span>
-      </div>
-      <div class="mov-card-row2">
-        <div class="mov-card-left">
-          <span class="mov-card-icono mov-cat-${catCls}">${icono}</span>
-          <div class="mov-card-texto">
-            <span class="mov-card-concepto">${escapeHtml(m.concepto) || "Sin concepto"}${fotoHTML}</span>
-            ${descHTML}
-          </div>
-        </div>
-        <div class="mov-card-right">
-          <span class="mov-card-monto ${cls}">${signo}${formatMonto(Math.abs(m.monto))}</span>
-        </div>
-      </div>
-    </div>`;
-}
-
 // ---- MES ARCHIVADO (más de 3 meses -- ver worker/src/archivo.js) ----
 // Se lee bajo demanda, solo cuando el mes elegido no tiene nada en los
 // movimientos activos, y se guarda en memoria para no repetir la lectura
 // si el usuario va y vuelve entre meses viejos en la misma sesión.
 let movimientosArchivadosCache = null;
 
-async function renderMesArchivado(mes) {
-  const list = document.getElementById("movimientos-list");
-  list.innerHTML = `<div class="empty-state">
-    <div class="empty-state-icon">⏳</div>
-    <div class="empty-state-text">Buscando en el archivo…</div></div>`;
+// Los movimientos de un mes archivado, listos para mostrar (ver renderMovimientos).
+let mesArchivado = null;      // { mes, movs }
+let buscandoArchivado = false;
 
-  if (movimientosArchivadosCache === null) {
-    try {
-      movimientosArchivadosCache = await Sheets.getMovimientosArchivados();
-    } catch (err) {
-      movimientosArchivadosCache = [];
+async function cargarMesArchivado(mes) {
+  if (buscandoArchivado) return;
+  buscandoArchivado = true;
+  try {
+    if (movimientosArchivadosCache === null) {
+      try {
+        movimientosArchivadosCache = await Sheets.getMovimientosArchivados();
+      } catch (err) {
+        movimientosArchivadosCache = [];
+      }
     }
+    mesArchivado = {
+      mes,
+      movs: movimientosArchivadosCache.filter(m => m.fecha.startsWith(mes)).sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    };
+  } finally {
+    buscandoArchivado = false;
   }
-
   // El filtro de mes pudo haber cambiado mientras esperábamos la red.
-  if (document.getElementById("filtro-mes")?.value !== mes) return;
-
-  const movsDelMes = movimientosArchivadosCache
-    .filter(m => m.fecha.startsWith(mes))
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
-
-  const subEl = document.getElementById("mov-section-sub");
-  if (movsDelMes.length === 0) {
-    if (subEl) subEl.textContent = "0 movimientos";
-    document.getElementById("total-ingresos").textContent = formatMonto(0);
-    document.getElementById("total-gastos").textContent   = formatMonto(0);
-    const balEl = document.getElementById("total-balance");
-    balEl.textContent = formatMonto(0);
-    balEl.style.color = "var(--text)";
-    list.innerHTML = `<div class="empty-state">
-      <div class="empty-state-icon">📋</div>
-      <div class="empty-state-text">No hay movimientos para este período.</div></div>`;
-    return;
-  }
-
-  let ingresos = 0, gastos = 0;
-  movsDelMes.forEach(m => {
-    const cja = cajas.find(c => c.nombre === m.caja);
-    if (cja && cja.moneda !== "COP") return;
-    if (m.categoria === "Ingreso") ingresos += m.monto;
-    else if (m.categoria !== "Transferencia") gastos += Math.abs(m.monto);
-  });
-  document.getElementById("total-ingresos").textContent = formatMonto(ingresos);
-  document.getElementById("total-gastos").textContent   = formatMonto(gastos);
-  const balance = ingresos - gastos;
-  const balEl = document.getElementById("total-balance");
-  balEl.textContent = formatMonto(balance);
-  balEl.style.color = balance >= 0 ? "var(--green)" : "var(--red)";
-  if (subEl) subEl.textContent = `${movsDelMes.length} movimiento${movsDelMes.length !== 1 ? "s" : ""} · archivado`;
-
-  list.innerHTML = `
-    <div class="mes-archivado-resumen">
-      <span class="mes-archivado-icono">🗄️</span>
-      <span>Este mes ya se archivó para aligerar la app — se ve un resumen; el detalle completo sigue disponible.</span>
-    </div>
-    <button type="button" class="btn-secondary mes-archivado-btn-detalle" id="btn-ver-detalle-archivado">Ver detalle (${movsDelMes.length})</button>
-    <div id="detalle-archivado-lista" class="hidden"></div>`;
-
-  document.getElementById("btn-ver-detalle-archivado")?.addEventListener("click", (e) => {
-    const cont = document.getElementById("detalle-archivado-lista");
-    if (cont.classList.contains("hidden")) {
-      cont.innerHTML = movsDelMes.map(renderTarjetaMovimiento).join("");
-      cont.classList.remove("hidden");
-      e.target.textContent = "Ocultar detalle";
-    } else {
-      cont.classList.add("hidden");
-      e.target.textContent = `Ver detalle (${movsDelMes.length})`;
-    }
-  });
+  renderMovimientos();
 }
 
-// Doble tap/clic manual sobre una tarjeta de movimiento: no se puede usar
-// ondblclick porque el bloqueo de zoom (touchend -> preventDefault en index.html)
-// suprime la síntesis nativa de click/dblclick en Safari iOS real, aunque
-// funcione con .dblclick() de Playwright (que no pasa por ese camino táctil).
-const tapMovimiento = crearManejadorDobleToque(id => id, id => mostrarResumenMovimiento(id));
+// Doble toque sobre una tarjeta de movimiento = resumen (lo conecta PantallaMovimientos.jsx).
 
 // Resumen de un movimiento (doble toque sobre su tarjeta) -- solo lectura;
 // Editar/Borrar viven en el menú de mantener presionado, no acá (ver

@@ -17,6 +17,7 @@
 //   PantallaMercadoReact.render(props)     -> pantalla de Mercado: categorías y productos
 //   PantallaPlanesReact.render(props)      -> pantalla de Planes: categorías y planes
 //   PantallaAlertasReact.render(props)     -> pantalla de Alertas: bloques y alertas
+//   PantallaMovimientosReact.render(props) -> pantalla de Movimientos: filtros, resumen y lista
 //   FranjasReact.render(props)    -> franja inferior de las vistas aún en JS plano (#franjas-root)
 // app.js sigue dueño de los datos; React solo dibuja y maneja el estado de UI
 // propio de cada isla (selección de "Sumar" en Cajas, etc.).
@@ -36,6 +37,7 @@ import { PantallaAnalisis } from "./analisis/PantallaAnalisis.jsx";
 import { PantallaMercado } from "./mercado/PantallaMercado.jsx";
 import { PantallaPlanes } from "./planes/PantallaPlanes.jsx";
 import { PantallaAlertas } from "./alertas/PantallaAlertas.jsx";
+import { PantallaMovimientos } from "./movimientos/PantallaMovimientos.jsx";
 import { Recordatorios } from "./recordatorios/Recordatorios.jsx";
 import { Conceptos } from "./conceptos/Conceptos.jsx";
 import { Detalles } from "./detalles/Detalles.jsx";
@@ -69,6 +71,7 @@ window.PantallaAnalisisReact = crearIsla("analisis-pantalla-root", PantallaAnali
 window.PantallaMercadoReact = crearIsla("mercado-pantalla-root", PantallaMercado, true);
 window.PantallaPlanesReact = crearIsla("planes-pantalla-root", PantallaPlanes, true);
 window.PantallaAlertasReact = crearIsla("alertas-pantalla-root", PantallaAlertas, true);
+window.PantallaMovimientosReact = crearIsla("movimientos-pantalla-root", PantallaMovimientos, true);
 window.RecordatoriosReact = crearIsla("recordatorios-root", Recordatorios, false);
 window.ConceptosReact = crearIsla("conceptos-root", Conceptos, false);
 window.DetallesReact = crearIsla("detalles-root", Detalles, false);
